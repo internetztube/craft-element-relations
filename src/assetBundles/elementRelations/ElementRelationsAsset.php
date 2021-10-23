@@ -1,6 +1,6 @@
 <?php
 
-namespace internetztube\elementrRelations\assetBundles\elementRelations;
+namespace internetztube\elementRelations\assetBundles\elementRelations;
 
 use Craft;
 use craft\web\AssetBundle;
@@ -10,7 +10,7 @@ class ElementRelationsAsset extends AssetBundle
 {
     public function init()
     {
-        $this->sourcePath = "@internetztube/elementrelations/assetbundles/elementrelations/dist";
+        $this->sourcePath = "@internetztube/elementRelations/assetBundles/elementRelations/dist";
         $this->depends = [CpAsset::class];
         $this->js = ['js/element-relations.js'];
         $this->css = ['css/element-relations.css'];

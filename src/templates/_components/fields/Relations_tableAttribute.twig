@@ -1,0 +1,10 @@
+<script>
+    (async () => {
+        const $container = document.querySelector('[data-id="{{ id }}"].js-internetztube-elementRelations-relations-tableView')
+        const request = await fetch('{{ endpoint | raw }}')
+        $container.innerHTML = await request.text()
+    })()
+</script>
+<div class="js-internetztube-elementRelations-relations-tableView" data-id="{{ id }}">
+    <div class="spinner"></div>
+</div>

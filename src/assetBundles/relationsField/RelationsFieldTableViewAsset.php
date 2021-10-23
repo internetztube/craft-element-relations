@@ -14,13 +14,13 @@ use Craft;
 use craft\web\AssetBundle;
 use craft\web\assets\cp\CpAsset;
 
-class RelationsFieldAsset extends AssetBundle
+class RelationsFieldTableViewAsset extends AssetBundle
 {
     public function init()
     {
         $this->sourcePath = "@internetztube/elementRelations/assetBundles/relationsField/dist";
         $this->depends = [CpAsset::class];
-        $this->js = ['js/relations.js',];
+        $this->js = ['js/relations.js'];
         $this->css = ['css/relations.css'];
         parent::init();
     }
