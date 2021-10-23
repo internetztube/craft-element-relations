@@ -19,8 +19,6 @@ use craft\helpers\Json;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
-    public $someAttribute = 'Some Default';
-
     public static function displayName(): string
     {
         return Craft::t('element-relations', 'Relations');

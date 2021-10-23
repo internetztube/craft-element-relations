@@ -1,5 +1,3 @@
 <?php
 
-return [
-    "someAttribute" => true,
-];
+return [];

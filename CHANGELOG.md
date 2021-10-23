@@ -1,4 +1,4 @@
-# element-relations Changelog
+# Element Relations Changelog
 
 All notable changes to this project will be documented in this file.
 

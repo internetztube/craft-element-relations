@@ -1,43 +1,27 @@
-# element-relations plugin for Craft CMS 3.x
+# Element Relations Plugin for Craft CMS 3.x
 
-Indicates where a certain element is used.
+This plugin shows all relations of an element. For example, where an asset, entry or any other element is linked.
 
-![Screenshot](resources/img/plugin-logo.png)
+__Feature Requests are welcome!__
+
+![Share](screenshots/share.png)
 
 ## Requirements
 
 This plugin requires Craft CMS 3.0.0-beta.23 or later.
 
 ## Installation
+To install this plugin, follow these steps:
+1. Install with Composer via `composer require internetztube/craft-element-relations`
+2. Install plugin in the Craft Control Panel under Settings > Plugins
 
-To install the plugin, follow these instructions.
+You can also install this plugin via the Plugin Store in the Craft Control Panel.
 
-1. Open your terminal and go to your Craft project:
+## Screenshots
+*coming soon* 
 
-        cd /path/to/project
+# Issues
+Please report any issues you find to the [Issues](https://github.com/internetztube/craft-structure-disable-reorder/issues) page.
 
-2. Then tell Composer to load the plugin:
-
-        composer require internetztube/element-relations
-
-3. In the Control Panel, go to Settings → Plugins and click the “Install” button for element-relations.
-
-## element-relations Overview
-
--Insert text here-
-
-## Configuring element-relations
-
--Insert text here-
-
-## Using element-relations
-
--Insert text here-
-
-## element-relations Roadmap
-
-Some things to do, and ideas for potential features:
-
-* Release it
 
 Brought to you by [Frederic Koeberl](https://frederickoeberl.com/)

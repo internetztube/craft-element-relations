@@ -1,6 +1,6 @@
 {
     "name": "internetztube/craft-element-relations",
-    "description": "Indicates where a certain element is used.",
+    "description": "Shows all relations of an element.",
     "type": "craft-plugin",
     "version": "1.0.0",
     "keywords": [
@@ -22,7 +22,8 @@
         }
     ],
     "require": {
-        "craftcms/cms": "^3.0.0"
+        "craftcms/cms": "^3.0.0",
+        "tightenco/collect": "^8.34"
     },
     "autoload": {
         "psr-4": {
@@ -30,7 +31,7 @@
         }
     },
     "extra": {
-        "name": "element-relations",
+        "name": "Element Relations",
         "handle": "element-relations",
         "developer": "Frederic Koeberl",
         "developerUrl": "https://frederickoeberl.com/",
