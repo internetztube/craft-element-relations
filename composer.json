@@ -1,5 +1,5 @@
 {
-    "name": "internetztube/element-relations",
+    "name": "internetztube/craft-element-relations",
     "description": "Indicates where a certain element is used.",
     "type": "craft-plugin",
     "version": "1.0.0",
@@ -11,8 +11,8 @@
         "element-relations"
     ],
     "support": {
-        "docs": "https://github.com/internetztube/element-relations/blob/master/README.md",
-        "issues": "https://github.com/internetztube/element-relations/issues"
+        "docs": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
+        "issues": "https://github.com/internetztube/craft-element-relations/issues"
     },
     "license": "MIT",
     "authors": [
@@ -26,7 +26,7 @@
     },
     "autoload": {
         "psr-4": {
-          "internetztube\\elementrelations\\": "src/"
+          "internetztube\\elementRelations\\": "src/"
         }
     },
     "extra": {
@@ -34,8 +34,8 @@
         "handle": "element-relations",
         "developer": "Frederic Koeberl",
         "developerUrl": "https://frederickoeberl.com/",
-        "documentationUrl": "https://github.com/internetztube/element-relations/blob/master/README.md",
-        "changelogUrl": "https://raw.githubusercontent.com/internetztube/element-relations/master/CHANGELOG.md",
-        "class": "internetztube\\elementrelations\\Elementrelations"
+        "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
+        "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/master/CHANGELOG.md",
+        "class": "internetztube\\elementRelations\\ElementRelations"
     }
 }

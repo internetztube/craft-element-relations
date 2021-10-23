@@ -1,17 +1,9 @@
 <?php
-/**
- * element-relations plugin for Craft CMS 3.x
- *
- * Indicates where a certain element is used.
- *
- * @link      https://frederickoeberl.com/
- * @copyright Copyright (c) 2021 Frederic Koeberl
- */
 
-namespace internetztube\elementrelations\fields;
+namespace internetztube\elementRelations\fields;
 
-use internetztube\elementrelations\Elementrelations;
-use internetztube\elementrelations\assetbundles\relationsfield\RelationsFieldAsset;
+use internetztube\elementRelations\ElementRelations;
+use internetztube\elementRelations\assetbundles\relationsField\RelationsFieldAsset;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -20,19 +12,6 @@ use craft\helpers\Db;
 use yii\db\Schema;
 use craft\helpers\Json;
 
-/**
- * Relations Field
- *
- * Whenever someone creates a new field in Craft, they must specify what
- * type of field it is. The system comes with a handful of field types baked in,
- * and we’ve made it extremely easy for plugins to add new ones.
- *
- * https://craftcms.com/docs/plugins/field-types
- *
- * @author    Frederic Koeberl
- * @package   Elementrelations
- * @since     1.0.0
- */
 class Relations extends Field
 {
     // Public Properties
