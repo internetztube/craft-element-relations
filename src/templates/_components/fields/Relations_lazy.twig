@@ -1,9 +1,9 @@
-<div class="js-internetztube-elementRelations-relations" data-id="{{ id }}">
+<div class="element-relations-lazy" data-id="{{ id }}">
     <div class="spinner"></div>
 </div>
 <script>
     (async () => {
-        const $container = document.querySelector('[data-id="{{ id }}"].js-internetztube-elementRelations-relations')
+        const $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy')
         const request = await fetch('{{ endpoint | raw }}')
         $container.innerHTML = await request.text()
     })()

@@ -15,7 +15,7 @@ use yii\base\BaseObject;
 use yii\helpers\Markdown;
 use yii\web\NotFoundHttpException;
 
-class MainController extends Controller
+class ElementRelationsController extends Controller
 {
     protected $allowAnonymous = true;
     public $enableCsrfValidation = false;
@@ -33,6 +33,5 @@ class MainController extends Controller
             return Cp::elementPreviewHtml($relations, Cp::ELEMENT_SIZE_SMALL);
         }
         return Cp::elementPreviewHtml($relations, Cp::ELEMENT_SIZE_LARGE);
-
     }
 }

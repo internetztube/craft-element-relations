@@ -6,10 +6,8 @@ use craft\base\Element;
 use craft\base\PreviewableFieldInterface;
 use craft\helpers\Cp;
 use craft\helpers\Html;
+use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
-use internetztube\elementRelations\assetBundles\relationsField\RelationsFieldTableView;
-use internetztube\elementRelations\ElementRelations;
-use internetztube\elementRelations\assetbundles\relationsField\RelationsFieldTableViewAsset;
 
 use Craft;
 use craft\base\ElementInterface;
@@ -19,7 +17,7 @@ use internetztube\elementRelations\services\ElementRelationsService;
 use yii\db\Schema;
 use craft\helpers\Json;
 
-class Relations extends Field implements PreviewableFieldInterface
+class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
     public $someAttribute = 'Some Default';
 
@@ -40,15 +38,15 @@ class Relations extends Field implements PreviewableFieldInterface
 
     private function _getLazyHtml(Element $element, string $size = 'default')
     {
-        $endpoint = UrlHelper::actionUrl('element-relations/main/get-by-element-id', [
+        $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
             'elementId' => $element->id,
             'siteId' => $element->siteId,
         ], null, false);
         return Craft::$app->getView()->renderTemplate(
-            'element-relations/_components/fields/Relations_input',
+            'element-relations/_components/fields/Relations_lazy',
             [
                 'endpoint' => $endpoint,
-                'id' => sprintf('%s-%s', $element->id, $element->siteId),
+                'id' => sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6)),
             ]
         );
     }
