@@ -1,0 +1,26 @@
+{# @var craft \craft\web\twig\variables\CraftVariable #}
+{#
+/**
+ * element-relations plugin for Craft CMS 3.x
+ *
+ * element-relations Settings.twig
+ *
+ * @author    Frederic Koeberl
+ * @copyright Copyright (c) 2021 Frederic Koeberl
+ * @link      https://frederickoeberl.com/
+ * @package   Elementrelations
+ * @since     1.0.0
+ */
+#}
+
+{% import "_includes/forms" as forms %}
+
+{% do view.registerAssetBundle("internetztube\\elementrelations\\assetbundles\\elementrelations\\ElementrelationsAsset") %}
+
+{{ forms.textField({
+    label: 'Some Field',
+    instructions: 'Enter some setting here.',
+    id: 'someAttribute',
+    name: 'someAttribute',
+    value: settings['someAttribute']})
+}}

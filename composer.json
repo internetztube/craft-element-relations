@@ -1,0 +1,41 @@
+{
+    "name": "internetztube/element-relations",
+    "description": "Indicates where a certain element is used.",
+    "type": "craft-plugin",
+    "version": "1.0.0",
+    "keywords": [
+        "craft",
+        "cms",
+        "craftcms",
+        "craft-plugin",
+        "element-relations"
+    ],
+    "support": {
+        "docs": "https://github.com/internetztube/element-relations/blob/master/README.md",
+        "issues": "https://github.com/internetztube/element-relations/issues"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Frederic Koeberl",
+            "homepage": "https://frederickoeberl.com/"
+        }
+    ],
+    "require": {
+        "craftcms/cms": "^3.0.0"
+    },
+    "autoload": {
+        "psr-4": {
+          "internetztube\\elementrelations\\": "src/"
+        }
+    },
+    "extra": {
+        "name": "element-relations",
+        "handle": "element-relations",
+        "developer": "Frederic Koeberl",
+        "developerUrl": "https://frederickoeberl.com/",
+        "documentationUrl": "https://github.com/internetztube/element-relations/blob/master/README.md",
+        "changelogUrl": "https://raw.githubusercontent.com/internetztube/element-relations/master/CHANGELOG.md",
+        "class": "internetztube\\elementrelations\\Elementrelations"
+    }
+}
