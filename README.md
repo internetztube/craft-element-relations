@@ -18,7 +18,17 @@ To install this plugin, follow these steps:
 You can also install this plugin via the Plugin Store in the Craft Control Panel.
 
 ## Screenshots
-*coming soon* 
+![Field Edit Page](screenshots/field.jpg)
+Create Field
+
+![Asset Overview Primary Page](screenshots/asset-overview-en.png)
+Asset Overview Primary Page
+
+![Asset Overview Other Page](screenshots/asset-overview-fr.png)
+Asset Overview Other Page
+
+![Asset Detail](screenshots/asset-detail.png)
+Asset detail
 
 # Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-structure-disable-reorder/issues) page.
