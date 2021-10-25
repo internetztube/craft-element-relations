@@ -36,16 +36,15 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     private function _getLazyHtml(Element $element, string $size = 'default')
     {
+        $id = sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6));
         $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
             'elementId' => $element->id,
             'siteId' => $element->siteId,
+            'size' => $size,
         ], null, false);
         return Craft::$app->getView()->renderTemplate(
             'element-relations/_components/fields/Relations_lazy',
-            [
-                'endpoint' => $endpoint,
-                'id' => sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6)),
-            ]
+            ['endpoint' => $endpoint, 'id' => $id]
         );
     }
 }

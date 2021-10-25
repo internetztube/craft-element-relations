@@ -29,14 +29,14 @@ class ElementRelationsService extends Component
         })->filter()->values()->toArray();
     }
 
-    private static function getElementById (int $elementId, Site $site): ?Element
+    private static function getElementById (int $elementId, $site): ?Element
     {
         $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
         if (!$result) { return null; } // relation is broken
         return $result['type']::find()->id($elementId)->anyStatus()->site($site)->one();
     }
 
-    private static function getRootElement (Element $element, Site $site): ?Element
+    private static function getRootElement (Element $element, $site): ?Element
     {
         if (!isset($element->ownerId) || !$element->ownerId) { return $element; }
         $sourceElement = self::getElementById($element->ownerId, $site);

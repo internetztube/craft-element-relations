@@ -25,13 +25,21 @@ class ElementRelationsController extends Controller
         $elementId = \Craft::$app->request->getParam('elementId');
         $siteId = \Craft::$app->request->getParam('siteId');
         $size = \Craft::$app->request->getParam('size', 'default');
+        $size = $size === 'small' ? Cp::ELEMENT_SIZE_SMALL : Cp::ELEMENT_SIZE_LARGE;
         $element = \Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
         $relations = ElementRelationsService::getRelationsFromElement($element);
-        if (!count($relations)) { return '<span style="color: #da5a47;">Unused</span>'; }
-        if ($size === 'small') {
-            return Cp::elementPreviewHtml($relations, Cp::ELEMENT_SIZE_SMALL);
+
+        if (!count($relations)) {
+            $relationsAnySite = ElementRelationsService::getRelationsFromElement($element, true);
+            if (count($relationsAnySite) === 0) {
+                return '<span style="color: #da5a47;">Unused</span>';
+            } else {
+                $result = 'Unused in this site, but used in others:<br />';
+                $result .= Cp::elementPreviewHtml($relationsAnySite, $size);
+                return $result;
+            }
         }
-        return Cp::elementPreviewHtml($relations, Cp::ELEMENT_SIZE_LARGE);
+        return Cp::elementPreviewHtml($relations, $size);
     }
 }
