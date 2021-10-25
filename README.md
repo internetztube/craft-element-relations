@@ -17,6 +17,17 @@ To install this plugin, follow these steps:
 
 You can also install this plugin via the Plugin Store in the Craft Control Panel.
 
+## Support
+As a basis the relations table is used. This means that any field that stores relations in the relations table will work out of the box.
+* Most Craft CMS internal fields
+* NEO
+* SuperTable
+* SEOmatic
+* ... and many more.
+
+**Not supported:**
+* Redactor
+
 ## Screenshots
 ![Field Edit Page](screenshots/field.jpg)
 Create Field

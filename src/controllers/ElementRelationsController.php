@@ -29,17 +29,28 @@ class ElementRelationsController extends Controller
         $element = \Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
         $relations = ElementRelationsService::getRelationsFromElement($element);
+        $isUsedInSEOmatic = ElementRelationsService::isUsedInSEOmatic($element);
 
-        if (!count($relations)) {
+        $result = collect();
+
+        if ($isUsedInSEOmatic['usedGlobally']) {
+            $result->push('Used in SEOmatic Global Settings');
+        }
+        if (!empty($isUsedInSEOmatic['elements'])) {
+            $result->push('Used in SEOmatic in these Elements (+Drafts):');
+            $result->push(Cp::elementPreviewHtml($isUsedInSEOmatic['elements'], $size));
+        }
+        if (!empty($relations)) {
+            $result->push(Cp::elementPreviewHtml($relations, $size));
+        } else {
             $relationsAnySite = ElementRelationsService::getRelationsFromElement($element, true);
-            if (count($relationsAnySite) === 0) {
-                return '<span style="color: #da5a47;">Unused</span>';
-            } else {
-                $result = 'Unused in this site, but used in others:<br />';
-                $result .= Cp::elementPreviewHtml($relationsAnySite, $size);
-                return $result;
+            if (!empty($relationsAnySite)) {
+                $result->push('Unused in this site, but used in others:');
+                $result->push(Cp::elementPreviewHtml($relationsAnySite, $size));
             }
         }
-        return Cp::elementPreviewHtml($relations, $size);
+
+        if ($result->isEmpty()) { $result->push('<span style="color: #da5a47;">Unused</span>'); }
+        return $result->implode('<br />');
     }
 }
