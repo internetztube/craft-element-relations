@@ -75,10 +75,10 @@ class ElementRelationsService extends Component
 
         collect($fields)->each(function ($handle) use (&$foundElements, $extractIdFromString, $sourceElement) {
             $fieldHandle = sprintf('field_%s', $handle);
-            $rows = (new Query)->select(['elements.canonicalId', 'elements.id', 'siteId', 'title', 'content.'.$fieldHandle])
+            $rows = (new Query)->select(['{{%elements}}.canonicalId', '{{%elements}}.id', 'siteId', 'title', '{{%content}}.'.$fieldHandle])
                 ->from(Table::CONTENT)
-                ->innerJoin(Table::ELEMENTS, '[[elements.id]] = [[content.elementId]]')
-                ->where(['NOT', ['content.'.$fieldHandle => null]])
+                ->innerJoin(Table::ELEMENTS, '{{%elements}}.id = {{%content}}.elementId')
+                ->where(['NOT', ['{{%content}}.'.$fieldHandle => null]])
                 ->all();
             collect($rows)->each(function ($row) use (&$foundElements, $extractIdFromString, $fieldHandle, $sourceElement) {
                 $data = json_decode($row[$fieldHandle]);
