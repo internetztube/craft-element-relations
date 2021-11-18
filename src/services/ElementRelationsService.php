@@ -37,7 +37,20 @@ class ElementRelationsService extends Component
         return $result['type']::find()->id($elementId)->anyStatus()->site($site)->one();
     }
 
-    public static function isUsedInSEOmatic(Element $sourceElement)
+    public static function assetUsageInProfilePhotos(Element $sourceElement)
+    {
+        $users = (new Query())
+            ->select(['id'])
+            ->from(Table::USERS)
+            ->where(['photoId' => $sourceElement->id])
+            ->all();
+
+        return collect($users)->map(function (array $user) {
+            return \Craft::$app->users->getUserById($user['id']);
+        })->all();
+    }
+
+    public static function assetUsageInSEOmatic(Element $sourceElement)
     {
         $result = ['usedGlobally' => false, 'elements' => []];
         $isInstalled = \Craft::$app->db->tableExists('{{%seomatic_metabundles}}');
