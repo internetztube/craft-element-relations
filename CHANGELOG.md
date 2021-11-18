@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## 1.0.6 - 2021-11-18
 ### Added
-- Added support for Users.
+- Added support for Profile Photos.
 
 ### Fixed
 - Fixed bug that occurred on prefixed SEOmatic fields.
