@@ -79,10 +79,14 @@ class ElementRelationsService extends Component
             ->map(function($row) { return (int) $row; })->unique()
             ->contains($sourceElement->id);
 
-        $fields = (new Query)->select(['handle'])
+        $fields = (new Query)->select(['handle', 'columnSuffix'])
             ->from(Table::FIELDS)
             ->where(['=', 'type', 'nystudio107\seomatic\fields\SeoSettings'])
-            ->column();
+            ->all();
+        $fields = collect($fields)->map(function ($field) {
+            if (empty($field['columnSuffix'])) { return $field['handle']; }
+            return sprintf('%s_%s', $field['handle'], $field['columnSuffix']);
+        })->toArray();
 
         $foundElements = collect();
 

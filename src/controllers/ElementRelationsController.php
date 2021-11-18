@@ -2,17 +2,13 @@
 
 namespace internetztube\elementRelations\controllers;
 
-use Craft;
-use craft\elements\Entry;
+use craft\elements\Asset;
 use craft\helpers\Cp;
 use craft\web\Controller;
 use fruitstudios\linkit\models\Url;
-use GuzzleHttp\Client;
 use internetztube\elementRelations\services\ElementRelationsService;
 use verbb\supertable\elements\SuperTableBlockElement;
 use verbb\supertable\SuperTable;
-use yii\base\BaseObject;
-use yii\helpers\Markdown;
 use yii\web\NotFoundHttpException;
 
 class ElementRelationsController extends Controller
@@ -29,24 +25,32 @@ class ElementRelationsController extends Controller
         $element = \Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
         $relations = ElementRelationsService::getRelationsFromElement($element);
-        $isUsedInSEOmatic = ElementRelationsService::isUsedInSEOmatic($element);
 
         $result = collect();
 
-        if ($isUsedInSEOmatic['usedGlobally']) {
-            $result->push('Used in SEOmatic Global Settings');
+        if ($element instanceof Asset) {
+            $assetUsageInSeomatic = ElementRelationsService::assetUsageInSEOmatic($element);
+            if ($assetUsageInSeomatic['usedGlobally']) {
+                $result->push('Used in SEOmatic Global Settings');
+            }
+            if (!empty($assetUsageInSeomatic['elements'])) {
+                $result->push('Used in SEOmatic in these Elements (+Drafts):');
+                $result->push(Cp::elementPreviewHtml($assetUsageInSeomatic['elements'], $size));
+            }
+
+            $assetUsageInProfilePhotos = ElementRelationsService::assetUsageInProfilePhotos($element);
+            if (!empty($assetUsageInProfilePhotos)) {
+                $result->push(Cp::elementPreviewHtml($assetUsageInProfilePhotos, $size, true, false, true));
+            }
         }
-        if (!empty($isUsedInSEOmatic['elements'])) {
-            $result->push('Used in SEOmatic in these Elements (+Drafts):');
-            $result->push(Cp::elementPreviewHtml($isUsedInSEOmatic['elements'], $size));
-        }
+
         if (!empty($relations)) {
             $result->push(Cp::elementPreviewHtml($relations, $size));
         } else {
             $relationsAnySite = ElementRelationsService::getRelationsFromElement($element, true);
             if (!empty($relationsAnySite)) {
                 $result->push('Unused in this site, but used in others:');
-                $result->push(Cp::elementPreviewHtml($relationsAnySite, $size));
+                $result->push(Cp::elementPreviewHtml($relationsAnySite, $size, true, false, true));
             }
         }
 
