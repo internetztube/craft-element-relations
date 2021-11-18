@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.0.6 - 2021-11-18
+### Added
+- Added support for Users.
+
+### Fixed
+- Fixed bug that occurred on prefixed SEOmatic fields.
+- SEOmatic and Profile Photo check now only occur when element is an Asset. -> Performance
+
 ## 1.0.5 - 2021-11-13
 ### Fixed
 - Fixed bug that occurred on Craft CMS installations with table prefixes. Thank you @gbowne-quickbase! #1
