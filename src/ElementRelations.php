@@ -7,8 +7,8 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\events\RegisterUrlRulesEvent;
 use craft\web\UrlManager;
-use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\fields\ElementRelationsField;
+use internetztube\elementRelations\services\ElementRelationsService;
 
 use Craft;
 use craft\base\Plugin;
@@ -30,6 +30,11 @@ class ElementRelations extends Plugin
     {
         parent::init();
         self::$plugin = $this;
+
+        // Register services as components
+        $this->setComponents([
+            'elementRelations' => ElementRelationsService::class,
+        ]);
 
         Event::on(Fields::class, Fields::EVENT_REGISTER_FIELD_TYPES, function (RegisterComponentTypesEvent $event) {
             $event->types[] = ElementRelationsField::class;

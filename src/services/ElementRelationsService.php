@@ -6,9 +6,57 @@ use craft\base\Component;
 use craft\base\Element;
 use craft\db\Query;
 use craft\db\Table;
+use craft\models\Site;
+use internetztube\elementRelations\models\ElementRelationsModel;
+use internetztube\elementRelations\records\ElementRelationsRecord;
 
 class ElementRelationsService extends Component
 {
+
+    /**
+     * @param Element $sourceElement
+     * @param int $siteId
+     * @return false|ElementRelationsModel
+     */
+    public static function getStoredRelations(int $elementId, int $siteId) {
+        $elementRelationsRecord = ElementRelationsRecord::find()
+            ->where(['elementId'=>$elementId])
+            ->andWhere(['siteId' => $siteId])
+            ->one();
+
+        $elementRelationsModel = new ElementRelationsModel();
+        if ($elementRelationsRecord) {
+            $attributes = $elementRelationsRecord->getAttributes();
+            $elementRelationsModel->setAttributes($attributes, false);
+            return $elementRelationsModel;
+        }
+        return false;
+    }
+
+
+    /**
+     * @param int $elementId
+     * @param int $siteId
+     * @param string $resultHtml
+     * @param ElementRelationsRecord $elementRelationsRecord
+     */
+    public static function setStoredRelations(int $elementId, int $siteId, string $resultHtml,
+                                              ElementRelationsRecord $elementRelationsRecord = null) {
+//        if (empty($elementRelationsRecord)) {
+//            $elementRelationsRecord = new ElementRelationsRecord();
+//        }
+        $elementRelationsRecord = new ElementRelationsRecord();
+        $elementRelationsRecord->setAttribute('elementId', $elementId);
+        $elementRelationsRecord->setAttribute('siteId', $siteId);
+        $elementRelationsRecord->setAttribute('resultHtml', $resultHtml);
+        $elementRelationsRecord->save();
+    }
+
+    /**
+     * @param Element $sourceElement
+     * @param bool $anySite
+     * @return array
+     */
     public static function getRelationsFromElement(Element $sourceElement, bool $anySite = false)
     {
         $elements = (new Query())->select(['elements.id'])
@@ -27,6 +75,11 @@ class ElementRelationsService extends Component
         })->filter()->values()->toArray();
     }
 
+    /**
+     * @param int $elementId
+     * @param $site
+     * @return Element|null
+     */
     private static function getElementById (int $elementId, $site): ?Element
     {
         if (is_numeric($site)) {
@@ -37,6 +90,10 @@ class ElementRelationsService extends Component
         return $result['type']::find()->id($elementId)->anyStatus()->site($site)->one();
     }
 
+    /**
+     * @param Element $sourceElement
+     * @return array|false
+     */
     public static function isUsedInSEOmatic(Element $sourceElement)
     {
         $result = ['usedGlobally' => false, 'elements' => []];
@@ -76,8 +133,8 @@ class ElementRelationsService extends Component
         collect($fields)->each(function ($handle) use (&$foundElements, $extractIdFromString, $sourceElement) {
             $fieldHandle = sprintf('field_%s', $handle);
             $rows = (new Query)->select(['elements.canonicalId', 'elements.id', 'siteId', 'title', 'content.'.$fieldHandle])
-                ->from(Table::CONTENT)
-                ->innerJoin(Table::ELEMENTS, '[[elements.id]] = [[content.elementId]]')
+                ->from(['content'=> Table::CONTENT])
+                ->innerJoin(['elements'=>Table::ELEMENTS], '[[elements.id]] = [[content.elementId]]')
                 ->where(['NOT', ['content.'.$fieldHandle => null]])
                 ->all();
             collect($rows)->each(function ($row) use (&$foundElements, $extractIdFromString, $fieldHandle, $sourceElement) {
@@ -92,6 +149,12 @@ class ElementRelationsService extends Component
             ->toArray();
         return $result;
     }
+
+    /**
+     * @param Element $element
+     * @param $site
+     * @return Element|null
+     */
     private static function getRootElement (Element $element, $site): ?Element
     {
         if (!isset($element->ownerId) || !$element->ownerId) { return $element; }
