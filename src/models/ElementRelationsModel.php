@@ -29,6 +29,11 @@ class ElementRelationsModel extends Model
     public $siteId = 0;
 
     /**
+     * @var string Relations ids
+     */
+    public $relations;
+
+    /**
      * @var string Result Html
      */
     public $resultHtml;

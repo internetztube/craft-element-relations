@@ -7,22 +7,24 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\events\RegisterUrlRulesEvent;
 use craft\web\UrlManager;
+use internetztube\elementRelations\controllers\ElementRelationsController;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\services\ElementRelationsService;
 
 use Craft;
 use craft\base\Plugin;
-use craft\services\Plugins;
+use craft\elements\Entry;
+use craft\events\ModelEvent;
 use craft\events\PluginEvent;
-use craft\services\Fields;
 use craft\events\RegisterComponentTypesEvent;
-
+use craft\services\Fields;
+use craft\services\Plugins;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
 {
     public static $plugin;
-    public $schemaVersion = '1.0.0';
+    public $schemaVersion = '1.0.1';
     public $hasCpSettings = false;
     public $hasCpSection = false;
 
@@ -36,8 +38,32 @@ class ElementRelations extends Plugin
             'elementRelations' => ElementRelationsService::class,
         ]);
 
-        Event::on(Fields::class, Fields::EVENT_REGISTER_FIELD_TYPES, function (RegisterComponentTypesEvent $event) {
-            $event->types[] = ElementRelationsField::class;
-        });
+        Event::on(
+            Fields::class,
+            Fields::EVENT_REGISTER_FIELD_TYPES,
+            function (RegisterComponentTypesEvent $event) {
+                $event->types[] = ElementRelationsField::class;
+            }
+        );
+
+        /**
+         * When an entry is updated, clear any cached records
+         */
+        Event::on(
+            Entry::class,
+            Entry::EVENT_AFTER_PROPAGATE,
+            function (ModelEvent $event) {
+                /* @var $entry Entry */
+               $entry = $event->sender;
+                Craft::info(
+                    Craft::t(
+                        'element-relations',
+                        'after-propagate-called'
+                    ),
+                    __METHOD__
+                );
+                ElementRelationsService::refreshEntryRelations($entry);
+            }
+        );
     }
 }
