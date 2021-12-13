@@ -4,10 +4,12 @@ namespace internetztube\elementRelations\controllers;
 
 use Craft;
 use craft\elements\Entry;
+use craft\helpers\ArrayHelper;
 use craft\helpers\Cp;
 use craft\web\Controller;
 use fruitstudios\linkit\models\Url;
 use GuzzleHttp\Client;
+use internetztube\elementRelations\records\ElementRelationsRecord;
 use internetztube\elementRelations\services\ElementRelationsService;
 use verbb\supertable\elements\SuperTableBlockElement;
 use verbb\supertable\SuperTable;
@@ -20,6 +22,19 @@ class ElementRelationsController extends Controller
     protected $allowAnonymous = true;
     public $enableCsrfValidation = false;
 
+
+    protected $elementRelationsService;
+
+    public function __construct($id, $module, $config = [])
+    {
+        parent::__construct($id, $module, $config);
+        $this->elementRelationsService = new ElementRelationsService();
+    }
+
+    /**
+     * @return string
+     * @throws NotFoundHttpException
+     */
     public function actionGetByElementId()
     {
         $startTime = hrtime(true);
@@ -30,41 +45,10 @@ class ElementRelationsController extends Controller
         $element = \Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
 
-        $cachedRelations = ElementRelationsService::getStoredRelations($elementId, $siteId);
+        $resultHtml = $this->elementRelationsService->getRelations($element, $elementId, $siteId, $size);
 
-        // @todo verify it's not out of date
-        if (!$cachedRelations) {
-            $relations = ElementRelationsService::getRelationsFromElement($element);
-            $isUsedInSEOmatic = ElementRelationsService::isUsedInSEOmatic($element);
-
-            $result = collect();
-
-            if ($isUsedInSEOmatic['usedGlobally']) {
-                $result->push('Used in SEOmatic Global Settings');
-            }
-            if (!empty($isUsedInSEOmatic['elements'])) {
-                $result->push('Used in SEOmatic in these Elements (+Drafts):');
-                $result->push(Cp::elementPreviewHtml($isUsedInSEOmatic['elements'], $size));
-            }
-            if (!empty($relations)) {
-                $result->push(Cp::elementPreviewHtml($relations, $size));
-            } else {
-                $relationsAnySite = ElementRelationsService::getRelationsFromElement($element, true);
-                if (!empty($relationsAnySite)) {
-                    $result->push('Unused in this site, but used in others:');
-                    $result->push(Cp::elementPreviewHtml($relationsAnySite, $size));
-                }
-            }
-
-            if ($result->isEmpty()) { $result->push('<span style="color: #da5a47;">Unused</span>'); }
-            $resultHtml = $result->implode('<br />');
-            //set it or Update it
-            ElementRelationsService::setStoredRelations($elementId, $siteId, $resultHtml, null);
-
-        } else {
-            $resultHtml = $cachedRelations->getResultHtml();
-        }
         $endTime = ceil((hrtime(true) - $startTime) / 1e+06);
-        return $resultHtml . $endTime;
+        return $resultHtml . $endTime; // @todo remove timing
     }
+
 }

@@ -5,6 +5,7 @@ namespace internetztube\elementRelations\migrations;
 use Craft;
 use craft\db\Migration;
 use internetztube\elementRelations\records\ElementRelationsRecord;
+use Throwable;
 
 /**
  * Element Relations Install Migration
@@ -26,13 +27,14 @@ class Install extends Migration
                 'id' => $this->primaryKey(),
                 'elementId' => $this->integer()->notNull(),
                 'siteId' => $this->integer()->notNull(),
+                'relations' => $this->text(),
                 'resultHtml' => $this->text(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),
             ]);
 
-            $this->createIndex(null, $table, ['elementId','siteId'], true);
+            $this->createIndex(null, $table, ['elementId', 'siteId'], true);
 
             $this->addForeignKey(null, $table, 'elementId', '{{%elements}}', 'id', 'CASCADE');
             $this->addForeignKey(null, $table, 'siteId', '{{%sites}}', 'id', 'CASCADE');
@@ -46,10 +48,11 @@ class Install extends Migration
 
     /**
      * @return boolean
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function safeDown(): bool
     {
+        $table = ElementRelationsRecord::tableName();
         $this->dropTableIfExists($table);
 
         return true;
