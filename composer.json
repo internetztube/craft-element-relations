@@ -20,7 +20,7 @@
             "name": "Frederic Koeberl",
             "homepage": "https://frederickoeberl.com/"
         }
-    ],
+    ],./craft
     "require": {
         "ext-json": "*",
         "craftcms/cms": "^3.5.0",
