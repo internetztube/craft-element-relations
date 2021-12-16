@@ -9,6 +9,7 @@ use craft\events\RegisterUrlRulesEvent;
 use craft\web\UrlManager;
 use internetztube\elementRelations\controllers\ElementRelationsController;
 use internetztube\elementRelations\fields\ElementRelationsField;
+use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\ElementRelationsService;
 
 use Craft;
@@ -21,6 +22,11 @@ use craft\services\Fields;
 use craft\services\Plugins;
 use yii\base\Event;
 
+/**
+ *
+ * @method   Settings  getSettings()
+ */
+
 class ElementRelations extends Plugin
 {
     public static $plugin;
@@ -32,6 +38,11 @@ class ElementRelations extends Plugin
     {
         parent::init();
         self::$plugin = $this;
+
+        // Add in our console commands
+        if (Craft::$app instanceof ConsoleApplication) {
+            $this->controllerNamespace = 'internetztube\elementrelations\console\controllers';
+        }
 
         // Register services as components
         $this->setComponents([
@@ -65,5 +76,16 @@ class ElementRelations extends Plugin
                 ElementRelationsService::refreshEntryRelations($entry);
             }
         );
+    }
+
+    // Protected Methods
+    // =========================================================================
+
+    /**
+     * @inheritdoc
+     */
+    protected function createSettingsModel()
+    {
+        return new Settings();
     }
 }
