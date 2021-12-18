@@ -91,6 +91,23 @@ class ElementRelationsService extends Component
     }
 
     /**
+     * Get the datetime used for determining a stale cache
+     * @return string
+     */
+    public function getStaleDateTime():string
+    {
+        $cacheDuration = $this->getCacheDuration();
+        return date('Y-m-d H:i:s', strtotime("$cacheDuration ago"));
+    }
+
+    /**
+     * @return string Cache Duration from config, settings, or class
+     */
+    public function getCacheDuration(): string {
+        return $this->settings->cacheDuration ?? $this->cacheDuration;
+    }
+
+    /**
      * @param Element|ElementInterface $element
      * @param int $elementId
      * @param int $siteId
@@ -100,12 +117,11 @@ class ElementRelationsService extends Component
      */
     public function getRelations(Element $element, int $elementId, int $siteId, string $size = 'default', bool $force = false): string
     {
-        $cacheDuration = $this->settings->cacheDuration ?? $this->cacheDuration;
-        $staleCache = date('Y-m-d H:i:s', strtotime("$cacheDuration ago"));
+        $staleDateTime = $this->getStaleDateTime();
         $stale = false;
 
         $cachedRelations = self::getStoredRelations($elementId, $siteId);
-        if (!empty($cachedRelations) && $cachedRelations->dateUpdated < $staleCache) {
+        if (!empty($cachedRelations) && $cachedRelations->dateUpdated < $staleDateTime) {
             $stale = true;
         }
         $request = Craft::$app->getRequest();
@@ -385,14 +401,18 @@ class ElementRelationsService extends Component
     }
 
     /**
-     * @param string $siteId // not implemented yet
+     * @param bool $staleOnly
+     * @param string $siteId // not implemented
      * @return array|ActiveRecord[]
      */
-    public function getAllRelations(string $siteId = '*'): array
+    public function getAllRelations(bool $staleOnly = true, string $siteId = '*'): array
     {
-        return ElementRelationsRecord::find()
-            ->where(['siteId' => $siteId])
-            ->all();
+        $relationsQuery = ElementRelationsRecord::find();
+        if ($staleOnly) {
+            $staleDateTime = $this->getStaleDateTime();
+            $relationsQuery->where(["<",'dateUpdated', $staleDateTime]);
+        }
+        return $relationsQuery->all();
     }
 
     /**

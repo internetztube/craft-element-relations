@@ -143,12 +143,18 @@ class CachesController extends Controller
     public function actionRefresh(): bool
     {
         echo 'Refreshing existing stale relations without creating new ones' . PHP_EOL;
-        $relations = $this->elementRelationsService->getAllRelations();
         if ($this->force) {
             echo 'Forcing entry relations creation via --force' . PHP_EOL;
         }
+        $relations = $this->elementRelationsService->getAllRelations(!$this->force);
         $entriesTotal = count($relations);
-        echo "$entriesTotal Relations to update." . PHP_EOL;
+        $cacheDuration = $this->elementRelationsService->cacheDuration;
+        echo "Cache duration set to $cacheDuration" . PHP_EOL;
+        if ($entriesTotal == 0) {
+            echo "All relations up to date." . PHP_EOL;
+        } else {
+            echo "$entriesTotal Relations to update." . PHP_EOL;
+        }
         $entryNumber = 1;
         foreach ($relations as $relation) {
             $element = ElementRelationsService::getElementById($relation->elementId, $relation->siteId);
