@@ -31,20 +31,11 @@ use yii\web\NotFoundHttpException;
  * Craft can be invoked via commandline console by using the `./craft` command
  * from the project root.
  *
- * Console Commands are just controllers that are invoked to handle console
- * actions. The segment routing is plugin-name/controller-name/action-name
- *
- * The actionIndex() method is what is executed if no sub-commands are supplied, e.g.:
- *
- * ./craft element-relations/refresh
- *
- * Actions must be in 'kebab-case' so actionDoSomething() maps to 'do-something',
- * and would be invoked via:
- *
- * ./craft element-relations/caches/index
+ * ./craft element-relations/caches/index //not implemented yet
  * ./craft element-relations/caches/create
  * ./craft element-relations/caches/refresh
  *
+ * @todo implement index action to at least not error out. Maybe indicate volumes/sections using the field?
  * @todo add siteId to calls to restrict to one site id
  * @todo move refresh and create calls to Jobs so they enqueue and run when available
  *
@@ -176,7 +167,6 @@ class CachesController extends Controller
      * Re-cache all the Asset relations
      *
      * @param boolean Should element relations caches be rebuilt?
-     *
      */
     protected function saveAllVolumes(bool $force = false): void
     {
@@ -268,7 +258,6 @@ class CachesController extends Controller
      * Re-cache all the Section relations
      *
      * @param boolean Should element relations caches be rebuilt?
-     *
      * @throws InvalidConfigException
      */
     protected function saveAllSections(bool $force = false): void

@@ -278,14 +278,10 @@ class ElementRelationsService extends Component
     {
         $result = ['usedGlobally' => false, 'elements' => []];
         $isInstalled = Craft::$app->db->tableExists('{{%seomatic_metabundles}}');
-        if (!$isInstalled) {
-            return false;
-        }
+        if (!$isInstalled) { return false; }
 
         $extractIdFromString = function ($input) {
-            if (!$input) {
-                return false;
-            }
+            if (!$input) { return false; }
             $result = sscanf($input, '{seomatic.helper.socialTransform(%d, ');
             return (int)collect($result)->first();
         };
@@ -338,9 +334,7 @@ class ElementRelationsService extends Component
             collect($rows)->each(function ($row) use (&$foundElements, $extractIdFromString, $fieldHandle, $sourceElement) {
                 $data = json_decode($row[$fieldHandle]);
                 $id = $extractIdFromString($data->metaGlobalVars->seoImage);
-                if ($id !== $sourceElement->id) {
-                    return;
-                }
+                if ($id !== $sourceElement->id) { return false; }
                 $foundElements->push(self::getElementById($row['canonicalId'] ?? $row['id'], $row['siteId']));
             });
         });

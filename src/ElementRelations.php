@@ -65,13 +65,6 @@ class ElementRelations extends Plugin
             function (ModelEvent $event) {
                 /* @var $entry Entry */
                 $entry = $event->sender;
-                Craft::info(
-                    Craft::t(
-                        'element-relations',
-                        'after-propagate-called'
-                    ),
-                    __METHOD__
-                );
                 ElementRelationsService::refreshEntryRelations($entry);
             }
         );
