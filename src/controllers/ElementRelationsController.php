@@ -18,10 +18,8 @@ use yii\web\NotFoundHttpException;
 
 class ElementRelationsController extends Controller
 {
-    protected $allowAnonymous = true;
-    public $enableCsrfValidation = false;
-
-
+    public    $enableCsrfValidation = false;
+    protected $allowAnonymous       = true;
     protected $elementRelationsService;
 
     public function __construct($id, $module, $config = [])
@@ -37,11 +35,11 @@ class ElementRelationsController extends Controller
     public function actionGetByElementId()
     {
         $startTime = hrtime(true);
-        $elementId = \Craft::$app->request->getParam('elementId');
-        $siteId = \Craft::$app->request->getParam('siteId');
-        $size = \Craft::$app->request->getParam('size', 'default');
+        $elementId = Craft::$app->request->getParam('elementId');
+        $siteId = Craft::$app->request->getParam('siteId');
+        $size = Craft::$app->request->getParam('size', 'default');
         $size = $size === 'small' ? Cp::ELEMENT_SIZE_SMALL : Cp::ELEMENT_SIZE_LARGE;
-        $element = \Craft::$app->elements->getElementById($elementId, null, $siteId);
+        $element = Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
 
         $resultHtml = $this->elementRelationsService->getRelations($element, $elementId, $siteId, $size);

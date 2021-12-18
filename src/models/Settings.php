@@ -8,7 +8,8 @@ use craft\base\Model;
 /**
  * @package ElementRelations
  */
-class Settings extends Model {
+class Settings extends Model
+{
 
     /**
      * @var string Cache Duration used in a strtotime() function, like '5h' or '2 days' or '1 month'
