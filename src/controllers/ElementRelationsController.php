@@ -32,9 +32,8 @@ class ElementRelationsController extends Controller
      * @return string
      * @throws NotFoundHttpException
      */
-    public function actionGetByElementId()
+    public function actionGetByElementId(): string
     {
-        $startTime = hrtime(true);
         $elementId = Craft::$app->request->getParam('elementId');
         $siteId = Craft::$app->request->getParam('siteId');
         $size = Craft::$app->request->getParam('size', 'default');
@@ -42,10 +41,7 @@ class ElementRelationsController extends Controller
         $element = Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
 
-        $resultHtml = $this->elementRelationsService->getRelations($element, $elementId, $siteId, $size);
-
-        $endTime = ceil((hrtime(true) - $startTime) / 1e+06);
-        return $resultHtml . $endTime; // @todo remove timing
+        return $this->elementRelationsService->getRelations($element, $elementId, $siteId, $size);
     }
 
 }
