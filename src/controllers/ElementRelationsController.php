@@ -3,6 +3,7 @@
 namespace internetztube\elementRelations\controllers;
 
 use Craft;
+use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\helpers\ArrayHelper;
 use craft\helpers\Cp;
@@ -13,8 +14,6 @@ use internetztube\elementRelations\records\ElementRelationsRecord;
 use internetztube\elementRelations\services\ElementRelationsService;
 use verbb\supertable\elements\SuperTableBlockElement;
 use verbb\supertable\SuperTable;
-use yii\base\BaseObject;
-use yii\helpers\Markdown;
 use yii\web\NotFoundHttpException;
 
 class ElementRelationsController extends Controller

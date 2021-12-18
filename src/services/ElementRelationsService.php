@@ -113,17 +113,23 @@ class ElementRelationsService extends Component
 
         if ($force || !$cachedRelations || $stale) {
             $relations = self::getRelationsFromElement($element);
-            $isUsedInSEOmatic = self::isUsedInSEOmatic($element);
-
             $result = collect();
+            if ($element instanceof Asset) {
+                $assetUsageInSeomatic = ElementRelationsService::assetUsageInSEOmatic($element);
+                if ($assetUsageInSeomatic['usedGlobally']) {
+                    $result->push('Used in SEOmatic Global Settings');
+                }
+                if (!empty($assetUsageInSeomatic['elements'])) {
+                    $result->push('Used in SEOmatic in these Elements (+Drafts):');
+                    $result->push(Cp::elementPreviewHtml($assetUsageInSeomatic['elements'], $size));
+                }
 
-            if ($isUsedInSEOmatic['usedGlobally']) {
-                $result->push('Used in SEOmatic Global Settings');
+                $assetUsageInProfilePhotos = ElementRelationsService::assetUsageInProfilePhotos($element);
+                if (!empty($assetUsageInProfilePhotos)) {
+                    $result->push(Cp::elementPreviewHtml($assetUsageInProfilePhotos, $size, true, false, true));
+                }
             }
-            if (!empty($isUsedInSEOmatic['elements'])) {
-                $result->push('Used in SEOmatic in these Elements (+Drafts):');
-                $result->push(Cp::elementPreviewHtml($isUsedInSEOmatic['elements'], $size));
-            }
+
             if (!empty($relations)) {
                 $result->push(Cp::elementPreviewHtml($relations, $size));
             } else {
@@ -251,11 +257,24 @@ class ElementRelationsService extends Component
         return self::getRootElement($sourceElement, $site);
     }
 
+    public static function assetUsageInProfilePhotos(Element $sourceElement)
+    {
+        $users = (new Query())
+            ->select(['id'])
+            ->from(Table::USERS)
+            ->where(['photoId' => $sourceElement->id])
+            ->all();
+
+        return collect($users)->map(function (array $user) {
+            return \Craft::$app->users->getUserById($user['id']);
+        })->all();
+    }
+
     /**
      * @param Element $sourceElement
      * @return array|false
      */
-    public static function isUsedInSEOmatic(Element $sourceElement)
+    public static function assetUsageInSEOmatic(Element $sourceElement)
     {
         $result = ['usedGlobally' => false, 'elements' => []];
         $isInstalled = Craft::$app->db->tableExists('{{%seomatic_metabundles}}');
@@ -298,10 +317,14 @@ class ElementRelationsService extends Component
             })->unique()
             ->contains($sourceElement->id);
 
-        $fields = (new Query)->select(['handle'])
+        $fields = (new Query)->select(['handle', 'columnSuffix'])
             ->from(Table::FIELDS)
             ->where(['=', 'type', 'nystudio107\seomatic\fields\SeoSettings'])
-            ->column();
+            ->all();
+        $fields = collect($fields)->map(function ($field) {
+            if (empty($field['columnSuffix'])) { return $field['handle']; }
+            return sprintf('%s_%s', $field['handle'], $field['columnSuffix']);
+        })->toArray();
 
         $foundElements = collect();
 
