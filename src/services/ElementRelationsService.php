@@ -30,7 +30,7 @@ use yii\web\NotFoundHttpException;
 class ElementRelationsService extends Component
 {
 
-    public    $cacheDuration = '2 days';
+    public    $cacheDuration = '1 week';
     protected $settings;
 
     public function __construct($config = [])
@@ -78,7 +78,7 @@ class ElementRelationsService extends Component
     }
 
     /**
-     * @param ElementRelationsRecord $record
+     * @param ElementRelationsRecord|ActiveRecord $record
      * @throws Throwable
      * @throws StaleObjectException
      */
@@ -265,7 +265,7 @@ class ElementRelationsService extends Component
 
         $extractIdFromString = function ($input) {
             if (!$input) {
-                return;
+                return false;
             }
             $result = sscanf($input, '{seomatic.helper.socialTransform(%d, ');
             return (int)collect($result)->first();
@@ -322,12 +322,14 @@ class ElementRelationsService extends Component
             });
         });
         $result['elements'] = collect($foundElements)
-            ->unique('canonialId')
+            ->unique('canonicalId')
             ->toArray();
         return $result;
     }
 
     /**
+     * Add the relation to the db. Note dateUpdated is added here because
+     * otherwise if nothing changes, the record is not updated, and we use that for cache staleness
      * @param int $elementId
      * @param int $siteId
      * @param array $relations
@@ -350,17 +352,6 @@ class ElementRelationsService extends Component
     }
 
     /**
-     * @param string $siteId
-     * @return array|ActiveRecord[]
-     */
-    public function getAllRelations($siteId = '*'): array
-    {
-        return ElementRelationsRecord::find()
-//            ->where(['siteId' => $siteId])
-            ->all();
-    }
-
-    /**
      * @param Entry $entry
      * @throws Throwable
      * @throws StaleObjectException
@@ -377,10 +368,21 @@ class ElementRelationsService extends Component
     }
 
     /**
+     * @param string $siteId // not implemented yet
+     * @return array|ActiveRecord[]
+     */
+    public function getAllRelations(string $siteId = '*'): array
+    {
+        return ElementRelationsRecord::find()
+            ->where(['siteId' => $siteId])
+            ->all();
+    }
+
+    /**
      * @return array
      * @throws InvalidConfigException
      */
-    public function getRelatedElementEntryTypeIds(): array
+    public function getRelatedElementEntryTypes(): array
     {
 
         $relatedEntryTypes = [];
@@ -394,7 +396,7 @@ class ElementRelationsService extends Component
                 $fields = $fieldLayout->getFields();
                 foreach ($fields as $field) {
                     if ($field instanceof ElementRelationsField) {
-                        $relatedEntryTypes[$entryType->id] = $entryType->name;
+                        $relatedEntryTypes[$entryType->id] = $entryType;
                     }
                 }
             }

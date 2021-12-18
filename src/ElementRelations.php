@@ -26,13 +26,12 @@ use yii\base\Event;
  *
  * @method   Settings  getSettings()
  */
-
 class ElementRelations extends Plugin
 {
     public static $plugin;
-    public $schemaVersion = '1.0.1';
-    public $hasCpSettings = false;
-    public $hasCpSection = false;
+    public        $schemaVersion = '1.0.1';
+    public        $hasCpSettings = false;
+    public        $hasCpSection  = false;
 
     public function init()
     {
@@ -62,10 +61,10 @@ class ElementRelations extends Plugin
          */
         Event::on(
             Entry::class,
-            Entry::EVENT_AFTER_PROPAGATE,
+            Element::EVENT_AFTER_PROPAGATE,
             function (ModelEvent $event) {
                 /* @var $entry Entry */
-               $entry = $event->sender;
+                $entry = $event->sender;
                 Craft::info(
                     Craft::t(
                         'element-relations',

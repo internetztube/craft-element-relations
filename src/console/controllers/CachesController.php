@@ -6,6 +6,7 @@ use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\base\Volume;
 use craft\elements\Asset;
+use craft\elements\Entry;
 use craft\errors\SiteNotFoundException;
 use craft\helpers\Cp;
 use craft\models\EntryType;
@@ -16,8 +17,6 @@ use internetztube\elementRelations\ElementRelations;
 use Craft;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\services\ElementRelationsService;
-use nystudio107\imageoptimize\fields\OptimizedImages as OptimizedImagesField;
-use nystudio107\imageoptimize\jobs\ResaveOptimizedImages;
 use yii\base\InvalidConfigException;
 use yii\console\Controller;
 use yii\helpers\Console;
@@ -46,6 +45,9 @@ use yii\web\NotFoundHttpException;
  * ./craft element-relations/caches/create
  * ./craft element-relations/caches/refresh
  *
+ * @todo add siteId to calls to restrict to one site id
+ * @todo move refresh and create calls to Jobs so they enqueue and run when available
+ *
  */
 class CachesController extends Controller
 {
@@ -60,16 +62,22 @@ class CachesController extends Controller
     public $force = false;
 
     /**
-     * @var string name of the volume handle to run caches on
+     * @var string Volume handle to run caches on
      * @since 1.0.7
      */
     public $volume = null;
 
     /**
-     * @var string name of the section handle to run caches on
+     * @var string Section handle to run caches on
      * @since 1.0.7
      */
     public $section = null;
+
+    /**
+     * @var string SiteId to run caches on
+     * @since 1.0.7
+     */
+    public $siteId = null;
 
     // Protected Properties
     // =========================================================================
@@ -92,6 +100,7 @@ class CachesController extends Controller
 
     /**
      * @inheritdoc
+     * These options will be passed through from the command line to this controller
      */
     public function options($actionID): array
     {
@@ -99,6 +108,7 @@ class CachesController extends Controller
         $options[] = 'force';
         $options[] = 'volume';
         $options[] = 'section';
+        $options[] = 'siteId'; // not currently implemented
 
         return $options;
     }
@@ -106,28 +116,52 @@ class CachesController extends Controller
     /********** Actions available to the console *************/
 
     /**
-     * Refresh existing relations without looking for new ones
+     * Create or refresh stale caches for related entries
      *
-     * The first line of this method docblock is displayed as the description
-     * of the Console Command in ./craft help
+     * Allows for single volume, single section, will do all
+     * Force will rebuild any cached items
      *
-     * @return bool
+     * @return mixed
      * @throws InvalidConfigException
      */
-    public function actionRefresh():bool
+    public function actionCreate(): void
     {
+        echo 'Create or refresh stale existing Element Relations' . PHP_EOL;
+        if ($this->force) {
+            echo 'Forcing entry relations cache clear via --force' . PHP_EOL;
+        }
+        if ($this->volume) {
+            echo "Running specifically for volume '{$this->volume}'" . PHP_EOL;
+            $this->saveVolume($this->volume, $this->force);
+        } elseif ($this->section) {
+            echo "Running specifically for section '{$this->section}'" . PHP_EOL;
+            $this->saveSection($this->section, $this->force);
+        } else {
+            $this->saveAllSections($this->force);
+            $this->saveAllVolumes($this->force);
+        }
+    }
 
-        echo "Refreshing existing stale relations without creating new ones\n";
+    /**
+     * Refresh existing relations without looking for new ones
+     *
+     * Looks up all the relations in the table and refreshes if stale or forced
+     *
+     * @return bool
+     */
+    public function actionRefresh(): bool
+    {
+        echo 'Refreshing existing stale relations without creating new ones' . PHP_EOL;
         $relations = $this->elementRelationsService->getAllRelations();
         if ($this->force) {
-            echo 'Forcing entry relations creation via --force'.PHP_EOL;
+            echo 'Forcing entry relations creation via --force' . PHP_EOL;
         }
         $entriesTotal = count($relations);
         echo "$entriesTotal Relations to update." . PHP_EOL;
         $entryNumber = 1;
         foreach ($relations as $relation) {
             $element = ElementRelationsService::getElementById($relation->elementId, $relation->siteId);
-            echo "[$entryNumber/$entriesTotal] " . $element->title;
+            echo "[$entryNumber/$entriesTotal] " . substr($element->title, 0, 50);
             $this->cacheSingleElement($element, $this->force);
             $entryNumber++;
         }
@@ -135,34 +169,8 @@ class CachesController extends Controller
         return true;
     }
 
-    /**
-     * create or refresh stale caches for related entries
-     *
-     * The first line of this method docblock is displayed as the description
-     * of the Console Command in ./craft help
-     *
-     * @return mixed
-     * @throws InvalidConfigException
-     */
-    public function actionCreate(): void
-    {
-        echo "Create or refresh stale existing Element Relations\n";
-        if ($this->force) {
-            echo 'Forcing entry relations cache clear via --force'.PHP_EOL;
-        }
-        if ($this->volume) {
-            echo "Running specifically for volume {$this->volume}" . PHP_EOL;
-            $this->saveVolume($this->volume, $this->force);
-        } elseif ($this->section) {
-            echo "Running specifically for section {$this->section}" . PHP_EOL;
-            $this->saveSection($this->section, $this->force);
-        } else {
-            $this->saveAllVolumes($this->force);
-        }
 
-    }
-
-    /**********  Methods to do the big picture work *************/
+    /**********  Methods to do the Volumes work *************/
 
     /**
      * Re-cache all the Asset relations
@@ -170,7 +178,7 @@ class CachesController extends Controller
      * @param boolean Should element relations caches be rebuilt?
      *
      */
-    protected  function saveAllVolumes(bool $force = false)
+    protected function saveAllVolumes(bool $force = false): void
     {
         $volumes = Craft::$app->getVolumes()->getAllVolumes();
         foreach ($volumes as $volume) {
@@ -179,7 +187,6 @@ class CachesController extends Controller
                 $this->reCacheVolumeAssets($volume, $force);
             }
         }
-        // now do the other sections....
     }
 
     /**
@@ -190,17 +197,85 @@ class CachesController extends Controller
      */
     protected function saveVolume(string $volumeHandle, $force = false): void
     {
-        if($volumeHandle == null) {
+        if ($volumeHandle == null) {
             echo "VolumeHandle is empty, must be supplied to run a single Asset Volume." . PHP_EOL;
         }
-        $volume = Craft::$app->getVolumes()>getVolumeByHandle($volumeHandle);
-        echo "VolumeHandle found" . PHP_EOL;
+        $volume = Craft::$app->getVolumes()->getVolumeByHandle($volumeHandle);
         if (is_subclass_of($volume, Volume::class)) {
+            echo "VolumeHandle '$volumeHandle' found" . PHP_EOL;
             /** @var Volume $volume */
-            $this->reCacheVolumeAssets($volume,$force);
+            $this->reCacheVolumeAssets($volume, $force);
         } else {
-            echo "VolumeHandle not valid or an error occurred." . PHP_EOL;
+            echo "VolumeHandle '$volumeHandle' not valid or an error occurred." . PHP_EOL;
 
+        }
+    }
+
+    /**
+     * Re-cache relations of the Asset elements in the Volume $volume that have an
+     * RelatedElements field in the FieldLayout
+     * Code lovingly adapted from nystudio107
+     *
+     * @param Volume $volume for this volume
+     * @param boolean Should element relations caches be rebuilt?
+     *
+     */
+    protected function reCacheVolumeAssets(Volume $volume, $force = false): void
+    {
+        echo "Volume " . $volume->name . PHP_EOL;
+        $needToReSave = false;
+        /** @var FieldLayout $fieldLayout */
+        $fieldLayout = $volume->getFieldLayout();
+        // Loop through the fields in the layout to see if there is an ElementRelations field
+        if ($fieldLayout) {
+            $fields = $fieldLayout->getFields();
+            foreach ($fields as $field) {
+                if ($field instanceof ElementRelationsField) {
+                    $needToReSave = true;
+                }
+            }
+        }
+        if ($needToReSave) {
+            try {
+                $siteId = Craft::$app->getSites()->getPrimarySite()->id;
+            } catch (SiteNotFoundException $e) {
+                $siteId = 0;
+                Craft::error(
+                    'Failed to get primary site: ' . $e->getMessage(),
+                    __METHOD__
+                );
+            }
+
+            $assets = Asset::find()
+                ->volume($volume)
+                ->all();
+            $assetTotal = count($assets);
+            echo "$assetTotal Assets found in volume." . PHP_EOL;
+            $assetCount = 1;
+            foreach ($assets as $asset) {
+                echo "[$assetCount/$assetTotal] " . substr($asset->title, 0, 50);
+                $this->cacheSingleElement($asset, $force);
+                $assetCount++;
+            }
+            echo PHP_EOL;
+        }
+    }
+
+
+    /********** Methods to do the Sections work **********/
+
+    /**
+     * Re-cache all the Section relations
+     *
+     * @param boolean Should element relations caches be rebuilt?
+     *
+     * @throws InvalidConfigException
+     */
+    protected function saveAllSections(bool $force = false): void
+    {
+        $entryTypes = $this->elementRelationsService->getRelatedElementEntryTypes();
+        foreach ($entryTypes as $id => $entryType) {
+            $this->reCacheEntryTypeEntries($entryType, $force);
         }
     }
 
@@ -213,23 +288,21 @@ class CachesController extends Controller
      */
     protected function saveSection(string $sectionHandle, $force = false): void
     {
-        if($sectionHandle == null) {
+        if ($sectionHandle == null) {
             echo "Section Handle is empty, must be supplied to run a single Section." . PHP_EOL;
         }
         $section = Craft::$app->getSections()->getSectionByHandle($sectionHandle);
-        echo "Section $sectionHandle found" . PHP_EOL;
         if ($section instanceof Section) {
+            echo "Section '$sectionHandle' found" . PHP_EOL;
             $entryTypes = $section->getEntryTypes();
             foreach ($entryTypes as $entryType) {
                 $this->reCacheEntryTypeEntries($entryType, $force);
             }
         } else {
-            echo "Section Handle not valid or an error occurred." . PHP_EOL;
+            echo "Section Handle '$sectionHandle' not valid or an error occurred." . PHP_EOL;
 
         }
     }
-
-    /********** Methods to do the detail work **********/
 
     /**
      * Re-cache all the relations
@@ -240,14 +313,13 @@ class CachesController extends Controller
      * @throws InvalidConfigException
      */
     protected function saveEntryType(string $entryTypeHandle, int $entryTypeId = 0, $force = false): void
-
     {
-        if($entryTypeHandle == null) {
+        if ($entryTypeHandle == null) {
             echo "EntryType Handle is empty, must be supplied to run a single Entry Type." . PHP_EOL;
         }
         $entryType = Craft::$app->getSections()->getEntryTypeById($entryTypeId);
         if ($entryType instanceof EntryType) {
-            echo "EntryType {$entryTypeHandle} found" . PHP_EOL;
+            echo "EntryType $entryTypeHandle found" . PHP_EOL;
             $this->reCacheEntryTypeEntries($entryType, $force);
         }
     }
@@ -273,70 +345,20 @@ class CachesController extends Controller
             }
         }
         if ($processEntryType) {
-            $entriesInEntryType = \craft\elements\Entry::find()->typeId($entryType->id)->all();
+            $entriesInEntryType = Entry::find()->typeId($entryType->id)->all();
             $entriesTotal = count($entriesInEntryType);
             echo "$entriesTotal Entries found in Section/EntryType {$section->name}/{$entryType->name}." . PHP_EOL;
             $entryNumber = 1;
             foreach ($entriesInEntryType as $entry) {
-                echo "[$entryNumber/$entriesTotal] " . $entry->title;
+                echo "[$entryNumber/$entriesTotal] " . substr($entry->title, 0, 50);
                 $this->cacheSingleElement($entry, $force);
                 $entryNumber++;
             }
         }
+        echo PHP_EOL;
     }
 
-    /**
-     * Re-cache relations of the Asset elements in the Volume $volume that have an
-     * RelatedElements field in the FieldLayout
-     * Code lovingly adapted from nystudio107
-     *
-     * @param Volume $volume for this volume
-     * @param boolean Should element relations caches be rebuilt?
-     *
-     */
-    protected function reCacheVolumeAssets(Volume $volume, $force = false)
-    {
-        echo "Volume " . $volume->name . PHP_EOL;
-        $needToReSave = false;
-        /** @var FieldLayout $fieldLayout */
-        $fieldLayout = $volume->getFieldLayout();
-        // Loop through the fields in the layout to see if there is an ElementRelations field
-        if ($fieldLayout) {
-            $fields = $fieldLayout->getFields();
-            foreach ($fields as $field) {
-                echo $field->name . PHP_EOL;
-                if ($field instanceof ElementRelationsField) {
-                    $needToReSave = true;
-                }
-            }
-        }
-        if ($needToReSave) {
-            try {
-                $siteId = Craft::$app->getSites()->getPrimarySite()->id;
-            } catch (SiteNotFoundException $e) {
-                $siteId = 0;
-                Craft::error(
-                    'Failed to get primary site: ' . $e->getMessage(),
-                    __METHOD__
-                );
-            }
-
-            $assets = Asset::find()
-                ->volume($volume)
-                ->all();
-            $assetTotal = count($assets);
-            echo "$assetTotal Assets found in volume." . PHP_EOL;
-            $assetCount = 1;
-            foreach ($assets as $asset) {
-                echo "[$assetCount/$assetTotal] ". $asset->title;
-                $this->cacheSingleElement($asset, $force);
-                $assetCount++;
-            }
-
-        }
-    }
-
-    /********** Atomic Methods ************/
+    /********** Atomic Methods to do the caching ************/
 
     /**
      * @param Element | ElementInterface $element
@@ -345,7 +367,6 @@ class CachesController extends Controller
      */
     private function cacheSingleElement(Element $element, bool $force = false): void
     {
-
         if (!$element->id) {
             return;
         }

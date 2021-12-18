@@ -4,6 +4,7 @@ namespace internetztube\elementRelations\models;
 
 use craft\base\Model;
 use craft\validators\DateTimeValidator;
+use DateTime;
 
 /**
  * ElementRelationsModel
@@ -39,12 +40,12 @@ class ElementRelationsModel extends Model
     public $resultHtml;
 
     /**
-     * @var \DateTime|null Date created
+     * @var DateTime|null Date created
      */
     public $dateCreated;
 
     /**
-     * @var \DateTime|null Date updated
+     * @var DateTime|null Date updated
      */
     public $dateUpdated;
 
@@ -73,7 +74,8 @@ class ElementRelationsModel extends Model
     /**
      * @return string
      */
-    public function getResultHtml(): string {
+    public function getResultHtml(): string
+    {
         return $this->resultHtml;
     }
 }
