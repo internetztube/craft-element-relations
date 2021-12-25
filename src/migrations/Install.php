@@ -28,7 +28,7 @@ class Install extends Migration
                 'elementId' => $this->integer()->notNull(),
                 'siteId' => $this->integer()->notNull(),
                 'relations' => $this->text(),
-                'resultHtml' => $this->text(),
+                'markup' => $this->text(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),

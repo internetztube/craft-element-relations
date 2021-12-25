@@ -37,7 +37,7 @@ class ElementRelationsModel extends Model
     /**
      * @var string Result Html
      */
-    public $resultHtml;
+    public $markup;
 
     /**
      * @var DateTime|null Date created
@@ -59,7 +59,7 @@ class ElementRelationsModel extends Model
      */
     public function __toString()
     {
-        return (string)$this->resultHtml;
+        return (string) $this->html;
     }
 
     public function rules()
@@ -74,8 +74,8 @@ class ElementRelationsModel extends Model
     /**
      * @return string
      */
-    public function getResultHtml(): string
+    public function getMarkup(): string
     {
-        return $this->resultHtml;
+        return $this->markup;
     }
 }
