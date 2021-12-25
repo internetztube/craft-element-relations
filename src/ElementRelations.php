@@ -3,11 +3,6 @@
 namespace internetztube\elementRelations;
 
 use craft\base\Element;
-use craft\db\Query;
-use craft\db\Table;
-use craft\events\RegisterUrlRulesEvent;
-use craft\web\UrlManager;
-use internetztube\elementRelations\controllers\ElementRelationsController;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\ElementRelationsService;
@@ -16,10 +11,8 @@ use Craft;
 use craft\base\Plugin;
 use craft\elements\Entry;
 use craft\events\ModelEvent;
-use craft\events\PluginEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\services\Fields;
-use craft\services\Plugins;
 use yii\base\Event;
 
 /**
@@ -42,11 +35,6 @@ class ElementRelations extends Plugin
         if (Craft::$app instanceof ConsoleApplication) {
             $this->controllerNamespace = 'internetztube\elementrelations\console\controllers';
         }
-
-        // Register services as components
-        $this->setComponents([
-            'elementRelations' => ElementRelationsService::class,
-        ]);
 
         Event::on(
             Fields::class,

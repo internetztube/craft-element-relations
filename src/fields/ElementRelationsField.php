@@ -24,7 +24,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
     public static function supportedTranslationMethods(): array
     {
-        return [self::TRANSLATION_METHOD_SITE];
+        return [self::TRANSLATION_METHOD_NONE];
     }
 
     public static function displayName(): string

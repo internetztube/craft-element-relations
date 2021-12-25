@@ -16,6 +16,7 @@ use internetztube\elementRelations\ElementRelations;
 
 use Craft;
 use internetztube\elementRelations\fields\ElementRelationsField;
+use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
 use yii\base\InvalidConfigException;
 use yii\console\Controller;
@@ -146,9 +147,9 @@ class CachesController extends Controller
         if ($this->force) {
             echo 'Forcing entry relations creation via --force' . PHP_EOL;
         }
-        $relations = $this->elementRelationsService->getAllRelations(!$this->force);
+        $relations = CacheService::getAllRelations(!$this->force());
         $entriesTotal = count($relations);
-        $cacheDuration = $this->elementRelationsService->cacheDuration;
+        $cacheDuration = CacheService::getCacheDuration();
         echo "Cache duration set to $cacheDuration" . PHP_EOL;
         if ($entriesTotal == 0) {
             echo "All relations up to date." . PHP_EOL;
@@ -362,12 +363,8 @@ class CachesController extends Controller
      */
     private function cacheSingleElement(Element $element, bool $force = false): void
     {
-        if (!$element->id) {
-            return;
-        }
-        $elementId = $element->id;
-        $siteId = $element->siteId;
-        $this->elementRelationsService->getRelations($element, $elementId, $siteId, 'default', $force);
+        if (!$element->id) { return; }
+        CacheService::getRelationsCached($element, 'default', $force);
         echo "...Done" . PHP_EOL;
     }
 

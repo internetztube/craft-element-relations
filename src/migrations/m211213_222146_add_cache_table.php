@@ -23,7 +23,7 @@ class m211213_222146_add_cache_table extends Migration
                 'elementId' => $this->integer()->notNull(),
                 'siteId' => $this->integer()->notNull(),
                 'relations' => $this->text(),
-                'resultHtml' => $this->text(),
+                'markup' => $this->text(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),

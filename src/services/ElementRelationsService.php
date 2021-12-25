@@ -3,215 +3,85 @@
 namespace internetztube\elementRelations\services;
 
 use Craft;
-use craft\base\Component;
 use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
-use craft\elements\Entry;
-use craft\helpers\ArrayHelper;
+use craft\elements\Asset;
+use craft\elements\User;
 use craft\helpers\Cp;
-use craft\models\EntryType;
-use craft\models\FieldLayout;
-use craft\models\Section;
-use craft\models\Site;
-use craft\services\Sections;
-use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\fields\ElementRelationsField;
-use internetztube\elementRelations\models\ElementRelationsModel;
-use internetztube\elementRelations\records\ElementRelationsRecord;
-use phpDocumentor\Reflection\Types\Void_;
-use Throwable;
 use yii\base\InvalidConfigException;
-use yii\db\ActiveRecord;
-use yii\db\StaleObjectException;
-use yii\web\NotFoundHttpException;
 
-class ElementRelationsService extends Component
+class ElementRelationsService
 {
-
-    public    $cacheDuration = '1 week';
-    protected $settings;
-
-    public function __construct($config = [])
+    public static function getRelations (ElementInterface $element, string $size = 'default')
     {
-        $this->settings = ElementRelations::$plugin->getSettings();
-        parent::__construct($config);
-    }
-
-    /**
-     * @throws Throwable
-     * @throws StaleObjectException
-     * @throws NotFoundHttpException
-     */
-    public static function refreshEntryRelations(Entry $entry): void
-    {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            $relationsRecords = self::getRelatedRelationsRecords($entry->id, $entry->siteId);
-            $service = new ElementRelationsService();
-            foreach ($relationsRecords as $record) {
-                $element = Craft::$app->elements->getElementById($record->elementId, null, $record->siteId);
-                if (!$element) {
-                    self::deleteRelationsRecord($record);
-                }
-                $service->getRelations($element, $element->id, $element->siteId, 'default', true);
+        $relations = self::getRelationsFromElement($element);
+        $elements = collect();
+        $markup = collect();
+        if ($element instanceof Asset) {
+            $assetUsageInSeomatic = ElementRelationsService::assetUsageInSEOmatic($element);
+            if ($assetUsageInSeomatic['usedGlobally']) {
+                $markup->push('Used in SEOmatic Global Settings');
             }
-        }
-    }
-
-    /**
-     * @param int $elementId
-     * @param int $siteId
-     * @return array|ActiveRecord[]
-     */
-    public static function getRelatedRelationsRecords(int $elementId, int $siteId): array
-    {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            return ElementRelationsRecord::find()
-                ->where(['like', 'relations', $elementId])
-                ->andWhere(['siteId' => $siteId])
-                ->all();
-        }
-        return [];
-    }
-
-    /**
-     * @param ElementRelationsRecord|ActiveRecord $record
-     * @throws Throwable
-     * @throws StaleObjectException
-     */
-    public static function deleteRelationsRecord(ElementRelationsRecord $record): void
-    {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            $record->delete();
-        }
-    }
-
-    /**
-     * Get the datetime used for determining a stale cache
-     * @return string
-     */
-    public function getStaleDateTime():string
-    {
-        $cacheDuration = $this->getCacheDuration();
-        return date('Y-m-d H:i:s', strtotime("$cacheDuration ago"));
-    }
-
-    /**
-     * @return string Cache Duration from config, settings, or class
-     */
-    public function getCacheDuration(): string {
-        return $this->settings->cacheDuration ?? $this->cacheDuration;
-    }
-
-    /**
-     * @param Element|ElementInterface $element
-     * @param int $elementId
-     * @param int $siteId
-     * @param string $size
-     * @param bool $force Force the record to re-cache
-     * @return string|bool
-     */
-    public function getRelations(Element $element, int $elementId, int $siteId, string $size = 'default', bool $force = false): string
-    {
-        $staleDateTime = $this->getStaleDateTime();
-        $stale = false;
-
-        $cachedRelations = self::getStoredRelations($elementId, $siteId);
-        if (!empty($cachedRelations) && $cachedRelations->dateUpdated < $staleDateTime) {
-            $stale = true;
-        }
-        $request = Craft::$app->getRequest();
-        $isConsoleRequest = ($request->getIsConsoleRequest());
-
-        if ($force || !$cachedRelations || $stale) {
-            $relations = self::getRelationsFromElement($element);
-            $result = collect();
-            if ($element instanceof Asset) {
-                $assetUsageInSeomatic = ElementRelationsService::assetUsageInSEOmatic($element);
-                if ($assetUsageInSeomatic['usedGlobally']) {
-                    $result->push('Used in SEOmatic Global Settings');
-                }
-                if (!empty($assetUsageInSeomatic['elements'])) {
-                    $result->push('Used in SEOmatic in these Elements (+Drafts):');
-                    $result->push(Cp::elementPreviewHtml($assetUsageInSeomatic['elements'], $size));
-                }
-
-                $assetUsageInProfilePhotos = ElementRelationsService::assetUsageInProfilePhotos($element);
-                if (!empty($assetUsageInProfilePhotos)) {
-                    $result->push(Cp::elementPreviewHtml($assetUsageInProfilePhotos, $size, true, false, true));
-                }
+            if (!empty($assetUsageInSeomatic['elements'])) {
+                $markup->push('Used in SEOmatic in these Elements (+Drafts):');
+                $markup->push(Cp::elementPreviewHtml($assetUsageInSeomatic['elements'], $size));
+                $elements = $elements->merge($assetUsageInSeomatic['elements']);
             }
 
-            if (!empty($relations)) {
-                $result->push(Cp::elementPreviewHtml($relations, $size));
-            } else {
-                $relationsAnySite = self::getRelationsFromElement($element, true);
-                if (!empty($relationsAnySite)) {
-                    $result->push('Unused in this site, but used in others:');
-                    $result->push(Cp::elementPreviewHtml($relationsAnySite, $size));
-                }
+            $assetUsageInProfilePhotos = ElementRelationsService::assetUsageInProfilePhotos($element);
+            if (!empty($assetUsageInProfilePhotos)) {
+                $markup->push(Cp::elementPreviewHtml($assetUsageInProfilePhotos, $size, true, false, true));
+                $elements = $elements->merge($assetUsageInProfilePhotos);
             }
+        }
 
-            if ($result->isEmpty()) {
-                $result->push('<span style="color: #da5a47;">Unused</span>');
-            }
-            $resultHtml = $result->implode('<br />');
-
-            //set it or Update it
-            $relationsIds = array_unique(ArrayHelper::getColumn($relations, 'id'));
-            self::setStoredRelations($elementId, $siteId, $relationsIds, $resultHtml);
+        if (!empty($relations)) {
+            $markup->push(Cp::elementPreviewHtml($relations, $size));
+            $elements = $elements->merge($relations);
         } else {
-            if (!$isConsoleRequest) {
-                $resultHtml = $cachedRelations->getResultHtml();
+            $relationsAnySite = self::getRelationsFromElement($element, true);
+            if (!empty($relationsAnySite)) {
+                $markup->push('Unused in this site, but used in others:');
+                $markup->push(Cp::elementPreviewHtml($relationsAnySite, $size));
+                $elements = $elements->merge($relationsAnySite);
             }
         }
-        if (!$isConsoleRequest) {
-            return $resultHtml;
-        } else {
-            return true;
+
+        if ($markup->isEmpty()) {
+            $markup->push('<span style="color: #da5a47;">Unused</span>');
         }
+        return [
+            'elementIds' => $elements->pluck('id')->unique()->all(),
+            'markup' => $markup->implode('<br />'),
+        ];
     }
 
     /**
-     * @param int $elementId
-     * @param int $siteId
-     * @return false|ElementRelationsModel
+     * @return array
+     * @throws InvalidConfigException
      */
-    public static function getStoredRelations(int $elementId, int $siteId)
+    public static function getRelatedElementEntryTypes(): array
     {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            $elementRelationsRecord = self::getStoredRelationsRecord($elementId, $siteId);
+        $relatedEntryTypes = [];
+        $sections = Craft::$app->getSections();
+        $entryTypes = $sections->getAllEntryTypes();
 
-            $elementRelationsModel = new ElementRelationsModel();
-            if ($elementRelationsRecord) {
-                $attributes = $elementRelationsRecord->getAttributes();
-                $elementRelationsModel->setAttributes($attributes, false);
-                return $elementRelationsModel;
+        foreach ($entryTypes as $entryType) {
+            $fieldLayout = $entryType->getFieldLayout();
+            // Loop through the fields in the layout to see if there is an ElementRelations field
+            if ($fieldLayout) {
+                $fields = $fieldLayout->getFields();
+                foreach ($fields as $field) {
+                    if ($field instanceof ElementRelationsField) {
+                        $relatedEntryTypes[$entryType->id] = $entryType;
+                    }
+                }
             }
         }
-        return false;
-    }
-
-    /**
-     * @param int $elementId
-     * @param int $siteId
-     * @return array|ActiveRecord|null
-     */
-    public static function getStoredRelationsRecord(int $elementId, int $siteId)
-    {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            return ElementRelationsRecord::find()
-                ->where(['elementId' => $elementId])
-                ->andWhere(['siteId' => $siteId])
-                ->one();
-        }
-        return null;
+        return $relatedEntryTypes;
     }
 
     /**
@@ -219,7 +89,7 @@ class ElementRelationsService extends Component
      * @param bool $anySite
      * @return array
      */
-    public static function getRelationsFromElement(Element $sourceElement, bool $anySite = false): array
+    public static function getRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
     {
         $elements = (new Query())->select(['elements.id'])
             ->from(['relations' => Table::RELATIONS])
@@ -273,7 +143,11 @@ class ElementRelationsService extends Component
         return self::getRootElement($sourceElement, $site);
     }
 
-    public static function assetUsageInProfilePhotos(Element $sourceElement)
+    /**
+     * @param Element $sourceElement
+     * @return User[]
+     */
+    private static function assetUsageInProfilePhotos(Element $sourceElement): array
     {
         $users = (new Query())
             ->select(['id'])
@@ -290,14 +164,18 @@ class ElementRelationsService extends Component
      * @param Element $sourceElement
      * @return array|false
      */
-    public static function assetUsageInSEOmatic(Element $sourceElement)
+    private static function assetUsageInSEOmatic(Element $sourceElement)
     {
         $result = ['usedGlobally' => false, 'elements' => []];
         $isInstalled = Craft::$app->db->tableExists('{{%seomatic_metabundles}}');
-        if (!$isInstalled) { return false; }
+        if (!$isInstalled) {
+            return false;
+        }
 
         $extractIdFromString = function ($input) {
-            if (!$input) { return false; }
+            if (!$input) {
+                return false;
+            }
             $result = sscanf($input, '{seomatic.helper.socialTransform(%d, ');
             return (int)collect($result)->first();
         };
@@ -334,7 +212,9 @@ class ElementRelationsService extends Component
             ->where(['=', 'type', 'nystudio107\seomatic\fields\SeoSettings'])
             ->all();
         $fields = collect($fields)->map(function ($field) {
-            if (empty($field['columnSuffix'])) { return $field['handle']; }
+            if (empty($field['columnSuffix'])) {
+                return $field['handle'];
+            }
             return sprintf('%s_%s', $field['handle'], $field['columnSuffix']);
         })->toArray();
 
@@ -350,7 +230,9 @@ class ElementRelationsService extends Component
             collect($rows)->each(function ($row) use (&$foundElements, $extractIdFromString, $fieldHandle, $sourceElement) {
                 $data = json_decode($row[$fieldHandle]);
                 $id = $extractIdFromString($data->metaGlobalVars->seoImage);
-                if ($id !== $sourceElement->id) { return false; }
+                if ($id !== $sourceElement->id) {
+                    return false;
+                }
                 $foundElements->push(self::getElementById($row['canonicalId'] ?? $row['id'], $row['siteId']));
             });
         });
@@ -358,87 +240,5 @@ class ElementRelationsService extends Component
             ->unique('canonicalId')
             ->toArray();
         return $result;
-    }
-
-    /**
-     * Add the relation to the db. Note dateUpdated is added here because
-     * otherwise if nothing changes, the record is not updated, and we use that for cache staleness
-     * @param int $elementId
-     * @param int $siteId
-     * @param array $relations
-     * @param string $resultHtml
-     */
-    public static function setStoredRelations(int $elementId, int $siteId, array $relations, string $resultHtml)
-    {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            if (!$elementRelationsRecord = self::getStoredRelationsRecord($elementId, $siteId)) {
-                $elementRelationsRecord = new ElementRelationsRecord();
-            }
-            $elementRelationsRecord->setAttribute('elementId', $elementId);
-            $elementRelationsRecord->setAttribute('siteId', $siteId);
-            $elementRelationsRecord->setAttribute('relations', implode(',', $relations));
-            $elementRelationsRecord->setAttribute('resultHtml', $resultHtml);
-            $elementRelationsRecord->setAttribute('dateUpdated', date('Y-m-d H:i:s'));
-            $elementRelationsRecord->save();
-        }
-    }
-
-    /**
-     * @param Entry $entry
-     * @throws Throwable
-     * @throws StaleObjectException
-     */
-    public static function clearRelatedCaches(Entry $entry)
-    {
-        $settings = ElementRelations::$plugin->getSettings();
-        if ($settings->useCache) {
-            $relationsRecords = self::getRelatedRelationsRecords($entry->id, $entry->siteId);
-            foreach ($relationsRecords as $record) {
-                self::deleteRelationsRecord($record);
-            }
-        }
-    }
-
-    /**
-     * @param bool $staleOnly
-     * @param string $siteId // not implemented
-     * @return array|ActiveRecord[]
-     */
-    public function getAllRelations(bool $staleOnly = true, string $siteId = '*'): array
-    {
-        $relationsQuery = ElementRelationsRecord::find();
-        if ($staleOnly) {
-            $staleDateTime = $this->getStaleDateTime();
-            $relationsQuery->where(["<",'dateUpdated', $staleDateTime]);
-        }
-        return $relationsQuery->all();
-    }
-
-    /**
-     * @return array
-     * @throws InvalidConfigException
-     */
-    public function getRelatedElementEntryTypes(): array
-    {
-
-        $relatedEntryTypes = [];
-        $sections = Craft::$app->getSections();
-        $entryTypes = $sections->getAllEntryTypes();
-
-        foreach ($entryTypes as $entryType) {
-            $fieldLayout = $entryType->getFieldLayout();
-            // Loop through the fields in the layout to see if there is an ElementRelations field
-            if ($fieldLayout) {
-                $fields = $fieldLayout->getFields();
-                foreach ($fields as $field) {
-                    if ($field instanceof ElementRelationsField) {
-                        $relatedEntryTypes[$entryType->id] = $entryType;
-                    }
-                }
-            }
-        }
-        return $relatedEntryTypes;
-
     }
 }
