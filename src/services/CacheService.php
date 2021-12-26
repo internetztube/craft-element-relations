@@ -23,10 +23,10 @@ class CacheService extends Component
      * @throws StaleObjectException
      * @throws NotFoundHttpException
      */
-    public static function refresh(Entry $entry): void
+    public static function refresh(ElementInterface $element): void
     {
         if (!self::getUseCache()) { return; }
-        $relationsRecords = self::getRelatedRelationsRecords($entry->id, $entry->siteId);
+        $relationsRecords = self::getRelatedRelationsRecords($element->id, $element->siteId);
         foreach ($relationsRecords as $record) {
             $element = \Craft::$app->elements->getElementById($record->elementId, null, $record->siteId);
             if (!$element) { self::deleteRelationsRecord($record); }

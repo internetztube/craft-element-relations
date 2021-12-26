@@ -43,10 +43,6 @@ use yii\web\NotFoundHttpException;
  */
 class CachesController extends Controller
 {
-
-    // Public Properties
-    // =========================================================================
-
     /**
      * @var bool Whether caches should be rebuilt, even if they already exist
      * @since 1.0.7
@@ -70,25 +66,6 @@ class CachesController extends Controller
      * @since 1.0.7
      */
     public $siteId = null;
-
-    // Protected Properties
-    // =========================================================================
-
-    protected $elementRelationsService;
-
-    // Public Methods
-    // =========================================================================
-
-    /**
-     * @param $id
-     * @param $module
-     * @param array $config
-     */
-    public function __construct($id, $module, $config = [])
-    {
-        parent::__construct($id, $module, $config);
-        $this->elementRelationsService = new ElementRelationsService();
-    }
 
     /**
      * @inheritdoc
@@ -118,15 +95,15 @@ class CachesController extends Controller
      */
     public function actionCreate(): void
     {
-        echo 'Create or refresh stale existing Element Relations' . PHP_EOL;
+        $this->stdout('Create or refresh stale existing Element Relations' . PHP_EOL);
         if ($this->force) {
-            echo 'Forcing entry relations cache clear via --force' . PHP_EOL;
+            $this->stdout('Forcing entry relations cache clear via --force' . PHP_EOL);
         }
         if ($this->volume) {
-            echo "Running specifically for volume '{$this->volume}'" . PHP_EOL;
+            $this->stdout("Running specifically for volume '{$this->volume}'" . PHP_EOL);
             $this->saveVolume($this->volume, $this->force);
         } elseif ($this->section) {
-            echo "Running specifically for section '{$this->section}'" . PHP_EOL;
+            $this->stdout("Running specifically for section '{$this->section}'" . PHP_EOL);
             $this->saveSection($this->section, $this->force);
         } else {
             $this->saveAllSections($this->force);
@@ -143,25 +120,23 @@ class CachesController extends Controller
      */
     public function actionRefresh(): bool
     {
-        echo 'Refreshing existing stale relations without creating new ones' . PHP_EOL;
+        $this->stdout('Refreshing existing stale relations without creating new ones' . PHP_EOL);
         if ($this->force) {
-            echo 'Forcing entry relations creation via --force' . PHP_EOL;
+            $this->stdout('Forcing entry relations creation via --force' . PHP_EOL);
         }
-        $relations = CacheService::getAllRelations(!$this->force());
+        $relations = CacheService::getAllRelations(!$this->force);
         $entriesTotal = count($relations);
         $cacheDuration = CacheService::getCacheDuration();
-        echo "Cache duration set to $cacheDuration" . PHP_EOL;
+        $this->stdout("Cache duration set to $cacheDuration" . PHP_EOL);
         if ($entriesTotal == 0) {
-            echo "All relations up to date." . PHP_EOL;
+            $this->stdout("All relations up to date." . PHP_EOL);
         } else {
-            echo "$entriesTotal Relations to update." . PHP_EOL;
+            $this->stdout("$entriesTotal Relations to update." . PHP_EOL);
         }
-        $entryNumber = 1;
-        foreach ($relations as $relation) {
-            $element = ElementRelationsService::getElementById($relation->elementId, $relation->siteId);
-            echo "[$entryNumber/$entriesTotal] " . substr($element->title, 0, 50);
+        for ($i = 1; $i <= count($relations); $i++) {
+            $element = ElementRelationsService::getElementById($relations[$i]->elementId, $relations[$i]->siteId);
+            $this->stdout( "[$i/$entriesTotal] " . substr($element->title, 0, 50));
             $this->cacheSingleElement($element, $this->force);
-            $entryNumber++;
         }
 
         return true;
@@ -195,16 +170,15 @@ class CachesController extends Controller
     protected function saveVolume(string $volumeHandle, $force = false): void
     {
         if ($volumeHandle == null) {
-            echo "VolumeHandle is empty, must be supplied to run a single Asset Volume." . PHP_EOL;
+            $this->stdout("VolumeHandle is empty, must be supplied to run a single Asset Volume." . PHP_EOL);
         }
         $volume = Craft::$app->getVolumes()->getVolumeByHandle($volumeHandle);
         if (is_subclass_of($volume, Volume::class)) {
-            echo "VolumeHandle '$volumeHandle' found" . PHP_EOL;
+            $this->stdout("VolumeHandle '$volumeHandle' found" . PHP_EOL);
             /** @var Volume $volume */
             $this->reCacheVolumeAssets($volume, $force);
         } else {
-            echo "VolumeHandle '$volumeHandle' not valid or an error occurred." . PHP_EOL;
-
+            $this->stdout("VolumeHandle '$volumeHandle' not valid or an error occurred." . PHP_EOL);
         }
     }
 
@@ -219,7 +193,7 @@ class CachesController extends Controller
      */
     protected function reCacheVolumeAssets(Volume $volume, $force = false): void
     {
-        echo "Volume " . $volume->name . PHP_EOL;
+        $this->stdout("Volume " . $volume->name . PHP_EOL);
         $needToReSave = false;
         /** @var FieldLayout $fieldLayout */
         $fieldLayout = $volume->getFieldLayout();
@@ -237,24 +211,21 @@ class CachesController extends Controller
                 $siteId = Craft::$app->getSites()->getPrimarySite()->id;
             } catch (SiteNotFoundException $e) {
                 $siteId = 0;
-                Craft::error(
-                    'Failed to get primary site: ' . $e->getMessage(),
-                    __METHOD__
-                );
+                $this->stderr('Failed to get primary site: ' . $e->getMessage());
             }
 
             $assets = Asset::find()
                 ->volume($volume)
                 ->all();
             $assetTotal = count($assets);
-            echo "$assetTotal Assets found in volume." . PHP_EOL;
+            $this->stdout("$assetTotal Assets found in volume." . PHP_EOL);
             $assetCount = 1;
             foreach ($assets as $asset) {
-                echo "[$assetCount/$assetTotal] " . substr($asset->title, 0, 50);
+                $this->stdout("[$assetCount/$assetTotal] " . substr($asset->title, 0, 50));
                 $this->cacheSingleElement($asset, $force);
                 $assetCount++;
             }
-            echo PHP_EOL;
+            $this->stdout(PHP_EOL);
         }
     }
 
@@ -269,7 +240,7 @@ class CachesController extends Controller
      */
     protected function saveAllSections(bool $force = false): void
     {
-        $entryTypes = $this->elementRelationsService->getRelatedElementEntryTypes();
+        $entryTypes = ElementRelationsService::getRelatedElementEntryTypes();
         foreach ($entryTypes as $id => $entryType) {
             $this->reCacheEntryTypeEntries($entryType, $force);
         }
@@ -285,18 +256,17 @@ class CachesController extends Controller
     protected function saveSection(string $sectionHandle, $force = false): void
     {
         if ($sectionHandle == null) {
-            echo "Section Handle is empty, must be supplied to run a single Section." . PHP_EOL;
+            $this->stdout("Section Handle is empty, must be supplied to run a single Section." . PHP_EOL);
         }
         $section = Craft::$app->getSections()->getSectionByHandle($sectionHandle);
         if ($section instanceof Section) {
-            echo "Section '$sectionHandle' found" . PHP_EOL;
+            $this->stdout("Section '$sectionHandle' found" . PHP_EOL);
             $entryTypes = $section->getEntryTypes();
             foreach ($entryTypes as $entryType) {
                 $this->reCacheEntryTypeEntries($entryType, $force);
             }
         } else {
-            echo "Section Handle '$sectionHandle' not valid or an error occurred." . PHP_EOL;
-
+            $this->stdout("Section Handle '$sectionHandle' not valid or an error occurred." . PHP_EOL);
         }
     }
 
@@ -311,11 +281,11 @@ class CachesController extends Controller
     protected function saveEntryType(string $entryTypeHandle, int $entryTypeId = 0, $force = false): void
     {
         if ($entryTypeHandle == null) {
-            echo "EntryType Handle is empty, must be supplied to run a single Entry Type." . PHP_EOL;
+            $this->stdout("EntryType Handle is empty, must be supplied to run a single Entry Type." . PHP_EOL);
         }
         $entryType = Craft::$app->getSections()->getEntryTypeById($entryTypeId);
         if ($entryType instanceof EntryType) {
-            echo "EntryType $entryTypeHandle found" . PHP_EOL;
+            $this->stdout("EntryType $entryTypeHandle found" . PHP_EOL);
             $this->reCacheEntryTypeEntries($entryType, $force);
         }
     }
@@ -343,15 +313,15 @@ class CachesController extends Controller
         if ($processEntryType) {
             $entriesInEntryType = Entry::find()->typeId($entryType->id)->all();
             $entriesTotal = count($entriesInEntryType);
-            echo "$entriesTotal Entries found in Section/EntryType {$section->name}/{$entryType->name}." . PHP_EOL;
+            $this->stdout("$entriesTotal Entries found in Section/EntryType {$section->name}/{$entryType->name}." . PHP_EOL);
             $entryNumber = 1;
             foreach ($entriesInEntryType as $entry) {
-                echo "[$entryNumber/$entriesTotal] " . substr($entry->title, 0, 50);
+                $this->stdout("[$entryNumber/$entriesTotal] " . substr($entry->title, 0, 50));
                 $this->cacheSingleElement($entry, $force);
                 $entryNumber++;
             }
         }
-        echo PHP_EOL;
+        $this->stdout(PHP_EOL);
     }
 
     /********** Atomic Methods to do the caching ************/
@@ -361,11 +331,10 @@ class CachesController extends Controller
      * @param bool $force
      * @return void
      */
-    private function cacheSingleElement(Element $element, bool $force = false): void
+    private function cacheSingleElement(ElementInterface $element, bool $force = false): void
     {
         if (!$element->id) { return; }
-        CacheService::getRelationsCached($element, 'default', $force);
-        echo "...Done" . PHP_EOL;
+        CacheService::getRelationsCached($element, $force);
+        $this->stdout("...Done" . PHP_EOL);
     }
-
 }

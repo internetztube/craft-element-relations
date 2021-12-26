@@ -41,13 +41,6 @@ class ElementRelationsService
         if (!empty($relations)) {
             $markup->push(Cp::elementPreviewHtml($relations, $size));
             $elements = $elements->merge($relations);
-        } else {
-            $relationsAnySite = self::getRelationsFromElement($element, true);
-            if (!empty($relationsAnySite)) {
-                $markup->push('Unused in this site, but used in others:');
-                $markup->push(Cp::elementPreviewHtml($relationsAnySite, $size));
-                $elements = $elements->merge($relationsAnySite);
-            }
         }
 
         if ($markup->isEmpty()) {
@@ -102,11 +95,11 @@ class ElementRelationsService
         return collect($elements)->map(function (int $elementId) use ($site) {
             /** @var ?Element $relation */
             $relation = self::getElementById($elementId, $site);
-            if (!$relation) {
-                return null;
-            }
+            if (!$relation) { return null; }
             return self::getRootElement($relation, $site);
-        })->filter()->values()->toArray();
+        })->filter()->unique(function (ElementInterface $element) {
+            return $element->id . $element->siteId;
+        })->values()->toArray();
     }
 
     /**

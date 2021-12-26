@@ -35,7 +35,7 @@ class ElementRelationsModel extends Model
     public $relations;
 
     /**
-     * @var string Result Html
+     * @var string Markup
      */
     public $markup;
 
@@ -59,7 +59,7 @@ class ElementRelationsModel extends Model
      */
     public function __toString()
     {
-        return (string) $this->html;
+        return (string) $this->markup;
     }
 
     public function rules()
