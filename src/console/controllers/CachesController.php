@@ -310,6 +310,7 @@ class CachesController extends Controller
                 }
             }
         }
+
         if ($processEntryType) {
             $entriesInEntryType = Entry::find()->typeId($entryType->id)->all();
             $entriesTotal = count($entriesInEntryType);

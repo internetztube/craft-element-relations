@@ -10,7 +10,10 @@ use craft\db\Table;
 use craft\elements\Asset;
 use craft\elements\User;
 use craft\helpers\Cp;
+use craft\records\FieldLayout;
+use craft\services\Elements;
 use internetztube\elementRelations\fields\ElementRelationsField;
+use yii\base\BaseObject;
 use yii\base\InvalidConfigException;
 
 class ElementRelationsService
@@ -52,29 +55,24 @@ class ElementRelationsService
         ];
     }
 
-    /**
-     * @return array
-     * @throws InvalidConfigException
-     */
-    public static function getRelatedElementEntryTypes(): array
+    public static function getElementsWithField(): array
     {
-        $relatedEntryTypes = [];
-        $sections = Craft::$app->getSections();
-        $entryTypes = $sections->getAllEntryTypes();
+        $fieldLayoutIds = (new Query())->select(['fieldlayouts.id'])
+            ->from(['fieldlayouts' => Table::FIELDLAYOUTS])
+            ->innerJoin(['fieldlayoutfields' => Table::FIELDLAYOUTFIELDS], '[[fieldlayouts.id]] = [[fieldlayoutfields.layoutId]]')
+            ->innerJoin(['fields' => Table::FIELDS], '[[fieldlayoutfields.fieldId]] = [[fields.id]]')
+            ->where(['fields.type' => ElementRelationsField::class])
+            ->column();
 
-        foreach ($entryTypes as $entryType) {
-            $fieldLayout = $entryType->getFieldLayout();
-            // Loop through the fields in the layout to see if there is an ElementRelations field
-            if ($fieldLayout) {
-                $fields = $fieldLayout->getFields();
-                foreach ($fields as $field) {
-                    if ($field instanceof ElementRelationsField) {
-                        $relatedEntryTypes[$entryType->id] = $entryType;
-                    }
-                }
-            }
-        }
-        return $relatedEntryTypes;
+        $rows = (new Query())->select(['elements_sites.elementId', 'elements_sites.siteId', 'elements.canonicalId'])
+            ->from(['elements' => Table::ELEMENTS])
+            ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements.id]] = [[elements_sites.elementId]]')
+            ->where(['in', 'fieldLayoutId', $fieldLayoutIds])
+            ->all();
+
+        return collect($rows)->map(function (array $row) {
+            return ['elementId' => $row['canonicalId'] ?? $row['elementId'], 'siteId' => $row['siteId']];
+        })->unique()->all();
     }
 
     /**
@@ -82,7 +80,7 @@ class ElementRelationsService
      * @param bool $anySite
      * @return array
      */
-    public static function getRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
+    private static function getRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
     {
         $elements = (new Query())->select(['elements.id'])
             ->from(['relations' => Table::RELATIONS])
@@ -90,13 +88,13 @@ class ElementRelationsService
             ->where(['relations.targetId' => $sourceElement->canonicalId])
             ->column();
 
-        $site = $anySite ? '*' : $sourceElement->site;
+        $siteId = $anySite ? '*' : $sourceElement->siteId;
 
-        return collect($elements)->map(function (int $elementId) use ($site) {
+        return collect($elements)->map(function (int $elementId) use ($siteId) {
             /** @var ?Element $relation */
-            $relation = self::getElementById($elementId, $site);
+            $relation = self::getElementById($elementId, $siteId);
             if (!$relation) { return null; }
-            return self::getRootElement($relation, $site);
+            return self::getRootElement($relation, $siteId);
         })->filter()->unique(function (ElementInterface $element) {
             return $element->id . $element->siteId;
         })->values()->toArray();
@@ -107,16 +105,13 @@ class ElementRelationsService
      * @param $site
      * @return Element|null
      */
-    public static function getElementById(int $elementId, $site): ?Element
+    public static function getElementById(int $elementId, int $siteId): ?Element
     {
-        if (is_numeric($site)) {
-            $site = Craft::$app->sites->getSiteById($site);
-        }
         $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
         if (!$result) {
             return null;
         } // relation is broken
-        return $result['type']::find()->id($elementId)->anyStatus()->site($site)->one();
+        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
     }
 
     /**
@@ -124,16 +119,16 @@ class ElementRelationsService
      * @param $site
      * @return Element|null
      */
-    private static function getRootElement(Element $element, $site): ?Element
+    private static function getRootElement(Element $element, $siteId): ?Element
     {
         if (!isset($element->ownerId) || !$element->ownerId) {
             return $element;
         }
-        $sourceElement = self::getElementById($element->ownerId, $site);
+        $sourceElement = self::getElementById($element->ownerId, $siteId);
         if (!$sourceElement) {
             return null;
         }
-        return self::getRootElement($sourceElement, $site);
+        return self::getRootElement($sourceElement, $siteId);
     }
 
     /**

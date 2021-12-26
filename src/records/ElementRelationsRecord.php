@@ -18,14 +18,6 @@ use craft\db\ActiveRecord;
  */
 class ElementRelationsRecord extends ActiveRecord
 {
-    // Public Static Methods
-    // =========================================================================
-
-    /**
-     * @inheritdoc
-     *
-     * @return string the table name
-     */
     public static function tableName(): string
     {
         return '{{%elementrelations}}';

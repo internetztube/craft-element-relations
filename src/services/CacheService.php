@@ -5,7 +5,6 @@ namespace internetztube\elementRelations\services;
 use Throwable;
 use craft\base\Element;
 use craft\base\ElementInterface;
-use craft\elements\Entry;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\models\ElementRelationsModel;
 use internetztube\elementRelations\records\ElementRelationsRecord;
@@ -59,10 +58,9 @@ class CacheService extends Component
 
     /**
      * @param bool $staleOnly
-     * @param string $siteId // not implemented
-     * @return array|ActiveRecord[]
+     * @return ActiveRecord[]
      */
-    public static function getAllRelations(bool $staleOnly = true, string $siteId = '*'): array
+    public static function getAllRelations(bool $staleOnly = true): array
     {
         $relationsQuery = ElementRelationsRecord::find();
         if ($staleOnly) {
@@ -86,24 +84,13 @@ class CacheService extends Component
             ->all();
     }
 
+    /**
+     * @return bool
+     */
     private static function getUseCache(): bool
     {
         $settings = ElementRelations::$plugin->getSettings();
         return $settings->useCache;
-    }
-
-    /**
-     * @param Entry $entry
-     * @throws Throwable
-     * @throws StaleObjectException
-     */
-    private static function clearRelatedCaches(Entry $entry): void
-    {
-        if (!self::getUseCache()) { return; }
-        $relationsRecords = self::getRelatedRelationsRecords($entry->id, $entry->siteId);
-        foreach ($relationsRecords as $record) {
-            self::deleteRelationsRecord($record);
-        }
     }
 
     /**

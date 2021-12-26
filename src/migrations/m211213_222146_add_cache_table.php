@@ -11,9 +11,6 @@ use internetztube\elementRelations\records\ElementRelationsRecord;
  */
 class m211213_222146_add_cache_table extends Migration
 {
-    /**
-     * @inheritdoc
-     */
     public function safeUp()
     {
         $table = ElementRelationsRecord::tableName();
@@ -30,7 +27,6 @@ class m211213_222146_add_cache_table extends Migration
             ]);
 
             $this->createIndex(null, $table, ['elementId', 'siteId'], true);
-
             $this->addForeignKey(null, $table, 'elementId', '{{%elements}}', 'id', 'CASCADE');
             $this->addForeignKey(null, $table, 'siteId', '{{%sites}}', 'id', 'CASCADE');
 
@@ -41,9 +37,6 @@ class m211213_222146_add_cache_table extends Migration
         return true;
     }
 
-    /**
-     * @inheritdoc
-     */
     public function safeDown()
     {
         echo "m211213_222146_add_cache_table cannot be reverted.\n";

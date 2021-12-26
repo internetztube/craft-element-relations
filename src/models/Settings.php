@@ -2,12 +2,8 @@
 
 namespace internetztube\elementRelations\models;
 
-
 use craft\base\Model;
 
-/**
- * @package ElementRelations
- */
 class Settings extends Model
 {
 
@@ -20,5 +16,4 @@ class Settings extends Model
      * @var bool Whether to cache element relations in the db or load them every time
      */
     public $useCache = true;
-
 }
