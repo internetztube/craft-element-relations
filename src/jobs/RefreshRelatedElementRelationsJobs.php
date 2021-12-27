@@ -14,9 +14,7 @@ class RefreshRelatedElementRelationsJobs extends BaseJob
 
     public function execute($queue)
     {
-        if (!CacheService::useCache()) {
-            return;
-        }
+        if (!CacheService::useCache()) { return; }
         $relatedElementRelations = CacheService::getRelatedElementRelations($this->elementId, $this->siteId);
         $count = count($relatedElementRelations);
         foreach ($relatedElementRelations as $index => $relatedElementRelation) {

@@ -6,14 +6,8 @@ use craft\base\Model;
 use craft\validators\DateTimeValidator;
 use DateTime;
 
-/**
- * ElementRelationsModel
- */
 class ElementRelationsModel extends Model
 {
-    // Public Properties
-    // =========================================================================
-
     /**
      * @var int|null ID
      */
@@ -49,14 +43,6 @@ class ElementRelationsModel extends Model
      */
     public $dateUpdated;
 
-    // Public Methods
-    // =========================================================================
-
-    /**
-     * Define what is returned when model is converted to string
-     *
-     * @return string
-     */
     public function __toString()
     {
         return (string)$this->markup;
@@ -71,9 +57,6 @@ class ElementRelationsModel extends Model
         return $rules;
     }
 
-    /**
-     * @return string
-     */
     public function getMarkup(): string
     {
         return $this->markup;
