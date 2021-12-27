@@ -4,9 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 1.0.7 - 2021-12-31
+## 1.1.0 - 2021-12-28
 ### Added
-- Added caching system and new table to store data and speed up repeated fetches
+- Added caching system and new table to store data and speed up repeated fetches. Big thanks to [@gbowne](https://github.com/gbowne-quickbase) for the implementation! #3
 
 ## 1.0.6 - 2021-11-18
 ### Added

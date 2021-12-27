@@ -16,7 +16,7 @@ class RefreshCacheController extends Controller
     /**
      * Whether caches should be rebuilt, even if they already exist
      * @var bool
-     * @since 1.0.7
+     * @since 1.1.0
      */
     public $force = false;
 
