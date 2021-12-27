@@ -20,7 +20,7 @@ class RefreshElementRelationsJob extends BaseJob
             if (!$element) {
                 continue;
             }
-            CacheService::getRelationsCached($element, $this->force);
+            CacheService::getElementRelationsCached($element, $this->force);
             $queue->setProgress($index * 100 / $count);
         }
     }

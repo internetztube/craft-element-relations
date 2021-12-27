@@ -13,9 +13,14 @@ use internetztube\elementRelations\fields\ElementRelationsField;
 
 class ElementRelationsService
 {
-    public static function getRelations(ElementInterface $element)
+    /**
+     * Get element relations of an element. (uncached)
+     * @param ElementInterface $element
+     * @return array
+     */
+    public static function getElementRelations(ElementInterface $element)
     {
-        $relations = self::getRelationsFromElement($element);
+        $elementRelations = self::getElementRelationsFromElement($element);
         $elements = collect();
         $markup = collect();
         if ($element instanceof Asset) {
@@ -36,9 +41,9 @@ class ElementRelationsService
             }
         }
 
-        if (!empty($relations)) {
-            $markup->push(Cp::elementPreviewHtml($relations, 'default'));
-            $elements = $elements->merge($relations);
+        if (!empty($elementRelations)) {
+            $markup->push(Cp::elementPreviewHtml($elementRelations, 'default'));
+            $elements = $elements->merge($elementRelations);
         }
 
         if ($markup->isEmpty()) {
@@ -51,7 +56,50 @@ class ElementRelationsService
         ];
     }
 
-    private static function getRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
+    /**
+     * Get an element by id with the corresponding Element Query Builder.
+     * @param int $elementId
+     * @param int $siteId
+     * @return Element|null
+     */
+    public static function getElementById(int $elementId, int $siteId): ?ElementInterface
+    {
+        $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
+        if (!$result) { return null; } // relation is broken
+        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
+    }
+
+    /**
+     * Get all elements that have an "Element Relations"-Field in their FieldLayout.
+     * @return array
+     */
+    public static function getElementsWithElementRelationsField(): array
+    {
+        $fieldLayoutIds = (new Query())->select(['fieldlayouts.id'])
+            ->from(['fieldlayouts' => Table::FIELDLAYOUTS])
+            ->innerJoin(['fieldlayoutfields' => Table::FIELDLAYOUTFIELDS], '[[fieldlayouts.id]] = [[fieldlayoutfields.layoutId]]')
+            ->innerJoin(['fields' => Table::FIELDS], '[[fieldlayoutfields.fieldId]] = [[fields.id]]')
+            ->where(['fields.type' => ElementRelationsField::class])
+            ->column();
+
+        $rows = (new Query())->select(['elements_sites.elementId', 'elements_sites.siteId', 'elements.canonicalId'])
+            ->from(['elements' => Table::ELEMENTS])
+            ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements.id]] = [[elements_sites.elementId]]')
+            ->where(['in', 'fieldLayoutId', $fieldLayoutIds])
+            ->all();
+
+        return collect($rows)->map(function (array $row) {
+            return ['elementId' => $row['canonicalId'] ?? $row['elementId'], 'siteId' => $row['siteId']];
+        })->unique()->values()->all();
+    }
+
+    /**
+     * Get all relations of an element that are stored in the `relations` table.
+     * @param ElementInterface $sourceElement
+     * @param bool $anySite
+     * @return array
+     */
+    private static function getElementRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
     {
         $elements = (new Query())->select(['elements.id'])
             ->from(['relations' => Table::RELATIONS])
@@ -62,26 +110,21 @@ class ElementRelationsService
         $siteId = $anySite ? '*' : $sourceElement->siteId;
 
         return collect($elements)->map(function (int $elementId) use ($siteId) {
-            /** @var ?Element $relation */
-            $relation = self::getElementById($elementId, $siteId);
-            if (!$relation) {
-                return null;
-            }
-            return self::getRootElement($relation, $siteId);
+            /** @var ?Element $element */
+            $element = self::getElementById($elementId, $siteId);
+            if (!$element) { return null; }
+            return self::getRootElement($element, $siteId);
         })->filter()->unique(function (ElementInterface $element) {
             return $element->id . $element->siteId;
         })->values()->toArray();
     }
 
-    public static function getElementById(int $elementId, int $siteId): ?Element
-    {
-        $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
-        if (!$result) {
-            return null; // relation is broken
-        }
-        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
-    }
-
+    /**
+     * Get root element of an element. Mainly used for Matrix, SuperTable, and Neo blocks.
+     * @param Element $element
+     * @param $siteId
+     * @return Element|null
+     */
     private static function getRootElement(Element $element, $siteId): ?Element
     {
         if (!isset($element->ownerId) || !$element->ownerId) {
@@ -94,18 +137,19 @@ class ElementRelationsService
         return self::getRootElement($sourceElement, $siteId);
     }
 
-    private static function assetUsageInSEOmatic(Element $sourceElement)
+    /**
+     * Check if an asset is used in SEOmatic entry specific and global settings.
+     * @param Asset $sourceElement
+     * @return array|false
+     */
+    private static function assetUsageInSEOmatic(Asset $sourceElement)
     {
         $result = ['usedGlobally' => false, 'elements' => []];
         $isInstalled = Craft::$app->db->tableExists('{{%seomatic_metabundles}}');
-        if (!$isInstalled) {
-            return false;
-        }
+        if (!$isInstalled) { return null; }
 
         $extractIdFromString = function ($input) {
-            if (!$input) {
-                return false;
-            }
+            if (!$input) { return false; }
             $result = sscanf($input, '{seomatic.helper.socialTransform(%d, ');
             return (int)collect($result)->first();
         };
@@ -172,6 +216,11 @@ class ElementRelationsService
         return $result;
     }
 
+    /**
+     * Checks if an Asset is used as an profile picture.
+     * @param Element $sourceElement
+     * @return array
+     */
     private static function assetUsageInProfilePhotos(Element $sourceElement): array
     {
         $users = (new Query())
@@ -183,25 +232,5 @@ class ElementRelationsService
         return collect($users)->map(function (array $user) {
             return Craft::$app->users->getUserById($user['id']);
         })->all();
-    }
-
-    public static function getElementsWithElementRelationsField(): array
-    {
-        $fieldLayoutIds = (new Query())->select(['fieldlayouts.id'])
-            ->from(['fieldlayouts' => Table::FIELDLAYOUTS])
-            ->innerJoin(['fieldlayoutfields' => Table::FIELDLAYOUTFIELDS], '[[fieldlayouts.id]] = [[fieldlayoutfields.layoutId]]')
-            ->innerJoin(['fields' => Table::FIELDS], '[[fieldlayoutfields.fieldId]] = [[fields.id]]')
-            ->where(['fields.type' => ElementRelationsField::class])
-            ->column();
-
-        $rows = (new Query())->select(['elements_sites.elementId', 'elements_sites.siteId', 'elements.canonicalId'])
-            ->from(['elements' => Table::ELEMENTS])
-            ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements.id]] = [[elements_sites.elementId]]')
-            ->where(['in', 'fieldLayoutId', $fieldLayoutIds])
-            ->all();
-
-        return collect($rows)->map(function (array $row) {
-            return ['elementId' => $row['canonicalId'] ?? $row['elementId'], 'siteId' => $row['siteId']];
-        })->unique()->values()->all();
     }
 }

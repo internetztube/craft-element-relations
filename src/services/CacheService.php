@@ -7,11 +7,10 @@ use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\models\ElementRelationsModel;
 use internetztube\elementRelations\records\ElementRelationsRecord;
 use Throwable;
-use yii\base\Component;
 use yii\db\ActiveRecord;
 use yii\db\StaleObjectException;
 
-class CacheService extends Component
+class CacheService
 {
     // Fallback Cache Duration
     private const DEFAULT_CACHE_DURATION = '1 week';
@@ -22,7 +21,7 @@ class CacheService extends Component
      * @param bool $force
      * @return string
      */
-    public static function getRelationsCached(Element $element, bool $force = false): string
+    public static function getElementRelationsCached(Element $element, bool $force = false): string
     {
         $staleDateTime = self::getStaleDateTime();
         $cachedRelations = self::getStoredRelations($element->id, $element->siteId);
@@ -31,7 +30,7 @@ class CacheService extends Component
         $gatherElementRelations = $force || !$cachedRelations || $stale || !$useCache;
 
         if ($gatherElementRelations) {
-            $relations = ElementRelationsService::getRelations($element);
+            $relations = ElementRelationsService::getElementRelations($element);
             if ($useCache) {
                 self::setStoredRelations($element->id, $element->siteId, $relations['elementIds'], $relations['markup']);
             }

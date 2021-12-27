@@ -29,6 +29,6 @@ class ElementRelationsController extends Controller
         $siteId = Craft::$app->request->getParam('siteId');
         $element = Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
-        return CacheService::getRelationsCached($element);
+        return CacheService::getElementRelationsCached($element);
     }
 }

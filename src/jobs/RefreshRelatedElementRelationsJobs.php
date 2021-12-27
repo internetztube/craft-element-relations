@@ -24,7 +24,7 @@ class RefreshRelatedElementRelationsJobs extends BaseJob
             if (!$element) {
                 CacheService::deleteElementRelationsRecord($relatedElementRelation['elementId'], $relatedElementRelation['siteId']);
             }
-            CacheService::getRelationsCached($element, true);
+            CacheService::getElementRelationsCached($element, true);
             $queue->setProgress(($index + 1) * 100 / $count);
         }
     }
