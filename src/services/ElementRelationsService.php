@@ -8,17 +8,12 @@ use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
-use craft\elements\User;
 use craft\helpers\Cp;
-use craft\records\FieldLayout;
-use craft\services\Elements;
 use internetztube\elementRelations\fields\ElementRelationsField;
-use yii\base\BaseObject;
-use yii\base\InvalidConfigException;
 
 class ElementRelationsService
 {
-    public static function getRelations (ElementInterface $element, string $size = 'default')
+    public static function getRelations (ElementInterface $element)
     {
         $relations = self::getRelationsFromElement($element);
         $elements = collect();
@@ -30,19 +25,19 @@ class ElementRelationsService
             }
             if (!empty($assetUsageInSeomatic['elements'])) {
                 $markup->push('Used in SEOmatic in these Elements (+Drafts):');
-                $markup->push(Cp::elementPreviewHtml($assetUsageInSeomatic['elements'], $size));
+                $markup->push(Cp::elementPreviewHtml($assetUsageInSeomatic['elements']));
                 $elements = $elements->merge($assetUsageInSeomatic['elements']);
             }
 
             $assetUsageInProfilePhotos = ElementRelationsService::assetUsageInProfilePhotos($element);
             if (!empty($assetUsageInProfilePhotos)) {
-                $markup->push(Cp::elementPreviewHtml($assetUsageInProfilePhotos, $size, true, false, true));
+                $markup->push(Cp::elementPreviewHtml($assetUsageInProfilePhotos, 'default', true, false, true));
                 $elements = $elements->merge($assetUsageInProfilePhotos);
             }
         }
 
         if (!empty($relations)) {
-            $markup->push(Cp::elementPreviewHtml($relations, $size));
+            $markup->push(Cp::elementPreviewHtml($relations, 'default'));
             $elements = $elements->merge($relations);
         }
 
@@ -55,7 +50,7 @@ class ElementRelationsService
         ];
     }
 
-    public static function getElementsWithField(): array
+    public static function getElementsWithElementRelationsField(): array
     {
         $fieldLayoutIds = (new Query())->select(['fieldlayouts.id'])
             ->from(['fieldlayouts' => Table::FIELDLAYOUTS])
@@ -72,14 +67,18 @@ class ElementRelationsService
 
         return collect($rows)->map(function (array $row) {
             return ['elementId' => $row['canonicalId'] ?? $row['elementId'], 'siteId' => $row['siteId']];
-        })->unique()->all();
+        })->unique()->values()->all();
     }
 
-    /**
-     * @param Element $sourceElement
-     * @param bool $anySite
-     * @return array
-     */
+    public static function getElementById(int $elementId, int $siteId): ?Element
+    {
+        $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
+        if (!$result) {
+            return null;
+        } // relation is broken
+        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
+    }
+
     private static function getRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
     {
         $elements = (new Query())->select(['elements.id'])
@@ -100,25 +99,6 @@ class ElementRelationsService
         })->values()->toArray();
     }
 
-    /**
-     * @param int $elementId
-     * @param $site
-     * @return Element|null
-     */
-    public static function getElementById(int $elementId, int $siteId): ?Element
-    {
-        $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
-        if (!$result) {
-            return null;
-        } // relation is broken
-        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
-    }
-
-    /**
-     * @param Element $element
-     * @param $site
-     * @return Element|null
-     */
     private static function getRootElement(Element $element, $siteId): ?Element
     {
         if (!isset($element->ownerId) || !$element->ownerId) {
@@ -131,10 +111,6 @@ class ElementRelationsService
         return self::getRootElement($sourceElement, $siteId);
     }
 
-    /**
-     * @param Element $sourceElement
-     * @return User[]
-     */
     private static function assetUsageInProfilePhotos(Element $sourceElement): array
     {
         $users = (new Query())
@@ -148,10 +124,6 @@ class ElementRelationsService
         })->all();
     }
 
-    /**
-     * @param Element $sourceElement
-     * @return array|false
-     */
     private static function assetUsageInSEOmatic(Element $sourceElement)
     {
         $result = ['usedGlobally' => false, 'elements' => []];

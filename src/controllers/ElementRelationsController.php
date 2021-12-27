@@ -29,18 +29,12 @@ class ElementRelationsController extends Controller
         $this->elementRelationsService = new ElementRelationsService();
     }
 
-    /**
-     * @return string
-     * @throws NotFoundHttpException
-     */
     public function actionGetByElementId(): string
     {
         $elementId = Craft::$app->request->getParam('elementId');
         $siteId = Craft::$app->request->getParam('siteId');
-        $size = Craft::$app->request->getParam('size', 'default');
-        $size = $size === 'small' ? Cp::ELEMENT_SIZE_SMALL : Cp::ELEMENT_SIZE_LARGE;
         $element = Craft::$app->elements->getElementById($elementId, null, $siteId);
         if (!$element) throw new NotFoundHttpException;
-        return CacheService::getRelationsCached($element, $size);
+        return CacheService::getRelationsCached($element);
     }
 }

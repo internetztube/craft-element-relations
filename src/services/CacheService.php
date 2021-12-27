@@ -17,20 +17,9 @@ class CacheService extends Component
 {
     private const DEFAULT_CACHE_DURATION = '1 week';
 
-    /**
-     * @throws Throwable
-     * @throws StaleObjectException
-     * @throws NotFoundHttpException
-     */
-    public static function refresh(ElementInterface $element): void
+    public static function refreshRelatedElementRelations(int $elementId, int $siteId): void
     {
-        if (!self::getUseCache()) { return; }
-        $relationsRecords = self::getRelatedRelationsRecords($element->id, $element->siteId);
-        foreach ($relationsRecords as $record) {
-            $element = \Craft::$app->elements->getElementById($record->elementId, null, $record->siteId);
-            if (!$element) { self::deleteRelationsRecord($record); }
-            ElementRelationsService::getRelations($element);
-        }
+
     }
 
     /**
@@ -41,15 +30,15 @@ class CacheService extends Component
      * @param bool $force Force the record to re-cache
      * @return string|bool
      */
-    public static function getRelationsCached(Element $element, string $size = 'default', bool $force = false): string
+    public static function getRelationsCached(Element $element, bool $force = false): string
     {
         $staleDateTime = self::getStaleDateTime();
         $cachedRelations = self::getStoredRelations($element->id, $element->siteId);
         $stale = !empty($cachedRelations) && $cachedRelations->dateUpdated < $staleDateTime;
 
         if ($force || !$cachedRelations || $stale) {
-            $relations = ElementRelationsService::getRelations($element, $size);
-            // set it or Update it
+            $relations = ElementRelationsService::getRelations($element);
+            // set it or update it
             self::setStoredRelations($element->id, $element->siteId, $relations['elementIds'], $relations['markup']);
             return $relations['markup'];
         }
@@ -57,25 +46,11 @@ class CacheService extends Component
     }
 
     /**
-     * @param bool $staleOnly
-     * @return ActiveRecord[]
-     */
-    public static function getAllRelations(bool $staleOnly = true): array
-    {
-        $relationsQuery = ElementRelationsRecord::find();
-        if ($staleOnly) {
-            $staleDateTime = self::getStaleDateTime();
-            $relationsQuery->where(["<", 'dateUpdated', $staleDateTime]);
-        }
-        return $relationsQuery->all();
-    }
-
-    /**
      * @param int $elementId
      * @param int $siteId
      * @return ActiveRecord[]
      */
-    private static function getRelatedRelationsRecords(int $elementId, int $siteId): array
+    public static function getRelatedRelationsRecords(int $elementId, int $siteId): array
     {
         if (!self::getUseCache()) { return []; }
         return ElementRelationsRecord::find()
@@ -87,18 +62,13 @@ class CacheService extends Component
     /**
      * @return bool
      */
-    private static function getUseCache(): bool
+    public static function getUseCache(): bool
     {
         $settings = ElementRelations::$plugin->getSettings();
         return $settings->useCache;
     }
 
-    /**
-     * @param ElementRelationsRecord|ActiveRecord $record
-     * @throws Throwable
-     * @throws StaleObjectException
-     */
-    private static function deleteRelationsRecord(ElementRelationsRecord $record): void
+    public static function deleteRelationsRecord(ElementRelationsRecord $record): void
     {
         if (!self::getUseCache()) { return; }
         $record->delete();
