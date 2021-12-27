@@ -6,11 +6,21 @@ use craft\queue\BaseJob;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
 
-class RefreshRelatedElementRelationsJobs extends BaseJob
+/**
+ * This jobs refreshes all element relations when an element in used.
+ * Class RefreshRelatedElementRelationsJob
+ * @package internetztube\elementRelations\jobs
+ */
+class RefreshRelatedElementRelationsJob extends BaseJob
 {
+    /** @var string  */
     public $description = 'Refresh Related Element Relations';
-    public $elementId = null;
-    public $siteId = null;
+
+    /** @var int */
+    public $elementId;
+
+    /** @var int */
+    public $siteId;
 
     public function execute($queue)
     {

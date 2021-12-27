@@ -7,9 +7,16 @@ use craft\queue\BaseJob;
 use internetztube\elementRelations\services\ElementRelationsService;
 use Tightenco\Collect\Support\Collection;
 
+/**
+ * Since the refresh jobs are very time and computation intensive, the jobs are separated into 1000 items chunks.
+ * Class CreateRefreshElementRelationsJobsJob
+ * @package internetztube\elementRelations\jobs
+ */
 class CreateRefreshElementRelationsJobsJob extends BaseJob
 {
     public $description = 'Create Refresh Element Relations Cache Jobs';
+
+    /** @var bool */
     public $force = false;
 
     public function execute($queue)

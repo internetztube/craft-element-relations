@@ -2,9 +2,7 @@
 
 namespace internetztube\elementRelations\migrations;
 
-use Craft;
 use craft\db\Migration;
-use internetztube\elementRelations\records\ElementRelationsRecord;
 
 class Install extends Migration
 {

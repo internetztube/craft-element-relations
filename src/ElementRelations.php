@@ -12,7 +12,7 @@ use craft\services\Fields;
 use craft\services\Plugins;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\CreateRefreshElementRelationsJobsJob;
-use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJobs;
+use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJob;
 use internetztube\elementRelations\models\Settings;
 use yii\base\Event;
 
@@ -49,7 +49,7 @@ class ElementRelations extends Plugin
                 return;
             }
             $pushedQueueTasks[] = $needle;
-            $job = new RefreshRelatedElementRelationsJobs(['elementId' => $element->canonicalId, 'siteId' => $element->siteId,]);
+            $job = new RefreshRelatedElementRelationsJob(['elementId' => $element->canonicalId, 'siteId' => $element->siteId,]);
             Craft::$app->getQueue()->push($job);
         });
 

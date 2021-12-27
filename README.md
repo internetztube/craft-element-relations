@@ -17,6 +17,12 @@ To install this plugin, follow these steps:
 
 You can also install this plugin via the Plugin Store in the Craft Control Panel.
 
+Optional:
+Copy config file into project.
+```
+cp vendor/internetztube/craft-element-relations/src/config.php config/element-relations.php
+```
+
 ## Support
 As a basis the relations table is used. This means that any field that stores relations in the relations table will work out of the box.
 * Most Craft CMS internal fields
@@ -31,9 +37,9 @@ As a basis the relations table is used. This means that any field that stores re
 
 ## Caching
 Caching is enabled by default and set to `1 week`. These settings can be overridden using a local config file.
-```
-cp vendor/internetztube/craft-element-relations/src/config.php config/element-relations.php
-```
+
+
+
 
 ## Screenshots
 ![Field Edit Page](screenshots/field.jpg)
@@ -48,8 +54,11 @@ Asset Overview Other Page
 ![Asset Detail](screenshots/asset-detail.png)
 Asset detail
 
-# Issues
+## Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-structure-disable-reorder/issues) page.
+
+
+
 
 
 Brought to you by [Frederic Koeberl](https://frederickoeberl.com/)

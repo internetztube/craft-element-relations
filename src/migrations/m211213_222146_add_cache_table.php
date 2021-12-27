@@ -6,9 +6,6 @@ use Craft;
 use craft\db\Migration;
 use internetztube\elementRelations\records\ElementRelationsRecord;
 
-/**
- * m211213_222146_add_cache_table migration.
- */
 class m211213_222146_add_cache_table extends Migration
 {
     public function safeUp()

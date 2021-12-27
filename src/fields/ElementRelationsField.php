@@ -11,6 +11,11 @@ use craft\helpers\UrlHelper;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
+    /**
+     * This field's data IS NOT stored in the content table, but is stored separately.
+     * Therefore, this field must not be translatable.
+     * @return array
+     */
     public static function supportedTranslationMethods(): array
     {
         return [self::TRANSLATION_METHOD_NONE];
@@ -18,10 +23,15 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public static function displayName(): string
     {
-        return Craft::t('element-relations', 'Relations');
+        return Craft::t('element-relations', 'Element Relations');
     }
 
     public function getTableAttributeHtml($value, ElementInterface $element): string
+    {
+        return $this->_getLazyHtml($element);
+    }
+
+    public function getInputHtml($value, ElementInterface $element = null): string
     {
         return $this->_getLazyHtml($element);
     }
@@ -38,10 +48,5 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
             'element-relations/_components/fields/Relations_lazy',
             ['endpoint' => $endpoint, 'id' => $id]
         );
-    }
-
-    public function getInputHtml($value, ElementInterface $element = null): string
-    {
-        return $this->_getLazyHtml($element);
     }
 }

@@ -69,9 +69,7 @@ class CacheService
     {
         $elementRelationsRecord = self::getStoredRelationsRecord($elementId, $siteId);
         $elementRelationsModel = new ElementRelationsModel();
-        if (!$elementRelationsRecord) {
-            return null;
-        }
+        if (!$elementRelationsRecord) { return null; }
         $attributes = $elementRelationsRecord->getAttributes();
         $elementRelationsModel->setAttributes($attributes, false);
         return $elementRelationsModel;
@@ -130,9 +128,7 @@ class CacheService
      */
     public static function getRelatedElementRelations(int $elementId, int $siteId): array
     {
-        if (!self::useCache()) {
-            return [];
-        }
+        if (!self::useCache()) { return []; }
         $records = ElementRelationsRecord::find()
             ->where(['like', 'relations', $elementId])
             ->andWhere(['siteId' => $siteId])
@@ -151,9 +147,7 @@ class CacheService
      */
     public static function deleteElementRelationsRecord(int $elementId, int $siteId): void
     {
-        if (!self::useCache()) {
-            return;
-        }
+        if (!self::useCache()) { return; }
         $record = self::getStoredRelationsRecord($elementId, $siteId);
         $record->delete();
     }

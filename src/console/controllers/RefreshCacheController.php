@@ -9,6 +9,7 @@ use yii\console\Controller;
 /**
  * Refresh Element Relations Cache
  * php craft element-relations/refresh-cache
+ * php craft element-relations/refresh-cache --force
  */
 class RefreshCacheController extends Controller
 {
@@ -19,6 +20,10 @@ class RefreshCacheController extends Controller
      */
     public $force = false;
 
+    /**
+     * @param string $actionID
+     * @return array
+     */
     public function options($actionID): array
     {
         $options = parent::options($actionID);
