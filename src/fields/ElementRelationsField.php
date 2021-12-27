@@ -3,16 +3,11 @@
 namespace internetztube\elementRelations\fields;
 
 use Craft;
-use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\PreviewableFieldInterface;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
-use Twig\Error\LoaderError;
-use Twig\Error\RuntimeError;
-use Twig\Error\SyntaxError;
-use yii\base\Exception;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
@@ -26,31 +21,12 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         return Craft::t('element-relations', 'Relations');
     }
 
-    /**
-     * @param mixed $value
-     * @param Element|ElementInterface $element
-     * @return string
-     * @throws Exception
-     */
     public function getTableAttributeHtml($value, ElementInterface $element): string
     {
-        try {
-            return $this->_getLazyHtml($element, 'small');
-        } catch (LoaderError | SyntaxError | RuntimeError | Exception $e) {
-            throw new Exception($e->getMessage());
-        }
+        return $this->_getLazyHtml($element, 'small');
     }
 
-    /**
-     * @param Element $element
-     * @param string $size
-     * @return string
-     * @throws LoaderError
-     * @throws RuntimeError
-     * @throws SyntaxError
-     * @throws Exception
-     */
-    private function _getLazyHtml(Element $element, string $size = 'default'): string
+    private function _getLazyHtml(ElementInterface $element, string $size = 'default'): string
     {
         $id = sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6));
         $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
@@ -64,16 +40,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         );
     }
 
-    /**
-     * @param string $value
-     * @param ElementInterface|Element|null $element
-     * @return string
-     *
-     * @throws Exception
-     * @throws LoaderError
-     * @throws RuntimeError
-     * @throws SyntaxError
-     */
     public function getInputHtml($value, ElementInterface $element = null): string
     {
         return $this->_getLazyHtml($element);

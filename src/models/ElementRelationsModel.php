@@ -59,7 +59,7 @@ class ElementRelationsModel extends Model
      */
     public function __toString()
     {
-        return (string) $this->markup;
+        return (string)$this->markup;
     }
 
     public function rules()

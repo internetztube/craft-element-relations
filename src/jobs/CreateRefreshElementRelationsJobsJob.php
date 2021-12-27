@@ -21,14 +21,14 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
         $chunks = collect($rows)->chunk($jobSize);
         $count = $chunks->count();
 
-        $chunks->each(function(Collection $chunk, $index) use ($queue, $count) {
+        $chunks->each(function (Collection $chunk, $index) use ($queue, $count) {
             $job = new RefreshElementRelationsJob([
-                'description' => sprintf('Refresh Element Relations Cache %d/%d', $index+1, $count),
+                'description' => sprintf('Refresh Element Relations Cache %d/%d', $index + 1, $count),
                 'force' => $this->force,
                 'elements' => $chunk->values()->toArray()
             ]);
             $queue->push($job);
-            $queue->setProgress(($index+1) * 100 / $count);
+            $queue->setProgress(($index + 1) * 100 / $count);
         });
     }
 }

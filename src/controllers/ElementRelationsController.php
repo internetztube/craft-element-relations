@@ -3,14 +3,8 @@
 namespace internetztube\elementRelations\controllers;
 
 use Craft;
-use craft\elements\Asset;
-use craft\elements\Entry;
-use craft\helpers\ArrayHelper;
-use craft\helpers\Cp;
 use craft\web\Controller;
 use fruitstudios\linkit\models\Url;
-use GuzzleHttp\Client;
-use internetztube\elementRelations\records\ElementRelationsRecord;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
 use verbb\supertable\elements\SuperTableBlockElement;
@@ -19,8 +13,8 @@ use yii\web\NotFoundHttpException;
 
 class ElementRelationsController extends Controller
 {
-    public    $enableCsrfValidation = false;
-    protected $allowAnonymous       = true;
+    public $enableCsrfValidation = false;
+    protected $allowAnonymous = true;
     protected $elementRelationsService;
 
     public function __construct($id, $module, $config = [])

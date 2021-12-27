@@ -4,6 +4,7 @@ namespace internetztube\elementRelations\jobs;
 
 use craft\queue\BaseJob;
 use internetztube\elementRelations\services\CacheService;
+use internetztube\elementRelations\services\ElementRelationsService;
 
 class RefreshRelatedElementRelationsJobs extends BaseJob
 {
@@ -13,14 +14,18 @@ class RefreshRelatedElementRelationsJobs extends BaseJob
 
     public function execute($queue)
     {
-        if (!CacheService::getUseCache()) { return; }
-        $relationsRecords = CacheService::getRelatedRelationsRecords($this->elementId, $this->siteId);
-        $count = count($relationsRecords);
-        foreach ($relationsRecords as $index => $record) {
-            $element = \Craft::$app->elements->getElementById($record->elementId, null, $record->siteId);
-            if (!$element) { CacheService::deleteRelationsRecord($record); }
+        if (!CacheService::useCache()) {
+            return;
+        }
+        $relatedElementRelations = CacheService::getRelatedElementRelations($this->elementId, $this->siteId);
+        $count = count($relatedElementRelations);
+        foreach ($relatedElementRelations as $index => $relatedElementRelation) {
+            $element = ElementRelationsService::getElementById($relatedElementRelation['elementId'], $relatedElementRelation['siteId']);
+            if (!$element) {
+                CacheService::deleteElementRelationsRecord($relatedElementRelation['elementId'], $relatedElementRelation['siteId']);
+            }
             CacheService::getRelationsCached($element, true);
-            $queue->setProgress(($index+1) * 100 / $count);
+            $queue->setProgress(($index + 1) * 100 / $count);
         }
     }
 }

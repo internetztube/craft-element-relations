@@ -13,7 +13,7 @@ use internetztube\elementRelations\fields\ElementRelationsField;
 
 class ElementRelationsService
 {
-    public static function getRelations (ElementInterface $element)
+    public static function getRelations(ElementInterface $element)
     {
         $relations = self::getRelationsFromElement($element);
         $elements = collect();
@@ -44,39 +44,11 @@ class ElementRelationsService
         if ($markup->isEmpty()) {
             $markup->push('<span style="color: #da5a47;">Unused</span>');
         }
+
         return [
             'elementIds' => $elements->pluck('id')->unique()->all(),
             'markup' => $markup->implode('<br />'),
         ];
-    }
-
-    public static function getElementsWithElementRelationsField(): array
-    {
-        $fieldLayoutIds = (new Query())->select(['fieldlayouts.id'])
-            ->from(['fieldlayouts' => Table::FIELDLAYOUTS])
-            ->innerJoin(['fieldlayoutfields' => Table::FIELDLAYOUTFIELDS], '[[fieldlayouts.id]] = [[fieldlayoutfields.layoutId]]')
-            ->innerJoin(['fields' => Table::FIELDS], '[[fieldlayoutfields.fieldId]] = [[fields.id]]')
-            ->where(['fields.type' => ElementRelationsField::class])
-            ->column();
-
-        $rows = (new Query())->select(['elements_sites.elementId', 'elements_sites.siteId', 'elements.canonicalId'])
-            ->from(['elements' => Table::ELEMENTS])
-            ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements.id]] = [[elements_sites.elementId]]')
-            ->where(['in', 'fieldLayoutId', $fieldLayoutIds])
-            ->all();
-
-        return collect($rows)->map(function (array $row) {
-            return ['elementId' => $row['canonicalId'] ?? $row['elementId'], 'siteId' => $row['siteId']];
-        })->unique()->values()->all();
-    }
-
-    public static function getElementById(int $elementId, int $siteId): ?Element
-    {
-        $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
-        if (!$result) {
-            return null;
-        } // relation is broken
-        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
     }
 
     private static function getRelationsFromElement(ElementInterface $sourceElement, bool $anySite = false): array
@@ -92,11 +64,22 @@ class ElementRelationsService
         return collect($elements)->map(function (int $elementId) use ($siteId) {
             /** @var ?Element $relation */
             $relation = self::getElementById($elementId, $siteId);
-            if (!$relation) { return null; }
+            if (!$relation) {
+                return null;
+            }
             return self::getRootElement($relation, $siteId);
         })->filter()->unique(function (ElementInterface $element) {
             return $element->id . $element->siteId;
         })->values()->toArray();
+    }
+
+    public static function getElementById(int $elementId, int $siteId): ?Element
+    {
+        $result = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
+        if (!$result) {
+            return null; // relation is broken
+        }
+        return $result['type']::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
     }
 
     private static function getRootElement(Element $element, $siteId): ?Element
@@ -109,19 +92,6 @@ class ElementRelationsService
             return null;
         }
         return self::getRootElement($sourceElement, $siteId);
-    }
-
-    private static function assetUsageInProfilePhotos(Element $sourceElement): array
-    {
-        $users = (new Query())
-            ->select(['id'])
-            ->from(Table::USERS)
-            ->where(['photoId' => $sourceElement->id])
-            ->all();
-
-        return collect($users)->map(function (array $user) {
-            return \Craft::$app->users->getUserById($user['id']);
-        })->all();
     }
 
     private static function assetUsageInSEOmatic(Element $sourceElement)
@@ -200,5 +170,38 @@ class ElementRelationsService
             ->unique('canonicalId')
             ->toArray();
         return $result;
+    }
+
+    private static function assetUsageInProfilePhotos(Element $sourceElement): array
+    {
+        $users = (new Query())
+            ->select(['id'])
+            ->from(Table::USERS)
+            ->where(['photoId' => $sourceElement->id])
+            ->all();
+
+        return collect($users)->map(function (array $user) {
+            return Craft::$app->users->getUserById($user['id']);
+        })->all();
+    }
+
+    public static function getElementsWithElementRelationsField(): array
+    {
+        $fieldLayoutIds = (new Query())->select(['fieldlayouts.id'])
+            ->from(['fieldlayouts' => Table::FIELDLAYOUTS])
+            ->innerJoin(['fieldlayoutfields' => Table::FIELDLAYOUTFIELDS], '[[fieldlayouts.id]] = [[fieldlayoutfields.layoutId]]')
+            ->innerJoin(['fields' => Table::FIELDS], '[[fieldlayoutfields.fieldId]] = [[fields.id]]')
+            ->where(['fields.type' => ElementRelationsField::class])
+            ->column();
+
+        $rows = (new Query())->select(['elements_sites.elementId', 'elements_sites.siteId', 'elements.canonicalId'])
+            ->from(['elements' => Table::ELEMENTS])
+            ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements.id]] = [[elements_sites.elementId]]')
+            ->where(['in', 'fieldLayoutId', $fieldLayoutIds])
+            ->all();
+
+        return collect($rows)->map(function (array $row) {
+            return ['elementId' => $row['canonicalId'] ?? $row['elementId'], 'siteId' => $row['siteId']];
+        })->unique()->values()->all();
     }
 }

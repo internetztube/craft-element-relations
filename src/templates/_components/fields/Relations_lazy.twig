@@ -9,14 +9,20 @@
             window.elementRelationsLazyOffset += 100
         }
         // Reset `window.elementRelationsLazyOffset` when all functions have been invoked.
-        if (window.elementRelationsDoneLoadingTimeout) { clearTimeout(window.elementRelationsDoneLoadingTimeout) }
-        window.elementRelationsDoneLoadingTimeout = setTimeout(() => { window.elementRelationsLazyOffset = 0 }, 200)
+        if (window.elementRelationsDoneLoadingTimeout) {
+            clearTimeout(window.elementRelationsDoneLoadingTimeout)
+        }
+        window.elementRelationsDoneLoadingTimeout = setTimeout(() => {
+            window.elementRelationsLazyOffset = 0
+        }, 200)
 
         const sleep = t => new Promise(s => setTimeout(s, t))
         await sleep(window.elementRelationsLazyOffset)
         const $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy')
         const request = await fetch('{{ endpoint | raw }}')
-        if (!$container) { return }
+        if (!$container) {
+            return
+        }
         $container.innerHTML = await request.text()
     })()
 </script>

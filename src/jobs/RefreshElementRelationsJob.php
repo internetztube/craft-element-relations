@@ -17,7 +17,9 @@ class RefreshElementRelationsJob extends BaseJob
         $count = count($this->elements);
         foreach ($this->elements as $index => $row) {
             $element = ElementRelationsService::getElementById($row['elementId'], $row['siteId']);
-            if (!$element) { continue; }
+            if (!$element) {
+                continue;
+            }
             CacheService::getRelationsCached($element, $this->force);
             $queue->setProgress($index * 100 / $count);
         }

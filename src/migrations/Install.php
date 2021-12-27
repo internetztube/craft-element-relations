@@ -5,19 +5,9 @@ namespace internetztube\elementRelations\migrations;
 use Craft;
 use craft\db\Migration;
 use internetztube\elementRelations\records\ElementRelationsRecord;
-use Throwable;
 
-/**
- * Element Relations Install Migration
- */
 class Install extends Migration
 {
-    // Public Methods
-    // =========================================================================
-
-    /**
-     * @return boolean
-     */
     public function safeUp(): bool
     {
 
@@ -46,15 +36,10 @@ class Install extends Migration
         return true;
     }
 
-    /**
-     * @return boolean
-     * @throws Throwable
-     */
     public function safeDown(): bool
     {
         $table = ElementRelationsRecord::tableName();
         $this->dropTableIfExists($table);
-
         return true;
     }
 }
