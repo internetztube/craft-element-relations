@@ -16,17 +16,13 @@ class ElementRelationsController extends Controller
     public $enableCsrfValidation = false;
     protected $allowAnonymous = true;
 
-    public function __construct($id, $module, $config = [])
-    {
-        parent::__construct($id, $module, $config);
-    }
-
     public function actionGetByElementId(): string
     {
         $elementId = Craft::$app->request->getParam('elementId');
         $siteId = Craft::$app->request->getParam('siteId');
+        $force = Craft::$app->request->getParam('force') === 'true';
         $element = ElementRelationsService::getElementById($elementId, $siteId);
         if (!$element) throw new NotFoundHttpException;
-        return CacheService::getElementRelationsCached($element);
+        return CacheService::getElementRelationsCached($element, $force);
     }
 }
