@@ -1,6 +1,6 @@
 <?php
 
 return [
-    'cacheDuration' => '2 days',
     'useCache' => true,
+    'cacheDuration' => '1 week',
 ];
