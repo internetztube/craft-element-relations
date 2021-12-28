@@ -15,6 +15,7 @@
         Cache duration: <code>{{ cacheDuration }}</code>
     </p>
     <form method="post">
+        {{ csrfInput() }}
         {{ forms.checkboxField({
             label: 'Force rebuild cache?' | t('element-relations'),
             id: 'force',
