@@ -53,7 +53,7 @@ class CacheService
      * Get cache duration from config, settings, or class.
      * @return string
      */
-    private static function getCacheDuration(): string
+    public static function getCacheDuration(): string
     {
         $settings = ElementRelations::$plugin->getSettings();
         return $settings->cacheDuration ?? self::DEFAULT_CACHE_DURATION;
@@ -73,6 +73,11 @@ class CacheService
         $attributes = $elementRelationsRecord->getAttributes();
         $elementRelationsModel->setAttributes($attributes, false);
         return $elementRelationsModel;
+    }
+
+    public static function getCountCachedElementRelations(): int
+    {
+        return ElementRelationsRecord::find()->count();
     }
 
     /**

@@ -4,6 +4,7 @@ namespace internetztube\elementRelations\jobs;
 
 use Craft;
 use craft\queue\BaseJob;
+use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
 use Tightenco\Collect\Support\Collection;
 
@@ -21,6 +22,7 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
 
     public function execute($queue)
     {
+        if (!CacheService::useCache()) { return; }
         $rows = ElementRelationsService::getElementsWithElementRelationsField();
         $queue = Craft::$app->getQueue();
 

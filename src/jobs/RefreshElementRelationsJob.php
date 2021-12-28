@@ -23,6 +23,7 @@ class RefreshElementRelationsJob extends BaseJob
 
     public function execute($queue)
     {
+        if (!CacheService::useCache()) { return; }
         $count = count($this->elements);
         foreach ($this->elements as $index => $row) {
             $element = ElementRelationsService::getElementById($row['elementId'], $row['siteId']);

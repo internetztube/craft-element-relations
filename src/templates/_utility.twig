@@ -1,0 +1,37 @@
+{% import "_includes/forms" as forms %}
+
+<h1>Element Relations</h1>
+
+{% if isCacheEnabled %}
+    <p>
+        Currently <strong>{{ percentage }}%</strong> of all elements, which have an <code>Elements Relations</code>-Field
+        in their field layout, are cached. <br />
+        In absolute terms this means <b>{{ current }}</b> out of <b>{{ total }}</b> elements are cached.
+    </p>
+
+    <hr>
+    <h2>Cache</h2>
+    <p>
+        Cache duration: <code>{{ cacheDuration }}</code>
+    </p>
+    <form method="post">
+        {{ forms.checkboxField({
+            label: 'Force rebuild cache?' | t('element-relations'),
+            id: 'force',
+            name: 'force',
+            checked: false
+        }) }}
+        <button type="submit" class="btn submit">{{ 'Push Cache Refresh Job into Queue' | t('element-relations') }}</button>
+    </form>
+{% else %}
+    <p>Caching is disabled</p>
+{% endif %}
+
+
+{% if pushed %}
+    <script>
+        window.addEventListener('load', function () {
+            Craft.cp.displayNotice('Successfully pushed Job into Queue.');
+        })
+    </script>
+{% endif %}

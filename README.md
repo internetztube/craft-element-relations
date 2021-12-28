@@ -38,9 +38,6 @@ As a basis the relations table is used. This means that any field that stores re
 ## Caching
 Caching is enabled by default and set to `1 week`. These settings can be overridden using a local config file.
 
-
-
-
 ## Screenshots
 ![Field Edit Page](screenshots/field.jpg)
 Create Field

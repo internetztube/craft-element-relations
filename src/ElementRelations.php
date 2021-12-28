@@ -10,10 +10,13 @@ use craft\events\PluginEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
+use craft\services\Utilities;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\CreateRefreshElementRelationsJobsJob;
 use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJob;
 use internetztube\elementRelations\models\Settings;
+use internetztube\elementRelations\services\CacheService;
+use internetztube\elementRelations\utilities\ElementRelationsUtility;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
@@ -53,13 +56,21 @@ class ElementRelations extends Plugin
             Craft::$app->getQueue()->push($job);
         });
 
-        // Enqueue Job that creates caches for all Elements with "Element Relations"-Field when Plugin gets enabled.
-        Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, function (PluginEvent $event) {
-            if ($event->plugin instanceof ElementRelations) {
-                $job = new CreateRefreshElementRelationsJobsJob(['force' => true]);
-                Craft::$app->getQueue()->push($job);
-            }
+        Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITY_TYPES, function (RegisterComponentTypesEvent $event) {
+            $event->types[] = ElementRelationsUtility::class;
         });
+
+        // Enqueue Job that creates caches for all Elements with "Element Relations"-Field when Plugin gets enabled.
+        $pluginEnableCallback = function (PluginEvent $event) {
+            // cache check if happening in the queue task
+            if (!($event->plugin instanceof ElementRelations)) { return; }
+            if (!CacheService::useCache()) { return; }
+            $job = new CreateRefreshElementRelationsJobsJob(['force' => true]);
+            // delay job by 1min
+            Craft::$app->getQueue()->delay(1 * 60)->push($job);
+        };
+        Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
+        Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
     }
 
     protected function createSettingsModel()
