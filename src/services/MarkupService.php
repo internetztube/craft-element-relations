@@ -50,22 +50,30 @@ class MarkupService
             ->pluck('siteId')->merge($otherSites);
 
         $result = collect();
-        $seomaticGlobal = collect($rows)->contains(ElementRelationsService::IDENTIFIER_SEOMATIC_GLOBAL);
-        if ($seomaticGlobal) {
-            $result->push('Used in SEOmatic Global Settings');
-        }
+
 
         $otherSites = collect($otherSites)->unique()->map(function (int $siteId) {
             return Craft::$app->getSites()->getSiteById($siteId);
         });
 
         $result->push(Cp::elementPreviewHtml($currentSiteElements->all(), $size, true, false));
+        $result = $result->filter();
+
+        $seomaticGlobal = collect($rows)->contains(ElementRelationsService::IDENTIFIER_SEOMATIC_GLOBAL);
+        if ($seomaticGlobal) {
+            if ($result->isNotEmpty()) {
+                $result->push('<br />');
+            }
+            $result->push(Craft::t('element-relations', 'field-value-seomatic-global'));
+        }
+
         $result->push(self::sitePreviewHtml($otherSites->all(), $size, $elementId));
 
         $result = $result->filter();
 
         if (!$result->count()) {
-            $result->push('<span style="color: red">Unused</span>');
+            $message = sprintf('<span style="color: red">%s</span>', Craft::t('element-relations', 'field-value-unused'));
+            $result->push($message);
         }
 
         return $result->implode('');
@@ -130,7 +138,7 @@ class MarkupService
     {
         $result = '';
         if (!empty($sites)) {
-            $result .= '<br />Used in these sites: ';
+            $result .= '<br />' . Craft::t('element-relations', 'field-value-used-in-these-sites') . ' ';
             $otherElements = collect($sites)->map(function (Site $site) use ($size, $elementId) {
                 return self::siteHtml($site, $size, $elementId);
             })->all();

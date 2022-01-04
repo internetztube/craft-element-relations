@@ -20,13 +20,12 @@ use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJob;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\ElementRelationsService;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
-use nystudio107\seomatic\services\MetaContainers;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
 {
     public static $plugin;
-    public $schemaVersion = '1.0.1';
+    public $schemaVersion = '1.0.2';
     public $hasCpSettings = false;
     public $hasCpSection = false;
 
@@ -122,9 +121,9 @@ class ElementRelations extends Plugin
     private function registerSeomaticEvents(): void
     {
         Event::on(
-            MetaContainers::class,
-            MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
-            function (MetaContainers $event) {
+            \nystudio107\seomatic\services\MetaContainers::class,
+            \nystudio107\seomatic\services\MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
+            function (\nystudio107\seomatic\events\InvalidateContainerCachesEvent $event) {
                 if ($event->uri) {
                     return;
                 }

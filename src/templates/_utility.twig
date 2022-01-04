@@ -1,39 +1,46 @@
 {% import "_includes/forms" as forms %}
 
-<h1>Element Relations</h1>
+<h1>{{ 'utility-main-headline' | t('element-relations') }}</h1>
 
 {% if isCacheEnabled %}
     <p>
-        Currently <strong>{{ percentage }}%</strong> of all elements, which have an <code>Elements Relations</code>-Field
-        in their field layout, are cached. <br/>
-        In absolute terms this means <b>{{ current }}</b> out of <b>{{ total }}</b> elements are cached.
+        {{ 'utility-main-description' | t('element-relations', params = {
+            percentage: percentage,
+            current: current,
+            total: total
+        }) | raw }}
     </p>
 
     <hr>
-    <h2>Cache</h2>
+    <h2>{{ 'utility-cache-headline' | t('element-relations') }}</h2>
     <p>
-        Cache duration: <code>{{ cacheDuration }}</code>
+        {{ 'utility-cache-description' | t('element-relations', params = {
+            cacheDuration: cacheDuration,
+        }) | raw }}
     </p>
     <form method="post">
         {{ csrfInput() }}
         {{ forms.checkboxField({
-            label: 'Force rebuild cache?' | t('element-relations'),
+            label: 'utility-form-rebuild-cache-checkbox-label' | t('element-relations'),
             id: 'force',
             name: 'force',
             checked: false
         }) }}
-        <button type="submit"
-                class="btn submit">{{ 'Push Cache Refresh Job into Queue' | t('element-relations') }}</button>
+        <button type="submit" class="btn submit">
+            {{ 'utility-form-rebuild-cache-button-label' | t('element-relations') }}
+        </button>
     </form>
 {% else %}
-    <p>Caching is disabled</p>
+    <p>
+        {{ 'utility-cache-disabled' | t('element-relations') }}
+    </p>
 {% endif %}
 
 
 {% if pushed %}
     <script>
         window.addEventListener('load', function () {
-            Craft.cp.displayNotice('Successfully pushed Job into Queue.');
+            Craft.cp.displayNotice('{{ 'utility-form-rebuild-cache-success-notice' | t('element-relations') }}.');
         })
     </script>
 {% endif %}
