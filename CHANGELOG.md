@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.2.0
+### Updated
+- Update caching logic.
+
+### Fixed
+- There is now always a hint when an element is used in another site.
+
 ## 1.1.3
 ### Fixed
 - Add csrf token to utilities form.
