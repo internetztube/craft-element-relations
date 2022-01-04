@@ -4,7 +4,6 @@ namespace internetztube\elementRelations\jobs;
 
 use craft\queue\BaseJob;
 use internetztube\elementRelations\services\CacheService;
-use internetztube\elementRelations\services\ElementRelationsService;
 
 /**
  * This job processes the actual refreshing. See CreateRefreshElementRelationsJobsJob.
@@ -18,19 +17,17 @@ class RefreshElementRelationsJob extends BaseJob
     /** @var bool */
     public $force = false;
 
-    /** @var array */
+    /** @var int[] */
     public $elements = [];
 
     public function execute($queue)
     {
-        if (!CacheService::useCache()) { return; }
+        if (!CacheService::useCache()) {
+            return;
+        }
         $count = count($this->elements);
-        foreach ($this->elements as $index => $row) {
-            $element = ElementRelationsService::getElementById($row['elementId'], $row['siteId']);
-            if (!$element) {
-                continue;
-            }
-            CacheService::getElementRelationsCached($element, $this->force);
+        foreach ($this->elements as $index => $elementId) {
+            CacheService::getElementRelationsCached($elementId, $this->force);
             $queue->setProgress($index * 100 / $count);
         }
     }

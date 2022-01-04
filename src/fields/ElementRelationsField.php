@@ -31,11 +31,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         return $this->_getLazyHtml($element);
     }
 
-    public function getInputHtml($value, ElementInterface $element = null): string
-    {
-        return $this->_getLazyHtml($element);
-    }
-
     private function _getLazyHtml(ElementInterface $element): string
     {
         $id = sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6));
@@ -48,5 +43,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
             'element-relations/_components/fields/Relations_lazy',
             ['endpoint' => $endpoint, 'id' => $id]
         );
+    }
+
+    public function getInputHtml($value, ElementInterface $element = null): string
+    {
+        return $this->_getLazyHtml($element);
     }
 }

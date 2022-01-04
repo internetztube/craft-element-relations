@@ -3,6 +3,8 @@
 namespace internetztube\elementRelations\services;
 
 use craft\base\Element;
+use craft\helpers\Db;
+use Exception;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\models\ElementRelationsModel;
 use internetztube\elementRelations\records\ElementRelationsRecord;
@@ -21,22 +23,49 @@ class CacheService
      * @param bool $force
      * @return string
      */
-    public static function getElementRelationsCached(Element $element, bool $force = false): string
+    public static function getElementRelationsCached(int $elementId, bool $force = false): string
     {
-        $staleDateTime = self::getStaleDateTime();
-        $cachedRelations = self::getStoredRelations($element->id, $element->siteId);
-        $stale = !empty($cachedRelations) && $cachedRelations->dateUpdated < $staleDateTime;
         $useCache = self::useCache();
-        $gatherElementRelations = $force || !$cachedRelations || $stale || !$useCache;
-
+        $validCachedRelations = self::getStoredRelations($elementId);
+        $gatherElementRelations = $force || !$useCache || !$validCachedRelations;
         if ($gatherElementRelations) {
-            $relations = ElementRelationsService::getElementRelations($element);
+            $relations = ElementRelationsService::getElementRelations($elementId);
             if ($useCache) {
-                self::setStoredRelations($element->id, $element->siteId, $relations['elementIds'], $relations['markup']);
+                self::setStoredRelations($elementId, $relations);
             }
-            return $relations['markup'];
+            return $relations;
         }
-        return $cachedRelations->getMarkup();
+        return $validCachedRelations;
+    }
+
+    /**
+     * Is Caching enabled in settings?
+     * @return bool
+     */
+    public static function useCache(): bool
+    {
+        $settings = ElementRelations::$plugin->getSettings();
+        return $settings->useCache;
+    }
+
+    /**
+     * Get cached relations for an element.
+     * @param int $elementId
+     * @param int $siteId
+     * @return ElementRelationsModel|null
+     */
+    private static function getStoredRelations(int $elementId): ?string
+    {
+        $row = self::getBaseQuery()
+            ->andWhere(['elementId' => $elementId])
+            ->one();
+        return $row ? $row->relations : null;
+    }
+
+    private static function getBaseQuery()
+    {
+        return ElementRelationsRecord::find()
+            ->where(['>=', 'dateUpdated', Db::prepareDateForDb(self::getStaleDateTime())]);
     }
 
     /**
@@ -60,24 +89,27 @@ class CacheService
     }
 
     /**
-     * Get cached relations for an element.
+     * Add the relation to the db. Note dateUpdated is added here because otherwise if nothing changes,
+     * the record is not updated, and we use that for cache staleness.
      * @param int $elementId
      * @param int $siteId
-     * @return ElementRelationsModel|null
+     * @param array $relations
+     * @param string $markup
      */
-    private static function getStoredRelations(int $elementId, int $siteId): ?ElementRelationsModel
+    private static function setStoredRelations(int $elementId, string $relations): bool
     {
-        $elementRelationsRecord = self::getStoredRelationsRecord($elementId, $siteId);
-        $elementRelationsModel = new ElementRelationsModel();
-        if (!$elementRelationsRecord) { return null; }
-        $attributes = $elementRelationsRecord->getAttributes();
-        $elementRelationsModel->setAttributes($attributes, false);
-        return $elementRelationsModel;
-    }
+        if (!$elementRelationsRecord = self::getStoredRelationsRecord($elementId)) {
+            $elementRelationsRecord = new ElementRelationsRecord();
+        }
+        $elementRelationsRecord->setAttribute('elementId', $elementId);
+        $elementRelationsRecord->setAttribute('relations', $relations);
+        $elementRelationsRecord->setAttribute('dateUpdated', date('Y-m-d H:i:s'));
 
-    public static function getCountCachedElementRelations(): int
-    {
-        return ElementRelationsRecord::find()->count();
+        try {
+            return $elementRelationsRecord->save();
+        } catch (Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -86,61 +118,32 @@ class CacheService
      * @param int $siteId
      * @return array|ElementRelationsRecord|ActiveRecord|null
      */
-    private static function getStoredRelationsRecord(int $elementId, int $siteId): ?ElementRelationsRecord
+    private static function getStoredRelationsRecord(int $elementId): ?ElementRelationsRecord
     {
         return ElementRelationsRecord::find()
             ->where(['elementId' => $elementId])
-            ->andWhere(['siteId' => $siteId])
             ->one();
     }
 
-    /**
-     * Is Caching enabled in settings?
-     * @return bool
-     */
-    public static function useCache(): bool
+    public static function getCountCachedElementRelations(): int
     {
-        $settings = ElementRelations::$plugin->getSettings();
-        return $settings->useCache;
+        return self::getBaseQuery()->count();
     }
 
-    /**
-     * Add the relation to the db. Note dateUpdated is added here because otherwise if nothing changes,
-     * the record is not updated, and we use that for cache staleness.
-     * @param int $elementId
-     * @param int $siteId
-     * @param array $relations
-     * @param string $markup
-     */
-    private static function setStoredRelations(int $elementId, int $siteId, array $relations, string $markup)
-    {
-        if (!$elementRelationsRecord = self::getStoredRelationsRecord($elementId, $siteId)) {
-            $elementRelationsRecord = new ElementRelationsRecord();
-        }
-        $elementRelationsRecord->setAttribute('elementId', $elementId);
-        $elementRelationsRecord->setAttribute('siteId', $siteId);
-        $elementRelationsRecord->setAttribute('relations', implode(',', $relations));
-        $elementRelationsRecord->setAttribute('markup', $markup);
-        $elementRelationsRecord->setAttribute('dateUpdated', date('Y-m-d H:i:s'));
-        $elementRelationsRecord->save();
-    }
-
-    /**
+    /**r
      * Get all cached related elements of one element.
      * @param int $elementId
      * @param int $siteId
      * @return array
      */
-    public static function getRelatedElementRelations(int $elementId, int $siteId): array
+    public static function getRelatedElementRelations($identifier): array
     {
-        if (!self::useCache()) { return []; }
-        $records = ElementRelationsRecord::find()
-            ->where(['like', 'relations', $elementId])
-            ->andWhere(['siteId' => $siteId])
-            ->all();
-        return collect($records)->map(function (ElementRelationsRecord $record) {
-            return ['elementId' => $record->elementId, 'siteId' => $record->siteId];
-        })->all();
+        if (!self::useCache()) {
+            return [];
+        }
+        $like = sprintf('%s%s%s', ElementRelationsService::IDENTIFIER_DELIMITER, $identifier, ElementRelationsService::IDENTIFIER_DELIMITER);
+        $records = self::getBaseQuery()->andWhere(['like', 'relations', $like])->all();
+        return collect($records)->pluck('elementId')->all();
     }
 
     /**
@@ -150,10 +153,12 @@ class CacheService
      * @throws StaleObjectException
      * @throws Throwable
      */
-    public static function deleteElementRelationsRecord(int $elementId, int $siteId): void
+    public static function deleteElementRelationsRecord(int $elementId): void
     {
-        if (!self::useCache()) { return; }
-        $record = self::getStoredRelationsRecord($elementId, $siteId);
+        if (!self::useCache()) {
+            return;
+        }
+        $record = self::getStoredRelationsRecord($elementId);
         $record->delete();
     }
 }

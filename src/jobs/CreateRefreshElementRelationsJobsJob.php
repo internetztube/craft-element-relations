@@ -22,11 +22,13 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
 
     public function execute($queue)
     {
-        if (!CacheService::useCache()) { return; }
+        if (!CacheService::useCache()) {
+            return;
+        }
         $rows = ElementRelationsService::getElementsWithElementRelationsField();
         $queue = Craft::$app->getQueue();
 
-        $jobSize = 1000;
+        $jobSize = 100;
         $chunks = collect($rows)->chunk($jobSize);
         $count = $chunks->count();
 

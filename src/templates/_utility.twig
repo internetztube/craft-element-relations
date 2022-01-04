@@ -5,7 +5,7 @@
 {% if isCacheEnabled %}
     <p>
         Currently <strong>{{ percentage }}%</strong> of all elements, which have an <code>Elements Relations</code>-Field
-        in their field layout, are cached. <br />
+        in their field layout, are cached. <br/>
         In absolute terms this means <b>{{ current }}</b> out of <b>{{ total }}</b> elements are cached.
     </p>
 
@@ -22,7 +22,8 @@
             name: 'force',
             checked: false
         }) }}
-        <button type="submit" class="btn submit">{{ 'Push Cache Refresh Job into Queue' | t('element-relations') }}</button>
+        <button type="submit"
+                class="btn submit">{{ 'Push Cache Refresh Job into Queue' | t('element-relations') }}</button>
     </form>
 {% else %}
     <p>Caching is disabled</p>

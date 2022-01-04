@@ -19,19 +19,9 @@ class ElementRelationsModel extends Model
     public $elementId = 0;
 
     /**
-     * @var int|null Site ID
-     */
-    public $siteId = 0;
-
-    /**
      * @var string Relations ids
      */
     public $relations;
-
-    /**
-     * @var string Markup
-     */
-    public $markup;
 
     /**
      * @var DateTime|null Date created
@@ -45,7 +35,7 @@ class ElementRelationsModel extends Model
 
     public function __toString()
     {
-        return (string)$this->markup;
+        return $this->relations;
     }
 
     public function rules()
@@ -57,8 +47,8 @@ class ElementRelationsModel extends Model
         return $rules;
     }
 
-    public function getMarkup(): string
+    public function getRelations(): string
     {
-        return $this->markup;
+        return $this->relations;
     }
 }

@@ -6,10 +6,9 @@ use Craft;
 use craft\web\Controller;
 use fruitstudios\linkit\models\Url;
 use internetztube\elementRelations\services\CacheService;
-use internetztube\elementRelations\services\ElementRelationsService;
+use internetztube\elementRelations\services\MarkupService;
 use verbb\supertable\elements\SuperTableBlockElement;
 use verbb\supertable\SuperTable;
-use yii\web\NotFoundHttpException;
 
 class ElementRelationsController extends Controller
 {
@@ -21,8 +20,7 @@ class ElementRelationsController extends Controller
         $elementId = Craft::$app->request->getParam('elementId');
         $siteId = Craft::$app->request->getParam('siteId');
         $force = Craft::$app->request->getParam('force') === 'true';
-        $element = ElementRelationsService::getElementById($elementId, $siteId);
-        if (!$element) throw new NotFoundHttpException;
-        return CacheService::getElementRelationsCached($element, $force);
+        $elementRelations = CacheService::getElementRelationsCached($elementId, $force);
+        return MarkupService::getMarkupFromElementRelations($elementRelations, $elementId, $siteId);
     }
 }

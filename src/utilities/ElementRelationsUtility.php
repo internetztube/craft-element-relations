@@ -41,9 +41,8 @@ class ElementRelationsUtility extends Utility
             $pushedQueueJob = true;
         }
 
-        $elements = ElementRelationsService::getElementsWithElementRelationsField();
         $current = CacheService::getCountCachedElementRelations();
-        $total = count($elements);
+        $total = count(ElementRelationsService::getElementsWithElementRelationsField());
         $cacheDuration = CacheService::getCacheDuration();
         $percentage = round($current * 100 / $total, 2);
         return Craft::$app->getView()->renderTemplate(

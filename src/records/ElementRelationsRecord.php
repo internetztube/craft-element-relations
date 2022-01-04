@@ -11,7 +11,6 @@ use craft\db\ActiveRecord;
  * @property int $elementId Entry ID
  * @property int $siteId Site ID
  * @property string $relations Related Entry IDs
- * @property string $markup Resulting HTML
  * @property string $dateCreated Create Timestamp
  * @property string $dateUpdated Update Timestamp
  *
