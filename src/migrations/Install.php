@@ -22,6 +22,7 @@ class Install extends Migration
             ]);
 
             $this->createIndex(null, $table, ['elementId'], true);
+            $this->createIndex(null, $table, ['relations', 'dateUpdated']);
             $this->addForeignKey(null, $table, 'elementId', '{{%elements}}', 'id', 'CASCADE');
 
             // Refresh the db schema caches

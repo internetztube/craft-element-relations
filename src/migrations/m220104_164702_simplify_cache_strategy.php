@@ -12,7 +12,7 @@ class m220104_164702_simplify_cache_strategy extends Migration
         $table = ElementRelationsRecord::tableName();
         $this->dropColumn($table, 'siteId');
         $this->dropColumn($table, 'markup');
-        $this->dropForeignKey($table, 'siteId');
+        $this->createIndex(null, $table, ['relations', 'dateUpdated']);
         return true;
     }
 
