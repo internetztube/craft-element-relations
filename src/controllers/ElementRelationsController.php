@@ -4,11 +4,8 @@ namespace internetztube\elementRelations\controllers;
 
 use Craft;
 use craft\web\Controller;
-use fruitstudios\linkit\models\Url;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\MarkupService;
-use verbb\supertable\elements\SuperTableBlockElement;
-use verbb\supertable\SuperTable;
 
 class ElementRelationsController extends Controller
 {

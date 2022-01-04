@@ -15,10 +15,10 @@ class RefreshRelatedElementRelationsJob extends BaseJob
     /** @var string */
     public $description = 'Refresh Related Element Relations';
 
-    /** @var int */
+    /** @var mixed */
     public $identifier;
 
-    public function execute($queue)
+    public function execute($queue): void
     {
         if (!CacheService::useCache()) {
             return;

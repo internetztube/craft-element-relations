@@ -5,11 +5,10 @@ namespace internetztube\elementRelations\records;
 use craft\db\ActiveRecord;
 
 /**
- * EntryCountRecord
+ * ElementRelationsRecord
  *
  * @property int $id ID
  * @property int $elementId Entry ID
- * @property int $siteId Site ID
  * @property string $relations Related Entry IDs
  * @property string $dateCreated Create Timestamp
  * @property string $dateUpdated Update Timestamp

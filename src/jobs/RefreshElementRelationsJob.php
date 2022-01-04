@@ -12,21 +12,22 @@ use internetztube\elementRelations\services\CacheService;
  */
 class RefreshElementRelationsJob extends BaseJob
 {
+    /** @var string */
     public $description = 'Refresh Element Relations Cache';
 
     /** @var bool */
     public $force = false;
 
     /** @var int[] */
-    public $elements = [];
+    public $elementIds = [];
 
-    public function execute($queue)
+    public function execute($queue): void
     {
         if (!CacheService::useCache()) {
             return;
         }
-        $count = count($this->elements);
-        foreach ($this->elements as $index => $elementId) {
+        $count = count($this->elementIds);
+        foreach ($this->elementIds as $index => $elementId) {
             CacheService::getElementRelationsCached($elementId, $this->force);
             $queue->setProgress($index * 100 / $count);
         }

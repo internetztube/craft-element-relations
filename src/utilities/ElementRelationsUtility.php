@@ -20,14 +20,9 @@ class ElementRelationsUtility extends Utility
         return 'element-relations';
     }
 
-    public static function iconPath()
+    public static function iconPath(): string
     {
         return Craft::getAlias("@internetztube/elementRelations/icon-mask.svg");
-    }
-
-    public static function badgeCount(): int
-    {
-        return 0;
     }
 
     public static function contentHtml(): string
@@ -41,10 +36,11 @@ class ElementRelationsUtility extends Utility
             $pushedQueueJob = true;
         }
 
-        $current = CacheService::getCountCachedElementRelations();
+        $current = CacheService::getCountOfNonStaleElementRelations();
         $total = count(ElementRelationsService::getElementsWithElementRelationsField());
-        $cacheDuration = CacheService::getCacheDuration();
         $percentage = round($current * 100 / $total, 2);
+        $cacheDuration = CacheService::getCacheDuration();
+
         return Craft::$app->getView()->renderTemplate(
             'element-relations/_utility',
             [

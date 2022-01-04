@@ -15,12 +15,13 @@ use Tightenco\Collect\Support\Collection;
  */
 class CreateRefreshElementRelationsJobsJob extends BaseJob
 {
+    /** @var string */
     public $description = 'Create Refresh Element Relations Cache Jobs';
 
     /** @var bool */
     public $force = false;
 
-    public function execute($queue)
+    public function execute($queue): void
     {
         if (!CacheService::useCache()) {
             return;
@@ -34,9 +35,9 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
 
         $chunks->each(function (Collection $chunk, $index) use ($queue, $count) {
             $job = new RefreshElementRelationsJob([
-                'description' => sprintf('Refresh Element Relations Cache %d/%d', $index + 1, $count),
+                'elementIds' => $chunk->values()->toArray(),
                 'force' => $this->force,
-                'elements' => $chunk->values()->toArray()
+                'description' => sprintf('Refresh Element Relations Cache %d/%d', $index + 1, $count),
             ]);
             $queue->push($job);
             $queue->setProgress(($index + 1) * 100 / $count);

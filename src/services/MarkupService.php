@@ -10,12 +10,15 @@ use craft\models\Site;
 
 class MarkupService
 {
-    public static function getMarkupFromElementRelations(
-        string $elementRelations,
-        int $elementId,
-        int $siteId,
-        string $size = 'small'
-    ): string
+    /**
+     * Converts stringified element relations into html.
+     * @param string $elementRelations
+     * @param int $elementId
+     * @param int $siteId
+     * @param string $size
+     * @return string
+     */
+    public static function getMarkupFromElementRelations(string $elementRelations, int $elementId, int $siteId, string $size = 'small'): string
     {
         $rows = collect(explode(ElementRelationsService::IDENTIFIER_DELIMITER, $elementRelations))
             ->filter()->all();
@@ -75,7 +78,7 @@ class MarkupService
      * @param string $endIdentifier
      * @return array
      */
-    private static function getRowsByIdentifier(array $rows, bool $hasSiteIdInIdentifier, string $startIdentifier, string $endIdentifier)
+    private static function getRowsByIdentifier(array $rows, bool $hasSiteIdInIdentifier, string $startIdentifier, string $endIdentifier): array
     {
         $startPattern = $startIdentifier . '%d';
         $endPattern = $endIdentifier . '%d';

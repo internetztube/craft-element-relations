@@ -8,37 +8,27 @@ use DateTime;
 
 class ElementRelationsModel extends Model
 {
-    /**
-     * @var int|null ID
-     */
+    /** @var int|null */
     public $id;
 
-    /**
-     * @var int|null Element ID
-     */
+    /** @var int|null */
     public $elementId = 0;
 
-    /**
-     * @var string Relations ids
-     */
+    /** @var string */
     public $relations;
 
-    /**
-     * @var DateTime|null Date created
-     */
+    /** @var DateTime|null */
     public $dateCreated;
 
-    /**
-     * @var DateTime|null Date updated
-     */
+    /** @var DateTime|null */
     public $dateUpdated;
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->relations;
     }
 
-    public function rules()
+    public function rules(): array
     {
         $rules = parent::rules();
         $rules[] = [['entryId', 'siteId'], 'number'];

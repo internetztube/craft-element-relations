@@ -25,9 +25,9 @@ class ElementRelationsService
     public const IDENTIFIER_DELIMITER = '|';
 
     /**
-     * Get element relations of an element. (uncached)
-     * @param ElementInterface $element
-     * @return array
+     * Get stringified element relations of an element. (uncached)
+     * @param int $elementId
+     * @return string
      */
     public static function getElementRelations(int $elementId): string
     {
@@ -35,13 +35,15 @@ class ElementRelationsService
         $relations = collect();
 
         if ($elementType === Asset::class) {
-            $assetUsageInSeomatic = self::getAssetUsageInSeomatic($elementId);
-            if ($assetUsageInSeomatic['usedGlobally']) {
-                $relations->push(self::IDENTIFIER_SEOMATIC_GLOBAL);
-            }
-            if (!empty($assetUsageInSeomatic['localRelations'])) {
-                collect($assetUsageInSeomatic['localRelations'])
-                    ->groupBy('siteId')
+            if (self::isSeomaticEnabled()) {
+                $isAssetUsedInSeomaticGlobalSettings = collect(self::getGlobalSeomaticAssets())
+                    ->where('elementId', $elementId)
+                    ->isNotEmpty();
+                if ($isAssetUsedInSeomaticGlobalSettings) {
+                    $relations->push(self::IDENTIFIER_SEOMATIC_GLOBAL);
+                }
+
+                collect(self::getAssetLocalSeomaticRelations($elementId))->groupBy('siteId')
                     ->each(function ($simpleElements, $siteId) use (&$relations) {
                         $relations->push(self::IDENTIFIER_SEOMATIC_LOCAL_START . $siteId);
                         $relations = $relations->merge(collect($simpleElements)->pluck('elementId'));
@@ -81,7 +83,10 @@ class ElementRelationsService
 
     private static function getElementTypeById(int $elementId)
     {
-        $elementType = (new Query())->select(['type'])->from(Table::ELEMENTS)->where(['id' => $elementId])->one();
+        $elementType = (new Query())->select(['type'])
+            ->from(Table::ELEMENTS)
+            ->where(['id' => $elementId])
+            ->one();
         if (!$elementType) {
             return null;
         }
@@ -89,30 +94,24 @@ class ElementRelationsService
     }
 
     /**
-     * Check if an asset is used in SEOmatic entry specific and global settings.
-     * @param Asset $sourceElement
-     * @return array|false
+     * Is SEOmatic installed and enabled?
+     * @return bool
      */
-    private static function getAssetUsageInSeomatic(int $assetId)
+    public static function isSeomaticEnabled(): bool
     {
-        $result = ['usedGlobally' => false, 'elements' => []];
-        if (!self::isSEOmaticInstalled()) {
-            return null;
-        }
-
-        $result['usedGlobally'] = collect(self::getGlobalSeomaticAssets())
-            ->where('elementId', $assetId)
-            ->isNotEmpty();
-
-        $result['localRelations'] = self::getAssetLocalSeomaticRelations($assetId);
-        return $result;
+        return Craft::$app->plugins->isPluginEnabled('seomatic');
     }
 
-    public static function isSEOmaticInstalled(): bool
-    {
-        return Craft::$app->db->tableExists('{{%seomatic_metabundles}}');
-    }
-
+    /**
+     * All assets that are used within SEOmatic's global settings.
+     * @return array
+     *
+     * <code>
+     * [
+     *   ['elementId' => int, 'siteId' => int]
+     * ]
+     * </code>
+     */
     public static function getGlobalSeomaticAssets(): array
     {
         $extractIdFromString = function ($input) {
@@ -145,7 +144,7 @@ class ElementRelationsService
                             if (!$elementId) {
                                 return;
                             }
-                            $result->push(['elementId' => (int)$elementId, 'siteId' => $siteId]);
+                            $result->push(['elementId' => (int)$elementId, 'siteId' => (int)$siteId]);
                         });
                         $result->merge($genericImageIds);
                     }
@@ -160,6 +159,16 @@ class ElementRelationsService
             ->all();
     }
 
+    /**
+     * Get all elements where a certain asset is used in SEOmatic's local settings.
+     * @return array
+     *
+     * <code>
+     * [
+     *   ['elementId' => int, 'siteId' => int]
+     * ]
+     * </code>
+     */
     public static function getAssetLocalSeomaticRelations(int $assetId): array
     {
         $extractIdFromString = function ($input) {
@@ -209,28 +218,30 @@ class ElementRelationsService
     }
 
     /**
-     * Checks if an Asset is used as an profile picture.
-     * @param Element $sourceElement
-     * @return array
+     * Checks where an Asset is used as an profile picture.
+     * @param int $assetId
+     * @return int[]
      */
     private static function getAssetUsageInProfilePhotos(int $assetId): array
     {
-        $users = (new Query())
-            ->select(['id'])
+        return (new Query())
+            ->select('id')
             ->from(Table::USERS)
             ->where(['photoId' => $assetId])
-            ->all();
-
-        return collect($users)->map(function (array $user) {
-            return Craft::$app->users->getUserById($user['id']);
-        })->pluck('id')->all();
+            ->column();
     }
 
     /**
      * Get all relations of an element that are stored in the `relations` table.
-     * @param ElementInterface $sourceElement
-     * @param bool $anySite
+     * @param int $elementId
+     * @param $siteId
      * @return array
+     *
+     * <code>
+     * [
+     *   ['elementId' => int, 'siteId' => int]
+     * ]
+     * </code>
      */
     private static function getElementRelationsFromElement(int $elementId, $siteId): array
     {
@@ -261,9 +272,9 @@ class ElementRelationsService
 
     /**
      * Get an element by id with the corresponding Element Query Builder.
-     * @param int $elementId ^
-     * @param int $siteId
-     * @return Element|null
+     * @param int $elementId
+     * @param null $siteId
+     * @return ElementInterface|null
      */
     public static function getElementById(int $elementId, $siteId = null): ?ElementInterface
     {
@@ -276,11 +287,11 @@ class ElementRelationsService
 
     /**
      * Get root element of an element. Mainly used for Matrix, SuperTable, and Neo blocks.
-     * @param Element $element
+     * @param ElementInterface $element
      * @param $siteId
-     * @return Element|null
+     * @return ElementInterface|null
      */
-    private static function getRootElement(Element $element, $siteId): ?Element
+    private static function getRootElement(ElementInterface $element, $siteId): ?ElementInterface
     {
         if (!isset($element->ownerId) || !$element->ownerId) {
             return $element;
