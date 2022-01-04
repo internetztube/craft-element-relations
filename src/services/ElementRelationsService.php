@@ -5,10 +5,14 @@ namespace internetztube\elementRelations\services;
 use Craft;
 use craft\base\Element;
 use craft\base\ElementInterface;
+use craft\base\FieldInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
+use craft\fields\Matrix as MatrixField;
 use internetztube\elementRelations\fields\ElementRelationsField;
+use verbb\supertable\fields\SuperTableField;
+use craft\redactor\Field as RedactorField;
 
 class ElementRelationsService
 {
@@ -33,6 +37,8 @@ class ElementRelationsService
     {
         $elementType = self::getElementTypeById($elementId);
         $relations = collect();
+
+        self::getElementsFromRedactor($elementId);
 
         if ($elementType === Asset::class) {
             if (self::isSeomaticEnabled()) {
@@ -91,6 +97,44 @@ class ElementRelationsService
             return null;
         }
         return $elementType['type'];
+    }
+
+    private static function getElementsFromRedactor(int $elementId)
+    {
+        $mainQuery = (new Query())->from(['elements' => Table::ELEMENTS])
+            ->leftJoin(['content' => Table::CONTENT], '[[content.elementId]] = [[elements.id]]');
+        $mainQuerySelect = collect(['elements.id', 'elements.type']);
+        $mainQueryWhere = [];
+
+        $matrixFields = (new Query())->select(['id'])->from(Table::FIELDS)->where(['type' => MatrixField::class])->column();
+        $superTableFields = (new Query())->select(['id'])->from(Table::FIELDS)->where(['type' => SuperTableField::class])->column();
+
+        collect()->merge($superTableFields)->merge($matrixFields)
+            ->each(function (int $fieldId, int $index) use ($mainQuery, &$mainQuerySelect, &$mainQueryWhere, $elementId) {
+                $alias = sprintf('alias_%s', $index);
+                /** @var MatrixField|SuperTableField $field */
+                $field = Craft::$app->getFields()->getFieldById($fieldId);
+                $redactorFields = collect($field->getBlockTypeFields())->filter(function (FieldInterface $field) {
+                    return $field instanceof RedactorField;
+                });
+                if ($redactorFields->isEmpty()) { return; }
+                $redactorFields->each(function(RedactorField $field) use (&$mainQuerySelect, &$mainQueryWhere, $alias, $mainQuery) {
+                    $fieldHandle = $alias . '.' .$field->columnPrefix . $field->handle;
+                    if ($field->columnSuffix) {
+                        $fieldHandle = $alias . '.' .$field->columnPrefix . $field->handle . '_' . $field->columnSuffix;
+                    }
+                    $mainQuerySelect->push($fieldHandle);
+                    $mainQueryWhere[$fieldHandle] = null;
+                });
+                $aliasFieldName = sprintf('%s.elementId', $alias);
+                $mainQuery->leftJoin([$alias => $field->contentTable], '[[' . $aliasFieldName . ']] = [[elements.id]]');
+            });
+
+        $mainQuery->select($mainQuerySelect->all());
+        $mainQuery->orWhere(['NOT', $mainQueryWhere]);
+
+        echo($mainQuery->getRawSql());
+        dd();
     }
 
     /**
