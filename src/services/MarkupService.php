@@ -50,7 +50,7 @@ class MarkupService
             ->merge($otherSites);
 
         $relatedSimpleElements = self::getRowsByIdentifier($rows, true, ElementRelationsService::IDENTIFIER_ELEMENTS_START, ElementRelationsService::IDENTIFIER_ELEMENTS_END);
-        $currentSiteElements = collect($relatedSimpleElements)->whereNotIn('siteId', $siteId)->map(function ($row) {
+        $currentSiteElements = collect($relatedSimpleElements)->whereIn('siteId', $currentAndNotSupportedSites)->map(function ($row) {
             return Craft::$app->elements->getElementById($row['elementId'], null, $row['siteId']);
         })->merge($currentSiteElements)->filter();
         $otherSites = collect($relatedSimpleElements)->whereNotIn('siteId', $currentAndNotSupportedSites)

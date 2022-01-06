@@ -10,10 +10,8 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
 use craft\fields\Matrix as MatrixField;
-use craft\redactor\Field;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use verbb\supertable\fields\SuperTableField;
-use yii\base\BaseObject;
 
 class ElementRelationsService
 {
@@ -61,8 +59,10 @@ class ElementRelationsService
         if (RedactorService::isRedactorEnabled()) {
             $redactorRelations = collect(RedactorService::getRedactorRelations($elementId));
         }
-        $linkItRelations = collect(LinkItService::getLinkItRelations($elementId));
-
+        $linkItRelations = collect();
+        if (LinkItService::isLinkItEnabled()) {
+            $linkItRelations = collect(LinkItService::getLinkItRelations($elementId));
+        }
 
         $relations = collect(Craft::$app->sites->allSiteIds)
             ->values()
@@ -220,6 +220,11 @@ class ElementRelationsService
             $result = $result->merge($redactorRelations);
         }
 
+        if (LinkItService::isLinkItEnabled()) {
+            $linkItRelations = LinkItService::getLinkItRelationsUsedInElement($elementId);
+            $result = $result->merge($linkItRelations);
+        }
+
         return $result->all();
     }
 
@@ -250,12 +255,12 @@ class ElementRelationsService
             ->select(['elements.id', 'elements.type']);
 
         // content table
-        $redactorFields = (new Query())->select(['id'])
+        $fields = (new Query())->select(['id'])
             ->from(Table::FIELDS)
             ->where(['type' => $fieldType])
             ->andWhere(['context' => 'global'])
             ->column();
-        $redactorFieldHandles = collect($redactorFields)->map(function (int $fieldId) use ($likeStatement, $mainQuery) {
+        $fieldHandles = collect($fields)->map(function (int $fieldId) use ($likeStatement, $mainQuery) {
             $field = Craft::$app->getFields()->getFieldById($fieldId);
             $fieldHandle = 'content.field_' . $field->columnPrefix . $field->handle;
             if ($field->columnSuffix) {
@@ -265,7 +270,7 @@ class ElementRelationsService
             $mainQuery->orWhere(['LIKE', $fieldHandle, $likeStatement, false]);
             return $fieldHandle;
         });
-        if ($redactorFieldHandles->isNotEmpty()) {
+        if ($fieldHandles->isNotEmpty()) {
             $mainQuery->leftJoin(['content' => Table::CONTENT], '[[content.elementId]] = [[elements.id]]');
             $mainQuery->addSelect('content.siteId as content__siteId');
         }
@@ -278,17 +283,17 @@ class ElementRelationsService
             $fieldsWithExternalContentTables = $fieldsWithExternalContentTables->merge($superTableFields);
         }
 
-        $fieldsWithExternalContentTables->each(function (int $fieldId, int $index) use ($mainQuery, $likeStatement) {
+        $fieldsWithExternalContentTables->each(function (int $fieldId, int $index) use ($mainQuery, $likeStatement, $fieldType) {
             $alias = sprintf('alias_%s', $index);
             /** @var MatrixField|SuperTableField $field */
             $field = Craft::$app->getFields()->getFieldById($fieldId);
-            $redactorFields = collect($field->getBlockTypeFields())->filter(function (FieldInterface $field) {
-                return $field instanceof Field;
+            $fieldsOfType = collect($field->getBlockTypeFields())->filter(function (FieldInterface $field) use ($fieldType) {
+                return $field instanceof $fieldType;
             });
-            if ($redactorFields->isEmpty()) {
+            if ($fieldsOfType->isEmpty()) {
                 return;
             }
-            $redactorFields->each(function (Field $field) use ($alias, $mainQuery, $likeStatement) {
+            $fieldsOfType->each(function ($field) use ($alias, $mainQuery, $likeStatement) {
                 $fieldHandle = $alias . '.' . $field->columnPrefix . $field->handle;
                 if ($field->columnSuffix) {
                     $fieldHandle = $alias . '.' . $field->columnPrefix . $field->handle . '_' . $field->columnSuffix;
