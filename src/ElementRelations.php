@@ -23,8 +23,6 @@ use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\SeomaticService;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
-use nystudio107\seomatic\events\InvalidateContainerCachesEvent;
-use nystudio107\seomatic\services\MetaContainers;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
@@ -106,7 +104,6 @@ class ElementRelations extends Plugin
 
             $job = new EventElementAfterSaveJob(['elementId' => $element->id]);
             Craft::$app->getQueue()->delay(10)->push($job);
-
         });
     }
 
@@ -134,9 +131,9 @@ class ElementRelations extends Plugin
     private function registerSeomaticEvents(): void
     {
         Event::on(
-            MetaContainers::class,
-            MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
-            function (InvalidateContainerCachesEvent $event) {
+            \nystudio107\seomatic\services\MetaContainers::class,
+            \nystudio107\seomatic\services\MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
+            function (\nystudio107\seomatic\events\InvalidateContainerCachesEvent $event) {
                 if (!$event->uri) {
                     $job = new EventSeomaticGlobalAfterSaveJob();
                     Craft::$app->getQueue()->delay(10)->push($job);
