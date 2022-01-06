@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.2.1
+### Added
+- Added Support for Redactor.
+
+### Updated
+- Improved Cache Invalidation.
+
 ## 1.2.0
 ### Updated
 - Update caching logic.
