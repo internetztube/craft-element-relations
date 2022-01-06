@@ -20,6 +20,13 @@ class MarkupService
      */
     public static function getMarkupFromElementRelations(string $elementRelations, int $elementId, int $siteId, string $size = 'small'): string
     {
+        $element = Craft::$app->elements->getElementById($elementId);
+        $supportedSiteIds = $element->getSupportedSites();
+        $allSiteIds = Craft::$app->sites->getAllSiteIds();
+        $currentAndNotSupportedSites = collect($allSiteIds)->filter(function (int $allSiteId) use ($siteId, $allSiteIds, $supportedSiteIds) {
+            return $allSiteId === $siteId || !in_array($allSiteId, $supportedSiteIds);
+        })->values()->all();
+
         $rows = collect(explode(ElementRelationsService::IDENTIFIER_DELIMITER, $elementRelations))
             ->filter()->all();
 
@@ -32,21 +39,21 @@ class MarkupService
         })->merge($currentSiteElements);
 
         $relationsSeomaticLocal = self::getRowsByIdentifier($rows, true, SeomaticService::IDENTIFIER_SEOMATIC_LOCAL_START, SeomaticService::IDENTIFIER_SEOMATIC_LOCAL_END);
-        $currentSiteElements = collect($relationsSeomaticLocal)->where('siteId', $siteId)
+        $currentSiteElements = collect($relationsSeomaticLocal)->whereIn('siteId', $currentAndNotSupportedSites)
             ->map(function ($row) {
                 return Craft::$app->elements->getElementById($row['elementId'], null, $row['siteId']);
             })
             ->merge($currentSiteElements);
 
-        $otherSites = collect($relationsSeomaticLocal)->where('siteId', '!=', $siteId)
+        $otherSites = collect($relationsSeomaticLocal)->whereNotIn('siteId', $currentAndNotSupportedSites)
             ->pluck('siteId')
             ->merge($otherSites);
 
         $relatedSimpleElements = self::getRowsByIdentifier($rows, true, ElementRelationsService::IDENTIFIER_ELEMENTS_START, ElementRelationsService::IDENTIFIER_ELEMENTS_END);
-        $currentSiteElements = collect($relatedSimpleElements)->where('siteId', $siteId)->map(function ($row) {
+        $currentSiteElements = collect($relatedSimpleElements)->whereNotIn('siteId', $siteId)->map(function ($row) {
             return Craft::$app->elements->getElementById($row['elementId'], null, $row['siteId']);
-        })->merge($currentSiteElements);
-        $otherSites = collect($relatedSimpleElements)->where('siteId', '!=', $siteId)
+        })->merge($currentSiteElements)->filter();
+        $otherSites = collect($relatedSimpleElements)->whereNotIn('siteId', $currentAndNotSupportedSites)
             ->pluck('siteId')->merge($otherSites);
 
         $result = collect();
