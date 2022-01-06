@@ -93,11 +93,9 @@ class ElementRelations extends Plugin
          * gets pushed to the Queue once.
          */
         Event::on(Element::class, Element::EVENT_AFTER_PROPAGATE, function (ModelEvent $event) {
-
             /** @var Element $element */
             $element = $event->sender->canonical;
-            // There is an extra event for user photos
-            if (in_array($element->id, $this->pushedQueueTasks) || $element instanceof User) {
+            if (in_array($element->id, $this->pushedQueueTasks)) {
                 return;
             }
             $this->pushedQueueTasks[] = $element->id;

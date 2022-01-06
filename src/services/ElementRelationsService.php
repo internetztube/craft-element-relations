@@ -46,9 +46,9 @@ class ElementRelationsService
 
             $assetUsageInProfilePhotos = ProfilePhotoService::getAssetUsageInProfilePhotos($elementId);
             if (!empty($assetUsageInProfilePhotos)) {
-                $relations->push(ProfilePhotoService::IDENTIFIER_PROFILE_PICTURE_START);
+                $relations->push(ProfilePhotoService::IDENTIFIER_PROFILE_PHOTO_START);
                 $relations = $relations->merge($assetUsageInProfilePhotos);
-                $relations->push(ProfilePhotoService::IDENTIFIER_PROFILE_PICTURE_END);
+                $relations->push(ProfilePhotoService::IDENTIFIER_PROFILE_PHOTO_END);
             }
         }
 

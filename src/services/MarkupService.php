@@ -26,7 +26,7 @@ class MarkupService
         $currentSiteElements = collect();
         $otherSites = collect();
 
-        $relatedProfilePictures = self::getRowsByIdentifier($rows, false, ProfilePhotoService::IDENTIFIER_PROFILE_PICTURE_START, ProfilePhotoService::IDENTIFIER_PROFILE_PICTURE_END);
+        $relatedProfilePictures = self::getRowsByIdentifier($rows, false, ProfilePhotoService::IDENTIFIER_PROFILE_PHOTO_START, ProfilePhotoService::IDENTIFIER_PROFILE_PHOTO_END);
         $currentSiteElements = collect($relatedProfilePictures)->map(function (int $userId) {
             return Craft::$app->getUsers()->getUserById($userId);
         })->merge($currentSiteElements);

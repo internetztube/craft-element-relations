@@ -7,8 +7,8 @@ use craft\db\Table;
 
 class ProfilePhotoService
 {
-    public const IDENTIFIER_PROFILE_PICTURE_START = 'profile-picture-start';
-    public const IDENTIFIER_PROFILE_PICTURE_END = 'profile-picture-end';
+    public const IDENTIFIER_PROFILE_PHOTO_START = 'profile-picture-start';
+    public const IDENTIFIER_PROFILE_PHOTO_END = 'profile-picture-end';
 
     /**
      * Checks where an Asset is used as an profile picture.

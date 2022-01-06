@@ -38,17 +38,14 @@ As a basis the relations table is used. This means that any field that stores re
 Caching is enabled by default and set to `1 week`. These settings can be overridden using a local config file.
 
 ## Screenshots
-![Field Edit Page](screenshots/field.jpg)
-Create Field
-
-![Asset Overview Primary Page](screenshots/asset-overview-en.png)
-Asset Overview Primary Page
-
-![Asset Overview Other Page](screenshots/asset-overview-fr.png)
-Asset Overview Other Page
-
-![Asset Detail](screenshots/asset-detail.png)
+Asset Overview
+![Asset Overview Primary Page](screenshots/asset-overview.png)
+---
 Asset detail
+![Asset Detail](screenshots/asset-detail-en.png)
+---
+Create Field
+![Field Edit Page](screenshots/field.png)
 
 ## Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-structure-disable-reorder/issues) page.
