@@ -27,7 +27,7 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
             return;
         }
         $rows = ElementRelationsService::getElementsWithElementRelationsField();
-        $queue = Craft::$app->getQueue();
+        $queue = Craft::$app->getQueue()->delay(10);
 
         $jobSize = 100;
         $chunks = collect($rows)->chunk($jobSize);

@@ -15,11 +15,16 @@ use craft\services\Plugins;
 use craft\services\Utilities;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\CreateRefreshElementRelationsJobsJob;
+use internetztube\elementRelations\jobs\EventElementAfterSaveJob;
+use internetztube\elementRelations\jobs\EventSeomaticGlobalAfterSaveJob;
 use internetztube\elementRelations\jobs\RefreshElementRelationsJob;
 use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJob;
 use internetztube\elementRelations\models\Settings;
-use internetztube\elementRelations\services\ElementRelationsService;
+use internetztube\elementRelations\services\CacheService;
+use internetztube\elementRelations\services\SeomaticService;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
+use nystudio107\seomatic\events\InvalidateContainerCachesEvent;
+use nystudio107\seomatic\services\MetaContainers;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
@@ -48,12 +53,14 @@ class ElementRelations extends Plugin
             $event->types[] = ElementRelationsUtility::class;
         });
 
-        $this->registerUserEvents();
-        $this->registerElementEvents();
-        $this->registerPluginEvents();
+        if (CacheService::useCache()) {
+            $this->registerUserEvents();
+            $this->registerElementEvents();
+            $this->registerPluginEvents();
 
-        if (ElementRelationsService::isSeomaticEnabled()) {
-            $this->registerSeomaticEvents();
+            if (SeomaticService::isSeomaticEnabled()) {
+                $this->registerSeomaticEvents();
+            }
         }
     }
 
@@ -65,12 +72,15 @@ class ElementRelations extends Plugin
         Event::on(User::class, User::EVENT_AFTER_SAVE, function (ModelEvent $event) {
             /** @var User $user */
             $user = $event->sender;
-            $job = new RefreshRelatedElementRelationsJob(['identifier' => $user->id]);
-            Craft::$app->getQueue()->push($job);
 
+            // rebuild cache of old relations
+            $job = new RefreshRelatedElementRelationsJob(['identifier' => $user->id]);
+            Craft::$app->getQueue()->delay(10)->push($job);
+
+            // rebuild cache of new relations
             if ($user->photoId) {
                 $job = new RefreshElementRelationsJob(['elementIds' => [$user->photoId], 'force' => true]);
-                Craft::$app->getQueue()->push($job);
+                Craft::$app->getQueue()->delay(10)->push($job);
             }
         });
     }
@@ -84,7 +94,8 @@ class ElementRelations extends Plugin
          * Push RefreshRelatedElementRelationsJob to Queue, when a Element got propagated to a site. This Job only
          * gets pushed to the Queue once.
          */
-        Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {
+        Event::on(Element::class, Element::EVENT_AFTER_PROPAGATE, function (ModelEvent $event) {
+
             /** @var Element $element */
             $element = $event->sender->canonical;
             // There is an extra event for user photos
@@ -92,8 +103,10 @@ class ElementRelations extends Plugin
                 return;
             }
             $this->pushedQueueTasks[] = $element->id;
-            $job = new RefreshRelatedElementRelationsJob(['identifier' => $element->id]);
-            Craft::$app->getQueue()->push($job);
+
+            $job = new EventElementAfterSaveJob(['elementId' => $element->id]);
+            Craft::$app->getQueue()->delay(10)->push($job);
+
         });
     }
 
@@ -121,21 +134,13 @@ class ElementRelations extends Plugin
     private function registerSeomaticEvents(): void
     {
         Event::on(
-            \nystudio107\seomatic\services\MetaContainers::class,
-            \nystudio107\seomatic\services\MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
-            function (\nystudio107\seomatic\events\InvalidateContainerCachesEvent $event) {
-                if ($event->uri) {
-                    return;
+            MetaContainers::class,
+            MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
+            function (InvalidateContainerCachesEvent $event) {
+                if (!$event->uri) {
+                    $job = new EventSeomaticGlobalAfterSaveJob();
+                    Craft::$app->getQueue()->delay(10)->push($job);
                 }
-                $elementIds = collect(ElementRelationsService::getGlobalSeomaticAssets())
-                    ->pluck('elementId')->unique();
-                $job = new RefreshElementRelationsJob(['elementIds' => $elementIds, 'force' => true]);
-                Craft::$app->getQueue()->push($job);
-
-                $job = new RefreshRelatedElementRelationsJob([
-                    'identifier' => ElementRelationsService::IDENTIFIER_SEOMATIC_GLOBAL
-                ]);
-                Craft::$app->getQueue()->push($job);
             });
     }
 

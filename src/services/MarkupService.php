@@ -26,12 +26,12 @@ class MarkupService
         $currentSiteElements = collect();
         $otherSites = collect();
 
-        $relatedProfilePictures = self::getRowsByIdentifier($rows, false, ElementRelationsService::IDENTIFIER_PROFILE_PICTURE_START, ElementRelationsService::IDENTIFIER_PROFILE_PICTURE_END);
+        $relatedProfilePictures = self::getRowsByIdentifier($rows, false, ProfilePhotoService::IDENTIFIER_PROFILE_PICTURE_START, ProfilePhotoService::IDENTIFIER_PROFILE_PICTURE_END);
         $currentSiteElements = collect($relatedProfilePictures)->map(function (int $userId) {
             return Craft::$app->getUsers()->getUserById($userId);
         })->merge($currentSiteElements);
 
-        $relationsSeomaticLocal = self::getRowsByIdentifier($rows, true, ElementRelationsService::IDENTIFIER_SEOMATIC_LOCAL_START, ElementRelationsService::IDENTIFIER_SEOMATIC_LOCAL_END);
+        $relationsSeomaticLocal = self::getRowsByIdentifier($rows, true, SeomaticService::IDENTIFIER_SEOMATIC_LOCAL_START, SeomaticService::IDENTIFIER_SEOMATIC_LOCAL_END);
         $currentSiteElements = collect($relationsSeomaticLocal)->where('siteId', $siteId)
             ->map(function ($row) {
                 return Craft::$app->elements->getElementById($row['elementId'], null, $row['siteId']);
@@ -59,7 +59,7 @@ class MarkupService
         $result->push(Cp::elementPreviewHtml($currentSiteElements->all(), $size, true, false));
         $result = $result->filter();
 
-        $seomaticGlobal = collect($rows)->contains(ElementRelationsService::IDENTIFIER_SEOMATIC_GLOBAL);
+        $seomaticGlobal = collect($rows)->contains(SeomaticService::IDENTIFIER_SEOMATIC_GLOBAL);
         if ($seomaticGlobal) {
             if ($result->isNotEmpty()) {
                 $result->push('<br />');
