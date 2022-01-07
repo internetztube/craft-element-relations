@@ -31,6 +31,7 @@ As a basis the relations table is used. This means that any field that stores re
 * SEOmatic
 * Profile Photos
 * Redactor
+* LinkIt
 * ... and many more.
 
 
