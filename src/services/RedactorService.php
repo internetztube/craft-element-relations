@@ -3,13 +3,6 @@
 namespace internetztube\elementRelations\services;
 
 use Craft;
-use craft\base\FieldInterface;
-use craft\db\Query;
-use craft\db\Table;
-use craft\fields\Matrix as MatrixField;
-use craft\redactor\Field;
-use craft\redactor\FieldData;
-use verbb\supertable\fields\SuperTableField;
 
 class RedactorService
 {
@@ -28,7 +21,7 @@ class RedactorService
     public static function getRedactorRelations(int $elementId): array
     {
         $likeStatement = sprintf('%%:%s:%%', $elementId);
-        return ElementRelationsService::getFilledContentRowsByFieldType(Field::class, $likeStatement);
+        return ElementRelationsService::getFilledContentRowsByFieldType(\craft\redactor\Field::class, $likeStatement);
     }
 
     /**
@@ -44,8 +37,8 @@ class RedactorService
             return [];
         }
         return collect($element->getFieldValues())->filter(function ($value) {
-            return $value instanceof FieldData;
-        })->map(function (FieldData $value) {
+            return $value instanceof \craft\redactor\FieldData;
+        })->map(function (\craft\redactor\FieldData $value) {
             $exploded = explode(':', $value->getRawContent());
             return collect($exploded)->filter(function ($item) {
                 return is_numeric($item) && (string)((int)$item) === (string)$item;

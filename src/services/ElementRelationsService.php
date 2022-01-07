@@ -11,7 +11,6 @@ use craft\db\Table;
 use craft\elements\Asset;
 use craft\fields\Matrix as MatrixField;
 use internetztube\elementRelations\fields\ElementRelationsField;
-use verbb\supertable\fields\SuperTableField;
 
 class ElementRelationsService
 {
@@ -279,13 +278,13 @@ class ElementRelationsService
         $matrixFields = (new Query())->select(['id'])->from(Table::FIELDS)->where(['type' => MatrixField::class])->column();
         $fieldsWithExternalContentTables = $fieldsWithExternalContentTables->merge($matrixFields);
         if (self::isSuperTableEnabled()) {
-            $superTableFields = (new Query())->select(['id'])->from(Table::FIELDS)->where(['type' => SuperTableField::class])->column();
+            $superTableFields = (new Query())->select(['id'])->from(Table::FIELDS)->where(['type' => \verbb\supertable\fields\SuperTableField::class])->column();
             $fieldsWithExternalContentTables = $fieldsWithExternalContentTables->merge($superTableFields);
         }
 
         $fieldsWithExternalContentTables->each(function (int $fieldId, int $index) use ($mainQuery, $likeStatement, $fieldType) {
             $alias = sprintf('alias_%s', $index);
-            /** @var MatrixField|SuperTableField $field */
+            /** @var MatrixField|\verbb\supertable\fields\SuperTableField $field */
             $field = Craft::$app->getFields()->getFieldById($fieldId);
             $fieldsOfType = collect($field->getBlockTypeFields())->filter(function (FieldInterface $field) use ($fieldType) {
                 return $field instanceof $fieldType;
