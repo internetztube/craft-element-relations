@@ -4,29 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 1.2.3
+## 1.2.3 - 2022-01-07
 ### Added
 - Added support for LinkIt.
 
-## 1.2.2
+## 1.2.2 - 2022-01-06
 ### Fixed
 - Fix purging of custom fields on User Elements.
 
-## 1.2.1
+## 1.2.1 - 2022-01-06
 ### Added
 - Added Support for Redactor.
 
 ### Updated
 - Improved Cache Invalidation.
 
-## 1.2.0
+## 1.2.0 - 2022-01-04
 ### Updated
 - Update caching logic.
 
 ### Fixed
 - There is now always a hint when an element is used in another site.
 
-## 1.1.3
+## 1.1.3 - 2021-12-28
 ### Fixed
 - Add csrf token to utilities form.
 
