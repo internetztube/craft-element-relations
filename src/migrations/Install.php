@@ -22,7 +22,12 @@ class Install extends Migration
             ]);
 
             $this->createIndex(null, $table, ['elementId'], true);
-            $this->createIndex(null, $table, ['relations', 'dateUpdated']);
+            // Adding an index on a text field in mysql requires a length
+            if (Craft::$app->db->getIsMysql()) {
+                $this->createIndex(null, $table, ['relations(250)', 'dateUpdated']);
+            } else {
+                $this->createIndex(null, $table, ['relations', 'dateUpdated']);
+            }
             $this->addForeignKey(null, $table, 'elementId', '{{%elements}}', 'id', 'CASCADE');
 
             // Refresh the db schema caches
