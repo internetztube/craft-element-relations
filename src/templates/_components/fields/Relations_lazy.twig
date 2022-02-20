@@ -1,28 +1,69 @@
 <div class="element-relations-lazy" data-id="{{ id }}">
-    <div class="spinner"></div>
+    <div class="spinner hidden"></div>
+    <div class="js-element-relations-content"></div>
+    <button type="button" class="btn small js-element-relations-refresh hidden" data-element-id="%d">refresh</button>
 </div>
 <script>
-    (async () => {
-        if (!window.elementRelationsLazyOffset) {
-            window.elementRelationsLazyOffset = 1
-        } else {
-            window.elementRelationsLazyOffset += 100
-        }
-        // Reset `window.elementRelationsLazyOffset` when all functions have been invoked.
-        if (window.elementRelationsDoneLoadingTimeout) {
-            clearTimeout(window.elementRelationsDoneLoadingTimeout)
-        }
-        window.elementRelationsDoneLoadingTimeout = setTimeout(() => {
-            window.elementRelationsLazyOffset = 0
-        }, 200)
-
-        const sleep = t => new Promise(s => setTimeout(s, t))
-        await sleep(window.elementRelationsLazyOffset)
-        const $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy')
-        const request = await fetch('{{ endpoint | raw }}')
-        if (!$container) {
+  (() => {
+    if (!window.elementRelationsQueue) {
+      window.elementRelationsQueue = {
+        items: [],
+        isRunning: false,
+        start() {
+          if(this.isRunning) { return }
+          this.execute()
+        },
+        async execute() {
+          this.isRunning = true
+          const callback = this.items.pop()
+          if (!callback) {
+            this.isRunning = false
             return
+          }
+          try {
+            await callback()
+          } catch (e) {
+            console.log(e)
+          }
+          this.execute()
         }
-        $container.innerHTML = await request.text()
-    })()
+      }
+    }
+
+    const callback = async () => {
+      let $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
+      if (!$container) { return; }
+
+      const $spinner = $container.querySelector('.spinner');
+      $spinner.classList.remove('hidden')
+
+      const request = await fetch('{{ endpoint | raw }}');
+      $spinner.classList.add('hidden')
+      $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
+      if (!$container) { return; }
+
+      const $content = $container.querySelector('.js-element-relations-content')
+      $content.innerHTML = await request.text();
+
+      {% if elementDetail %}
+        const $refreshButton = $container.querySelector('.js-element-relations-refresh')
+        $refreshButton.classList.remove('hidden')
+        $refreshButton.addEventListener('click', async () => {
+          $spinner.classList.add('hidden')
+          $refreshButton.classList.add('hidden')
+
+          const response = await fetch('{{ refreshEndpoint | raw }}')
+          if (response.ok) {
+            Craft.cp.displayNotice('Element Relations: Successfully pushed refresh Job into Queue')
+          } else {
+            $refreshButton.classList.remove('hidden')
+            Craft.cp.displayError('Element Relations: An error occurred while pushing Job into Queue')
+          }
+        })
+      {% endif %}
+    };
+    window.elementRelationsQueue.items.unshift(callback)
+    window.elementRelationsQueue.start()
+
+  })();
 </script>
