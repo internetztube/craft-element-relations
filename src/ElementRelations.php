@@ -52,12 +52,14 @@ class ElementRelations extends Plugin
         });
 
         if (CacheService::useCache()) {
-            $this->registerUserEvents();
-            $this->registerElementEvents();
             $this->registerPluginEvents();
 
-            if (SeomaticService::isSeomaticEnabled()) {
-                $this->registerSeomaticEvents();
+            if (self::$plugin->getSettings()->elementEvents !== false) {
+                $this->registerUserEvents();
+                $this->registerElementEvents();
+                if (SeomaticService::isSeomaticEnabled()) {
+                    $this->registerSeomaticEvents();
+                }
             }
         }
     }

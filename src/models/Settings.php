@@ -17,4 +17,11 @@ class Settings extends Model
      * @var bool
      */
     public $useCache = true;
+
+    /**
+     * When you save an element and caching is enabled, on element save refresh queue jobs get created. With is
+     * property you can disable those element events.
+     * @var bool
+     */
+    public $elementEvents = true;
 }
