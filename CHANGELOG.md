@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-# 1.3.0
+## 1.3.1
+### Added
+- Added config option for bulk job size.
+
+## 1.3.0
 ### Added
 - Added refresh and reload buttons to element detail field.
 - Show last update date on element detail page.
@@ -18,7 +22,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Use illuminate/collections as `collect()` package. #9
 - Only load one element relation at a time. Improves performance on overview pages.
 
-# 1.2.6
+## 1.2.6
 Version Bump
 
 ## 1.2.5 - 2022-02-04

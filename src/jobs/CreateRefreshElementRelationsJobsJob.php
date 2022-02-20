@@ -4,12 +4,13 @@ namespace internetztube\elementRelations\jobs;
 
 use Craft;
 use craft\queue\BaseJob;
+use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
 use Illuminate\Support\Collection;
 
 /**
- * Since the refresh jobs are very time and computation intensive, the jobs are separated into 1000 items chunks.
+ * Since the refresh jobs are very time and computation intensive, the jobs are separated into 10 items chunks.
  * Class CreateRefreshElementRelationsJobsJob
  * @package internetztube\elementRelations\jobs
  */
@@ -36,7 +37,7 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
 
         $queue = Craft::$app->getQueue()->delay(10);
 
-        $jobSize = 100;
+        $jobSize = ElementRelations::$plugin->getSettings()->bulkJobSize;
         $chunks = $rows->chunk($jobSize);
         $count = $chunks->count();
 
