@@ -24,7 +24,7 @@
     "require": {
         "ext-json": "*",
         "craftcms/cms": "^3.5.0",
-        "tightenco/collect": "^8.34"
+        "illuminate/collections": "^8.0"
     },
     "autoload": {
         "psr-4": {

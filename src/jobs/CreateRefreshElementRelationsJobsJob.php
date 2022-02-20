@@ -6,7 +6,7 @@ use Craft;
 use craft\queue\BaseJob;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
-use Tightenco\Collect\Support\Collection;
+use Illuminate\Support\Collection;
 
 /**
  * Since the refresh jobs are very time and computation intensive, the jobs are separated into 1000 items chunks.
