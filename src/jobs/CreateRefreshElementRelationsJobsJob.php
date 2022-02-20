@@ -26,7 +26,14 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
         if (!CacheService::useCache()) {
             return;
         }
-        $rows = ElementRelationsService::getElementsWithElementRelationsField();
+        $rows = collect(ElementRelationsService::getElementsWithElementRelationsField());
+        $count = $rows->count();
+        $rows = $rows->filter(function(int $elementId, int $index) use ($queue, $count) {
+            $queue->setProgress($index * 100 / $count);
+            if ($this->force) { return true; }
+            return !CacheService::hasStoredElementRelations($elementId);
+        });
+
         $queue = Craft::$app->getQueue()->delay(10);
 
         $jobSize = 100;
