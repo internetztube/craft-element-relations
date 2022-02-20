@@ -16,7 +16,7 @@ use Illuminate\Support\Collection;
 class CreateRefreshElementRelationsJobsJob extends BaseJob
 {
     /** @var string */
-    public $description = 'Create Refresh Element Relations Cache Jobs';
+    public $description = 'Element Relations: Create Refresh Cache Jobs';
 
     /** @var bool */
     public $force = false;

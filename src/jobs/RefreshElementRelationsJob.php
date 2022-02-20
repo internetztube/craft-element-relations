@@ -13,7 +13,7 @@ use internetztube\elementRelations\services\CacheService;
 class RefreshElementRelationsJob extends BaseJob
 {
     /** @var string */
-    public $description = 'Refresh Element Relations Cache';
+    public $description = 'Element Relations: Refresh Cache';
 
     /** @var bool */
     public $force = false;
