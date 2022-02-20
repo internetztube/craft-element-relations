@@ -46,7 +46,7 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
                 'force' => $this->force,
                 'description' => sprintf('Element Relations: Refresh Cache %d/%d', $index + 1, $count),
             ]);
-            $queue->push($job);
+            $queue->priority(10)->push($job);
             $queue->setProgress(($index + 1) * 100 / $count);
         });
     }

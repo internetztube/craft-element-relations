@@ -36,6 +36,16 @@ class CacheService
         return $validCachedRelations;
     }
 
+    public static function getDateUpdatedFromElementRelations(int $elementId): ?string
+    {
+        if (!self::useCache()) { return null; }
+        $record = self::getBaseQueryForNonStaleRecords()
+            ->andWhere(['elementId' => $elementId])
+            ->one();
+        if (!$record) { return null; }
+        return $record->dateUpdated;
+    }
+
     /**
      * Has a element a non-stale element relations cache record?
      * @param int $elementId

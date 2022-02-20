@@ -23,13 +23,13 @@ class EventElementAfterSaveJob extends BaseJob
 
         // refresh cache of old relations (where this element is used)
         $job = new RefreshRelatedElementRelationsJob(['identifier' => $this->elementId]);
-        Craft::$app->getQueue()->delay(10)->push($job);
+        Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
 
         // refresh cache of new relations (elements used in the element)
         $elementsUsedInThisElement = ElementRelationsService::getRelationsUsedInElement($this->elementId);
         if (!empty($elementsUsedInThisElement)) {
             $job = new RefreshElementRelationsJob(['elementIds' => $elementsUsedInThisElement, 'force' => true]);
-            Craft::$app->getQueue()->delay(10)->push($job);
+            Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
         }
     }
 }

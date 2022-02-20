@@ -73,12 +73,12 @@ class ElementRelations extends Plugin
 
             // rebuild cache of old relations
             $job = new RefreshRelatedElementRelationsJob(['identifier' => $user->id]);
-            Craft::$app->getQueue()->delay(10)->push($job);
+            Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
 
             // rebuild cache of new relations
             if ($user->photoId) {
                 $job = new RefreshElementRelationsJob(['elementIds' => [$user->photoId], 'force' => true]);
-                Craft::$app->getQueue()->delay(10)->push($job);
+                Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
             }
         });
     }
@@ -101,7 +101,7 @@ class ElementRelations extends Plugin
             $this->pushedQueueTasks[] = $element->id;
 
             $job = new EventElementAfterSaveJob(['elementId' => $element->id]);
-            Craft::$app->getQueue()->delay(10)->push($job);
+            Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
         });
     }
 
@@ -117,7 +117,7 @@ class ElementRelations extends Plugin
                 return;
             }
             $job = new CreateRefreshElementRelationsJobsJob(['force' => true]);
-            Craft::$app->getQueue()->delay(1 * 60)->push($job); // delay job by 1min
+            Craft::$app->getQueue()->delay(1 * 60)->priority(10)->push($job); // delay job by 1min
         };
         Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
@@ -134,7 +134,7 @@ class ElementRelations extends Plugin
             function (\nystudio107\seomatic\events\InvalidateContainerCachesEvent $event) {
                 if (!$event->uri) {
                     $job = new EventSeomaticGlobalAfterSaveJob();
-                    Craft::$app->getQueue()->delay(10)->push($job);
+                    Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
                 }
             });
     }

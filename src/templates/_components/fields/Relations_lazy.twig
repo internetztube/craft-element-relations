@@ -1,7 +1,6 @@
 <div class="element-relations-lazy" data-id="{{ id }}">
     <div class="spinner hidden"></div>
     <div class="js-element-relations-content"></div>
-    <button type="button" class="btn small js-element-relations-refresh hidden" data-element-id="%d">refresh</button>
 </div>
 <script>
   (() => {
@@ -32,18 +31,21 @@
 
     const callback = async () => {
       let $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
+      let $content = $container.querySelector('.js-element-relations-content')
       if (!$container) { return; }
 
       const $spinner = $container.querySelector('.spinner');
       $spinner.classList.remove('hidden')
 
+      $content.innerHTML = ''
       const request = await fetch('{{ endpoint | raw }}');
       $spinner.classList.add('hidden')
       $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
+      $content = $container.querySelector('.js-element-relations-content');
       if (!$container) { return; }
 
-      const $content = $container.querySelector('.js-element-relations-content')
       $content.innerHTML = await request.text();
+      $(".info", $($container)).infoicon()
 
       {% if elementDetail %}
         const $refreshButton = $container.querySelector('.js-element-relations-refresh')
@@ -54,12 +56,16 @@
 
           const response = await fetch('{{ refreshEndpoint | raw }}')
           if (response.ok) {
-            Craft.cp.displayNotice('Element Relations: Successfully pushed refresh Job into Queue')
+            Craft.cp.displayNotice('{{ 'field-value-refresh-success' | t('element-relations') }}')
           } else {
             $refreshButton.classList.remove('hidden')
-            Craft.cp.displayError('Element Relations: An error occurred while pushing Job into Queue')
+            Craft.cp.displayError('{{ 'field-value-refresh-error' | t('element-relations') }}')
           }
         })
+
+        const $reloadButton = $container.querySelector('.js-element-relations-reload')
+        $reloadButton.classList.remove('hidden')
+        $reloadButton.addEventListener('click', callback)
       {% endif %}
     };
     window.elementRelationsQueue.items.unshift(callback)
