@@ -37,6 +37,16 @@ class CacheService
     }
 
     /**
+     * Has a element a non-stale element relations cache record?
+     * @param int $elementId
+     * @return bool
+     */
+    public static function hasStoredElementRelations(int $elementId): bool
+    {
+        return !!self::getNonStaleStoredRelations($elementId);
+    }
+
+    /**
      * Is Caching enabled in settings?
      * @return bool
      */

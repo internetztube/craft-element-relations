@@ -30,14 +30,14 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
         $queue = Craft::$app->getQueue()->delay(10);
 
         $jobSize = 100;
-        $chunks = collect($rows)->chunk($jobSize);
+        $chunks = $rows->chunk($jobSize);
         $count = $chunks->count();
 
         $chunks->each(function (Collection $chunk, $index) use ($queue, $count) {
             $job = new RefreshElementRelationsJob([
                 'elementIds' => $chunk->values()->toArray(),
                 'force' => $this->force,
-                'description' => sprintf('Refresh Element Relations Cache %d/%d', $index + 1, $count),
+                'description' => sprintf('Element Relations: Refresh Cache %d/%d', $index + 1, $count),
             ]);
             $queue->push($job);
             $queue->setProgress(($index + 1) * 100 / $count);
