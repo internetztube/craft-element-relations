@@ -39,6 +39,6 @@ class ElementRelationsController extends Controller
             'elementIds' => [$elementId],
             'force' => true,
         ]);
-        return Craft::$app->queue->priority(10)->push($job);
+        return Craft::$app->queue->priority(4096)->push($job);
     }
 }

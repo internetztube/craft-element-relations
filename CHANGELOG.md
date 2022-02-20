@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.3.2 - 2022-02-20
+### Updated
+- Updated Queue Job Priority to 4096.
+
 ## 1.3.1 - 2022-02-20
 ### Added
 - Added config option for bulk job size.

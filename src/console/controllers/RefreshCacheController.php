@@ -38,7 +38,7 @@ class RefreshCacheController extends Controller
     public function actionIndex()
     {
         $job = new CreateRefreshElementRelationsJobsJob(['force' => $this->force]);
-        Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
+        Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
         $this->stdout('Successfully pushed CreateRefreshElementRelationsJobsJob into Queue' . PHP_EOL);
     }
 }

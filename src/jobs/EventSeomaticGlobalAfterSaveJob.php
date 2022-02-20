@@ -21,11 +21,11 @@ class EventSeomaticGlobalAfterSaveJob extends BaseJob
         $elementIds = collect(SeomaticService::getGlobalSeomaticAssets())
             ->pluck('elementId')->unique();
         $job = new RefreshElementRelationsJob(['elementIds' => $elementIds, 'force' => true]);
-        Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
+        Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
 
         $job = new RefreshRelatedElementRelationsJob([
             'identifier' => SeomaticService::IDENTIFIER_SEOMATIC_GLOBAL
         ]);
-        Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
+        Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
     }
 }

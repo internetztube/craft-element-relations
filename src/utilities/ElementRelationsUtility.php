@@ -32,7 +32,7 @@ class ElementRelationsUtility extends Utility
         if (Craft::$app->request->getIsPost() && $isCacheEnabled) {
             $force = !!Craft::$app->request->getParam('force', false);
             $job = new CreateRefreshElementRelationsJobsJob(['force' => $force]);
-            Craft::$app->getQueue()->delay(10)->priority(10)->push($job);
+            Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
             $pushedQueueJob = true;
         }
 
