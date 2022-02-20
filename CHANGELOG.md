@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 1.3.0
+### Added
+- Added refresh and reload buttons to element detail field.
+- Show last update date on element detail page.
+- Allow for disabling element events when caching is enabled.
+
+### Updated
+- Update Queue Job Names.
+- Don't refresh non-stale element relations when rebuilding cache without force option.
+
+### Fixed
+- Use illuminate/collections as `collect()` package. #9
+- Only load one element relation at a time. Improves performance on overview pages.
+
 # 1.2.6
 Version Bump
 
