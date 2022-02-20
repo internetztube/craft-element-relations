@@ -79,7 +79,7 @@ class MarkupService
         $result = $result->filter();
 
         if (!$result->count()) {
-            $message = sprintf('<span style="color: red">%s</span>', Craft::t('element-relations', 'field-value-unused'));
+            $message = sprintf('<span style="color: red;margin-bottom: 6px;display: inline-block;">%s</span>', Craft::t('element-relations', 'field-value-unused'));
             $result->push($message);
         }
 
