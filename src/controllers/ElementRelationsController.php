@@ -25,7 +25,7 @@ class ElementRelationsController extends Controller
         $dateUpdated = DateTimeHelper::toDateTime($dateUpdated)
             ->setTimezone(new \DateTimeZone(Craft::$app->getTimeZone()))
             ->format(Craft::$app->getFormattingLocale()->getDateTimeFormat(Locale::LENGTH_LONG, Locale::FORMAT_PHP));
-        $markupDate = sprintf('<span class="info">%s %s</span>', Craft::t('element-relations', 'field-value-last-update'), $dateUpdated);
+        $markupDate = sprintf('<span class="info hidden">%s %s</span>', Craft::t('element-relations', 'field-value-last-update'), $dateUpdated);
         $markupReloadButton = sprintf('<button type="button" class="btn small js-element-relations-reload hidden">%s</button>', Craft::t('element-relations', 'field-value-button-reload'));
         $markupRefreshButton = sprintf('<button type="button" class="btn small js-element-relations-refresh hidden">%s</button>', Craft::t('element-relations', 'field-value-button-refresh'));
         $markup = MarkupService::getMarkupFromElementRelations($elementRelations, $elementId, $siteId);

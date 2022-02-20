@@ -48,6 +48,8 @@
       $(".info", $($container)).infoicon()
 
       {% if elementDetail %}
+        const $infoIcon = $content.querySelector('.info')
+        $infoIcon.classList.remove('hidden')
         const $refreshButton = $container.querySelector('.js-element-relations-refresh')
         $refreshButton.classList.remove('hidden')
         $refreshButton.addEventListener('click', async () => {
