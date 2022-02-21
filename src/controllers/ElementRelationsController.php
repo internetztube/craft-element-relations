@@ -21,15 +21,19 @@ class ElementRelationsController extends Controller
         $siteId = Craft::$app->request->getParam('siteId');
         $force = Craft::$app->request->getParam('force') === 'true';
         $elementRelations = CacheService::getElementRelationsCached($elementId, $force);
-        $dateUpdated = CacheService::getDateUpdatedFromElementRelations($elementId);
-        $dateUpdated = DateTimeHelper::toDateTime($dateUpdated)
-            ->setTimezone(new \DateTimeZone(Craft::$app->getTimeZone()))
-            ->format(Craft::$app->getFormattingLocale()->getDateTimeFormat(Locale::LENGTH_LONG, Locale::FORMAT_PHP));
-        $markupDate = sprintf('<span class="info hidden">%s %s</span>', Craft::t('element-relations', 'field-value-last-update'), $dateUpdated);
-        $markupReloadButton = sprintf('<button type="button" class="btn small js-element-relations-reload hidden">%s</button>', Craft::t('element-relations', 'field-value-button-reload'));
-        $markupRefreshButton = sprintf('<button type="button" class="btn small js-element-relations-refresh hidden">%s</button>', Craft::t('element-relations', 'field-value-button-refresh'));
         $markup = MarkupService::getMarkupFromElementRelations($elementRelations, $elementId, $siteId);
-        return $markup . '<br />' . $markupReloadButton . ' ' . $markupRefreshButton . ' ' . $markupDate;
+        $result = $markup;
+        if (CacheService::useCache()) {
+            $dateUpdated = CacheService::getDateUpdatedFromElementRelations($elementId);
+            $dateUpdated = DateTimeHelper::toDateTime($dateUpdated)
+                ->setTimezone(new \DateTimeZone(Craft::$app->getTimeZone()))
+                ->format(Craft::$app->getFormattingLocale()->getDateTimeFormat(Locale::LENGTH_LONG, Locale::FORMAT_PHP));
+            $markupDate = sprintf('<span class="info hidden">%s %s</span>', Craft::t('element-relations', 'field-value-last-update'), $dateUpdated);
+            $markupReloadButton = sprintf('<button type="button" class="btn small js-element-relations-reload hidden">%s</button>', Craft::t('element-relations', 'field-value-button-reload'));
+            $markupRefreshButton = sprintf('<button type="button" class="btn small js-element-relations-refresh hidden">%s</button>', Craft::t('element-relations', 'field-value-button-refresh'));
+            $result .=  '<br />' . $markupReloadButton . ' ' . $markupRefreshButton . ' ' . $markupDate;
+        }
+        return $result;
     }
 
     public function actionRefreshByElementId(): string
