@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 1.3.3 - 2022-02-21
+### Updated
+- Prioritize tasks that arrived in the queue via the `request refresh` buttons.
+
+### Fixed
+- Fixed bug that occurred on overview pages when cache is disabled.
+
 ## 1.3.2 - 2022-02-20
 ### Updated
 - Updated Queue Job Priority to 4096.
@@ -19,7 +26,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Allow for disabling element events when caching is enabled.
 
 ### Updated
-- Update Queue Job Names.
+- Updated Queue Job Names.
 - Don't refresh non-stale element relations when rebuilding cache without force option.
 
 ### Fixed
