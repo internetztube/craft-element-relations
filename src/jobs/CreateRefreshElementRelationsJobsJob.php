@@ -27,6 +27,7 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
         if (!CacheService::useCache()) {
             return;
         }
+        ini_set('memory_limit', -1);
         $rows = collect(ElementRelationsService::getElementsWithElementRelationsField());
         $count = $rows->count();
         $rows = $rows->filter(function(int $elementId, int $index) use ($queue, $count) {
@@ -37,18 +38,10 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
 
         $queue = Craft::$app->getQueue()->delay(10);
 
-        $jobSize = ElementRelations::$plugin->getSettings()->bulkJobSize;
-        $chunks = $rows->chunk($jobSize);
-        $count = $chunks->count();
-
-        $chunks->each(function (Collection $chunk, $index) use ($queue, $count) {
-            $job = new RefreshElementRelationsJob([
-                'elementIds' => $chunk->values()->toArray(),
-                'force' => $this->force,
-                'description' => sprintf('Element Relations: Refresh Cache %d/%d', $index + 1, $count),
-            ]);
-            $queue->priority(4096)->push($job);
-            $queue->setProgress(($index + 1) * 100 / $count);
+        $count = $rows->count();
+        $rows->each(function (int $elementId, int $index) use ($queue, $count) {
+            RefreshElementRelationsJob::createJob($elementId, $this->force);
+            $queue->setProgress(($index * 100) / $count);
         });
     }
 }

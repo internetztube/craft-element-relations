@@ -12,20 +12,29 @@ class EventSeomaticGlobalAfterSaveJob extends BaseJob
     /** @var string */
     public $description = 'Element Relations: Event SEOmatic Global After Save';
 
+    /** @var string */
+    public const DESCRIPTION_FORMAT = 'Element Relations: Event SEOmatic Global After Save';
+
+    public static function createJob(): void
+    {
+        if (!CacheService::useCache()) { return; }
+        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function(array $job) {
+            return $job['description'] === self::DESCRIPTION_FORMAT;
+        })->isNotEmpty();
+        if ($isAlreadyInQueue) { return; }
+        $job = new self();
+        Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
+    }
+
     public function execute($queue): void
     {
-        if (!CacheService::useCache()) {
-            return;
-        }
+        collect(SeomaticService::getGlobalSeomaticAssets())
+            ->pluck('elementId')
+            ->unique()
+            ->each(function ($elementId) {
+                RefreshElementRelationsJob::createJob($elementId);
+            });
 
-        $elementIds = collect(SeomaticService::getGlobalSeomaticAssets())
-            ->pluck('elementId')->unique();
-        $job = new RefreshElementRelationsJob(['elementIds' => $elementIds, 'force' => true]);
-        Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
-
-        $job = new RefreshRelatedElementRelationsJob([
-            'identifier' => SeomaticService::IDENTIFIER_SEOMATIC_GLOBAL
-        ]);
-        Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
+        RefreshRelatedElementRelationsJob::createJob(SeomaticService::IDENTIFIER_SEOMATIC_GLOBAL);
     }
 }

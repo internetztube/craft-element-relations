@@ -13,23 +13,58 @@ use internetztube\elementRelations\services\CacheService;
 class RefreshElementRelationsJob extends BaseJob
 {
     /** @var string */
-    public $description = 'Element Relations: Refresh Cache';
+    public $description = 'Element Relations: Refresh';
+
+    /** @var string */
+    public const DESCRIPTION_FORMAT = 'Element Relations: Refresh %s';
 
     /** @var bool */
     public $force = false;
 
-    /** @var int[] */
-    public $elementIds = [];
+    /** @var int */
+    public $elementId;
+
+    /** @var string */
+    public $dateUpdateRequested;
+
+    /**
+     * Create a RefreshElementRelationsJob and push it into the queue.
+     * @param $elementId
+     * @param bool $force
+     * @param null $dateUpdateRequested
+     */
+    public static function createJob($elementId, bool $force = true, $dateUpdateRequested = null): void
+    {
+        if (!CacheService::useCache()) { return; }
+        $description = sprintf(self::DESCRIPTION_FORMAT, $elementId);
+        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function(array $job) use ($description) {
+            return $job['description'] === $description;
+        })->isNotEmpty();
+
+        if ($isAlreadyInQueue) { return; }
+
+        if (!$dateUpdateRequested) {
+            $dateUpdateRequested = date('c');
+        }
+
+        $job = new self([
+            'elementId' => $elementId,
+            'force' => $force,
+            'description' => $description,
+            'dateUpdateRequested' => $dateUpdateRequested,
+        ]);
+        \Craft::$app->queue->priority(4096)->push($job);
+    }
 
     public function execute($queue): void
     {
-        if (!CacheService::useCache()) {
-            return;
-        }
-        $count = count($this->elementIds);
-        foreach ($this->elementIds as $index => $elementId) {
-            CacheService::getElementRelationsCached($elementId, $this->force);
-            $queue->setProgress($index * 100 / $count);
-        }
+        $datePushed = (int) strtotime($this->dateUpdateRequested);
+        $dateUpdated = (int) strtotime(CacheService::getDateUpdatedFromElementRelations($this->elementId));
+
+        // Don't refresh element that has been refresh since the creation of this job.
+        if ($dateUpdated > $datePushed) { return; }
+
+        ini_set('memory_limit', -1);
+        CacheService::getElementRelationsCached($this->elementId, $this->force);
     }
 }

@@ -24,10 +24,4 @@ class Settings extends Model
      * @var bool
      */
     public $elementEvents = true;
-
-    /**
-     * How many elements should be refreshed within one cache refresh job.
-     * @var int
-     */
-    public $bulkJobSize = 10;
 }

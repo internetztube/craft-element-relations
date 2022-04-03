@@ -39,10 +39,6 @@ class ElementRelationsController extends Controller
     public function actionRefreshByElementId(): string
     {
         $elementId = (int) Craft::$app->request->getParam('elementId');
-        $job = new RefreshElementRelationsJob([
-            'elementIds' => [$elementId],
-            'force' => true,
-        ]);
-        return Craft::$app->queue->priority(4096)->push($job);
+        RefreshElementRelationsJob::createJob($elementId);
     }
 }

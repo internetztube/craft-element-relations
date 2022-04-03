@@ -75,12 +75,11 @@ class ElementRelations extends Plugin
             $user = $event->sender;
 
             // rebuild cache of old relations
-            $job = new RefreshRelatedElementRelationsJob(['identifier' => $user->id]);
-            Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
+            RefreshRelatedElementRelationsJob::createJob($user->id);
 
             // rebuild cache of new relations
             if ($user->photoId) {
-                $job = new RefreshElementRelationsJob(['elementIds' => [$user->photoId], 'force' => true]);
+                RefreshElementRelationsJob::createJob($user->photoId);
                 Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
             }
         });
@@ -102,9 +101,7 @@ class ElementRelations extends Plugin
                 return;
             }
             $this->pushedQueueTasks[] = $element->id;
-
-            $job = new EventElementAfterSaveJob(['elementId' => $element->id]);
-            Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
+            EventElementAfterSaveJob::createJob($element->id);
         });
     }
 
@@ -136,8 +133,7 @@ class ElementRelations extends Plugin
             \nystudio107\seomatic\services\MetaContainers::EVENT_INVALIDATE_CONTAINER_CACHES,
             function (\nystudio107\seomatic\events\InvalidateContainerCachesEvent $event) {
                 if (!$event->uri) {
-                    $job = new EventSeomaticGlobalAfterSaveJob();
-                    Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
+                    EventSeomaticGlobalAfterSaveJob::createJob();
                 }
             });
     }
