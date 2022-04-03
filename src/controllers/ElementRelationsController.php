@@ -40,5 +40,6 @@ class ElementRelationsController extends Controller
     {
         $elementId = (int) Craft::$app->request->getParam('elementId');
         RefreshElementRelationsJob::createJob($elementId);
+        return 'true';
     }
 }
