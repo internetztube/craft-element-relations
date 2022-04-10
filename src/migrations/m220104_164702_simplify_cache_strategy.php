@@ -13,8 +13,7 @@ class m220104_164702_simplify_cache_strategy extends Migration
         $table = ElementRelationsRecord::tableName();
         // drop previous foreign key on 'siteId` which was built by the install so we can drop the column
         foreach (Craft::$app->db->getSchema()->getTableForeignKeys($table) as $foreignKey) {
-            if (in_array('siteId',$foreignKey->columnNames)) {
-                $keyName = $foreignKey->name;
+            if (in_array('siteId', $foreignKey->columnNames)) {
                 $this->dropForeignKey($foreignKey->name, $table);
             }
         }

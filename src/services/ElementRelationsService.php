@@ -238,7 +238,7 @@ class ElementRelationsService
 
     /**
      * @param string $fieldType
-     * @param string $likeStatement
+     * @param string[] $likeStatements
      * @return array
      *
      * <code>
@@ -247,7 +247,7 @@ class ElementRelationsService
      * ]
      * </code>
      */
-    public static  function getFilledContentRowsByFieldType(string $fieldType, string $likeStatement): array
+    public static function getFilledContentRowsByFieldType(string $fieldType, array $likeStatements): array
     {
         $mainQuery = (new Query())
             ->from(['elements' => Table::ELEMENTS])
@@ -259,19 +259,21 @@ class ElementRelationsService
             ->where(['type' => $fieldType])
             ->andWhere(['context' => 'global'])
             ->column();
-        $fieldHandles = collect($fields)->map(function (int $fieldId) use ($likeStatement, $mainQuery) {
+        $fieldHandles = collect($fields)->map(function (int $fieldId) use ($likeStatements, $mainQuery) {
             $field = Craft::$app->getFields()->getFieldById($fieldId);
             $fieldHandle = 'content.field_' . $field->columnPrefix . $field->handle;
             if ($field->columnSuffix) {
                 $fieldHandle .= '_' . $field->columnSuffix;
             }
             $mainQuery->addSelect($fieldHandle);
-            $mainQuery->orWhere(['LIKE', $fieldHandle, $likeStatement, false]);
+            collect($likeStatements)->each(function (string $likeStatement) use ($fieldHandle, $mainQuery) {
+                $mainQuery->orWhere(['LIKE', $fieldHandle, $likeStatement, false]);
+            });
             return $fieldHandle;
         });
         if ($fieldHandles->isNotEmpty()) {
             $mainQuery->leftJoin(['content' => Table::CONTENT], '[[content.elementId]] = [[elements.id]]');
-            $mainQuery->addSelect('content.siteId as content__siteId');
+            $mainQuery->addSelect('siteId');
         }
 
         $fieldsWithExternalContentTables = collect();
@@ -282,8 +284,7 @@ class ElementRelationsService
             $fieldsWithExternalContentTables = $fieldsWithExternalContentTables->merge($superTableFields);
         }
 
-        $fieldsWithExternalContentTables->each(function (int $fieldId, int $index) use ($mainQuery, $likeStatement, $fieldType) {
-            $alias = sprintf('alias_%s', $index);
+        $queryResults = $fieldsWithExternalContentTables->map(function (int $fieldId) use ($likeStatements, $fieldType) {
             /** @var MatrixField|\verbb\supertable\fields\SuperTableField $field */
             $field = Craft::$app->getFields()->getFieldById($fieldId);
             $fieldsOfType = collect($field->getBlockTypeFields())->filter(function (FieldInterface $field) use ($fieldType) {
@@ -292,32 +293,32 @@ class ElementRelationsService
             if ($fieldsOfType->isEmpty()) {
                 return;
             }
-            $fieldsOfType->each(function ($field) use ($alias, $mainQuery, $likeStatement) {
-                $fieldHandle = $alias . '.' . $field->columnPrefix . $field->handle;
+            $query = (new Query())->from($field->contentTable)->select(['elementId as id']);
+            $fieldsOfType->each(function ($field) use ($likeStatements, $query) {
+                $fieldHandle = $field->columnPrefix . $field->handle;
                 if ($field->columnSuffix) {
-                    $fieldHandle = $alias . '.' . $field->columnPrefix . $field->handle . '_' . $field->columnSuffix;
+                    $fieldHandle = $field->columnPrefix . $field->handle . '_' . $field->columnSuffix;
                 }
-                $mainQuery->addSelect([$fieldHandle, $alias . '.siteId as ' . $alias . '__siteId']);
-                $mainQuery->orWhere(['LIKE', $fieldHandle, $likeStatement, false]);
+                $query->addSelect([$fieldHandle, 'siteId']);
+                collect($likeStatements)->each(function (string $likeStatement) use ($fieldHandle, $query) {
+                    $query->orWhere(['LIKE', $fieldHandle, $likeStatement, false]);
+                });
             });
-            $aliasFieldName = sprintf('%s.elementId', $alias);
-            $mainQuery->leftJoin([$alias => $field->contentTable], '[[' . $aliasFieldName . ']] = [[elements.id]]');
-        });
+            return $query->all();
+        })->filter()->flatten(1)->values();
 
-        return collect($mainQuery->all())->map(function (array $row) {
-            $siteIdKey = collect($row)->keys()->filter(function (string $fieldHandle) {
-                return strstr($fieldHandle, '__siteId');
-            })->first();
-            $siteId = $row[$siteIdKey];
-            $element = ElementRelationsService::getElementById($row['id'], $row[$siteIdKey]);
-            if (!$element) {
-                return null;
-            }
-            $rootElement = ElementRelationsService::getRootElement($element, $siteId);
-            if (!$rootElement) {
-                return null;
-            }
-            return ['elementId' => $rootElement->id, 'siteId' => $rootElement->siteId];
-        })->filter()->all();
+        return collect($queryResults)
+            ->merge($mainQuery->all())
+            ->map(function (array $row) {
+                $element = ElementRelationsService::getElementById($row['id'], $row['siteId']);
+                if (!$element) {
+                    return null;
+                }
+                $rootElement = ElementRelationsService::getRootElement($element, $row['siteId']);
+                if (!$rootElement) {
+                    return null;
+                }
+                return ['elementId' => $rootElement->id, 'siteId' => $rootElement->siteId];
+            })->filter()->all();
     }
 }

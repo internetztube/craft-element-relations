@@ -15,7 +15,7 @@ class Install extends Migration
             $this->createTable($table, [
                 'id' => $this->primaryKey(),
                 'elementId' => $this->integer()->notNull(),
-                'relations' => $this->text(),
+                'relations' => $this->mediumText(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),

@@ -20,8 +20,11 @@ class RedactorService
      */
     public static function getRedactorRelations(int $elementId): array
     {
-        $likeStatement = sprintf('%%:%s:%%', $elementId);
-        return ElementRelationsService::getFilledContentRowsByFieldType(\craft\redactor\Field::class, $likeStatement);
+        $likeStatements = [
+            sprintf('%%:%s:%%', $elementId),
+            sprintf('%%:%s@%%:%%', $elementId),
+        ];
+        return ElementRelationsService::getFilledContentRowsByFieldType(\craft\redactor\Field::class, $likeStatements);
     }
 
     /**

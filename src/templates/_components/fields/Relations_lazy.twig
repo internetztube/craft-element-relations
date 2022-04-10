@@ -1,7 +1,12 @@
 <div class="element-relations-lazy" data-id="{{ id }}">
-    <div class="spinner hidden"></div>
+    <div class="spinner element-relations-lazy-hidden"></div>
     <div class="js-element-relations-content"></div>
 </div>
+<style>
+    .element-relations-lazy-hidden {
+        display: none;
+    }
+</style>
 <script>
   (() => {
     if (!window.elementRelationsQueue) {
@@ -35,38 +40,40 @@
       if (!$container) { return; }
 
       const $spinner = $container.querySelector('.spinner');
-      $spinner.classList.remove('hidden')
+      $spinner.classList.remove('element-relations-lazy-hidden')
 
       $content.innerHTML = ''
       const request = await fetch('{{ endpoint | raw }}');
-      $spinner.classList.add('hidden')
+      $spinner.classList.add('element-relations-lazy-hidden')
       $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
       $content = $container.querySelector('.js-element-relations-content');
       if (!$container) { return; }
 
       $content.innerHTML = await request.text();
-      $(".info", $($container)).infoicon()
+      try {
+        $(".info", $($container)).infoicon()
+      } catch (e) {}
 
       {% if elementDetail %}
         const $infoIcon = $content.querySelector('.info')
-        $infoIcon.classList.remove('hidden')
+        $infoIcon.classList.remove('element-relations-lazy-hidden')
         const $refreshButton = $container.querySelector('.js-element-relations-refresh')
-        $refreshButton.classList.remove('hidden')
+        $refreshButton.classList.remove('element-relations-lazy-hidden')
         $refreshButton.addEventListener('click', async () => {
-          $spinner.classList.add('hidden')
-          $refreshButton.classList.add('hidden')
+          $spinner.classList.add('element-relations-lazy-hidden')
+          $refreshButton.classList.add('element-relations-lazy-hidden')
 
           const response = await fetch('{{ refreshEndpoint | raw }}')
           if (response.ok) {
             Craft.cp.displayNotice('{{ 'field-value-refresh-success' | t('element-relations') }}')
           } else {
-            $refreshButton.classList.remove('hidden')
+            $refreshButton.classList.remove('element-relations-lazy-hidden')
             Craft.cp.displayError('{{ 'field-value-refresh-error' | t('element-relations') }}')
           }
         })
 
         const $reloadButton = $container.querySelector('.js-element-relations-reload')
-        $reloadButton.classList.remove('hidden')
+        $reloadButton.classList.remove('element-relations-lazy-hidden')
         $reloadButton.addEventListener('click', callback)
       {% endif %}
     };

@@ -16,7 +16,7 @@ class m220103_164702_install extends Migration
                 'id' => $this->primaryKey(),
                 'elementId' => $this->integer()->notNull(),
                 'siteId' => $this->integer()->notNull(),
-                'relations' => $this->text(),
+                'relations' => $this->mediumText(),
                 'markup' => $this->text(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),

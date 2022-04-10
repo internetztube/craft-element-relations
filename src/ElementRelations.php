@@ -29,7 +29,7 @@ class ElementRelations extends Plugin
 {
     /** @var ElementRelations */
     public static $plugin;
-    public $schemaVersion = '1.0.2';
+    public $schemaVersion = '1.0.3';
     public $hasCpSettings = false;
     public $hasCpSection = false;
 

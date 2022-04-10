@@ -19,7 +19,7 @@ class LinkItService
     public static function getLinkItRelations(int $elementId): array
     {
         $likeStatement = sprintf('%%"value":"%d"%%', $elementId);
-        return ElementRelationsService::getFilledContentRowsByFieldType(\fruitstudios\linkit\fields\LinkitField::class, $likeStatement);
+        return ElementRelationsService::getFilledContentRowsByFieldType(\fruitstudios\linkit\fields\LinkitField::class, [$likeStatement]);
     }
 
     /**
