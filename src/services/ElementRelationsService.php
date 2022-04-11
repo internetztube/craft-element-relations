@@ -195,7 +195,8 @@ class ElementRelationsService
         $rows = (new Query())->select(['elements_sites.elementId', 'elements_sites.siteId', 'elements.canonicalId'])
             ->from(['elements' => Table::ELEMENTS])
             ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements.id]] = [[elements_sites.elementId]]')
-            ->where(['in', 'fieldLayoutId', $fieldLayoutIds])
+            ->where(['in', 'elements.fieldLayoutId', $fieldLayoutIds])
+            ->andWhere(['is', 'elements.dateDeleted', null])
             ->all();
 
         return collect($rows)->map(function (array $row) {
