@@ -23,7 +23,7 @@
     ],
     "require": {
         "ext-json": "*",
-        "craftcms/cms": "^3.5.0",
+        "craftcms/cms": "^4.0.0-alpha",
         "illuminate/collections": "^8.0"
     },
     "autoload": {
@@ -39,5 +39,10 @@
         "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
         "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/master/CHANGELOG.md",
         "class": "internetztube\\elementRelations\\ElementRelations"
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "require-dev": {
+        "craftcms/rector": "dev-main"
     }
 }
