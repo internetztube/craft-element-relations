@@ -29,9 +29,10 @@ class ElementRelationsController extends Controller
                 ->setTimezone(new \DateTimeZone(Craft::$app->getTimeZone()))
                 ->format(Craft::$app->getFormattingLocale()->getDateTimeFormat(Locale::LENGTH_LONG, Locale::FORMAT_PHP));
             $markupDate = sprintf('<span class="info element-relations-lazy-hidden">%s %s</span>', Craft::t('element-relations', 'field-value-last-update'), $dateUpdated);
-            $markupReloadButton = sprintf('<button type="button" class="btn small js-element-relations-reload">%s</button>', Craft::t('element-relations', 'field-value-button-reload'));
-            $markupRefreshButton = sprintf('<button type="button" class="btn small js-element-relations-refresh">%s</button>', Craft::t('element-relations', 'field-value-button-refresh'));
-            $result .= '<br />' . $markupReloadButton . ' ' . $markupRefreshButton . ' ' . $markupDate;
+            $markupReloadButton = sprintf('<button type="button" class="btn small js-element-relations-reload element-relations-lazy-hidden">%s</button>', Craft::t('element-relations', 'field-value-button-reload'));
+            $markupRefreshButton = sprintf('<button type="button" class="btn small js-element-relations-refresh element-relations-lazy-hidden">%s</button>', Craft::t('element-relations', 'field-value-button-refresh'));
+            $style = '<style>.element-relations-lazy-hidden { display: none; }</style>';
+            $result .= '<br />' . $markupReloadButton . ' ' . $markupRefreshButton . ' ' . $markupDate . ' ' . $style;
         }
         return $result;
     }
