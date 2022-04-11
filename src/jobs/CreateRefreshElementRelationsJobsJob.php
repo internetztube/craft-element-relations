@@ -31,17 +31,17 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
         $rows = collect(ElementRelationsService::getElementsWithElementRelationsField());
         $count = $rows->count();
         $rows = $rows->filter(function(int $elementId, int $index) use ($queue, $count) {
-            $queue->setProgress($index * 100 / $count);
+            $queue->setProgress($index * 50 / $count);
             if ($this->force) { return true; }
             return !CacheService::hasStoredElementRelations($elementId);
-        });
+        })->values();
 
         $queue = Craft::$app->getQueue()->delay(10);
 
         $count = $rows->count();
         $rows->each(function (int $elementId, int $index) use ($queue, $count) {
             RefreshElementRelationsJob::createJob($elementId, $this->force);
-            $queue->setProgress(($index * 100) / $count);
+            $queue->setProgress(50 + ($index * 50 / $count));
         });
     }
 }
