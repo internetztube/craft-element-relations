@@ -4,20 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 1.3.4-beta.3 - 2022-04-11
-### Fixed
-- Remove `reload` and `request refresh` buttons from overview page.
-
-## 1.3.4-beta.2 - 2022-04-10
+## 1.3.4 - 2022-04-11
 ### Updated
+- Minimize queue job duplicates.
 - Updated database field `elementrelations.relations` from `text` to `mediumText`.
 
 ### Fixed
 - Fixed performance when redactor/linkit is enabled.
-
-## 1.3.4-beta.1 - 2022-04-04
-### Updated
-- Minimize queue job duplicates.
 
 ### Removed
 - Removed `bulkJobSize` config option.
