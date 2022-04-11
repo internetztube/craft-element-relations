@@ -35,7 +35,7 @@ class LinkItService
         return collect($element->getFieldValues())->filter(function ($value) {
             return $value instanceof \fruitstudios\linkit\base\ElementLink;
         })->map(function (\fruitstudios\linkit\base\ElementLink $value) {
-            return (int) $value->value;
+            return (int)$value->value;
         })->flatten()->all();
     }
 

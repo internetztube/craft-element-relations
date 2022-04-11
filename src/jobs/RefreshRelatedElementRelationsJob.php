@@ -26,9 +26,11 @@ class RefreshRelatedElementRelationsJob extends BaseJob
 
     public static function createJob($identifier, $dateUpdateRequested = null): void
     {
-        if (!CacheService::useCache()) { return; }
+        if (!CacheService::useCache()) {
+            return;
+        }
         $description = sprintf(self::DESCRIPTION_FORMAT, $identifier);
-        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function(array $job) use ($description) {
+        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function (array $job) use ($description) {
             return $job['description'] === $description;
         })->isNotEmpty();
 
@@ -36,7 +38,9 @@ class RefreshRelatedElementRelationsJob extends BaseJob
             $dateUpdateRequested = date('c');
         }
 
-        if ($isAlreadyInQueue) { return; }
+        if ($isAlreadyInQueue) {
+            return;
+        }
 
         $job = new self([
             'identifier' => $identifier,

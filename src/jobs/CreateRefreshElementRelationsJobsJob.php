@@ -4,10 +4,9 @@ namespace internetztube\elementRelations\jobs;
 
 use Craft;
 use craft\queue\BaseJob;
-use internetztube\elementRelations\ElementRelations;
+use Illuminate\Support\Collection;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
-use Illuminate\Support\Collection;
 
 /**
  * Since the refresh jobs are very time and computation intensive, the jobs are separated into 10 items chunks.
@@ -30,9 +29,11 @@ class CreateRefreshElementRelationsJobsJob extends BaseJob
         ini_set('memory_limit', -1);
         $rows = collect(ElementRelationsService::getElementsWithElementRelationsField());
         $count = $rows->count();
-        $rows = $rows->filter(function(int $elementId, int $index) use ($queue, $count) {
+        $rows = $rows->filter(function (int $elementId, int $index) use ($queue, $count) {
             $queue->setProgress($index * 50 / $count);
-            if ($this->force) { return true; }
+            if ($this->force) {
+                return true;
+            }
             return !CacheService::hasStoredElementRelations($elementId);
         })->values();
 

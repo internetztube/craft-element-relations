@@ -23,12 +23,16 @@ class EventElementAfterSaveJob extends BaseJob
 
     public static function createJob($elementId): void
     {
-        if (!CacheService::useCache()) { return; }
+        if (!CacheService::useCache()) {
+            return;
+        }
         $description = sprintf(self::DESCRIPTION_FORMAT, $elementId);
-        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function(array $job) use ($description) {
+        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function (array $job) use ($description) {
             return $job['description'] === $description;
         })->isNotEmpty();
-        if ($isAlreadyInQueue) { return; }
+        if ($isAlreadyInQueue) {
+            return;
+        }
 
         $job = new self([
             'elementId' => $elementId,

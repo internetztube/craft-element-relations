@@ -38,11 +38,15 @@ class CacheService
 
     public static function getDateUpdatedFromElementRelations(int $elementId): ?string
     {
-        if (!self::useCache()) { return null; }
+        if (!self::useCache()) {
+            return null;
+        }
         $record = self::getBaseQueryForNonStaleRecords()
             ->andWhere(['elementId' => $elementId])
             ->one();
-        if (!$record) { return null; }
+        if (!$record) {
+            return null;
+        }
         return $record->dateUpdated;
     }
 

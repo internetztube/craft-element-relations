@@ -35,13 +35,17 @@ class RefreshElementRelationsJob extends BaseJob
      */
     public static function createJob($elementId, bool $force = true, $dateUpdateRequested = null): void
     {
-        if (!CacheService::useCache()) { return; }
+        if (!CacheService::useCache()) {
+            return;
+        }
         $description = sprintf(self::DESCRIPTION_FORMAT, $elementId);
-        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function(array $job) use ($description) {
+        $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function (array $job) use ($description) {
             return $job['description'] === $description;
         })->isNotEmpty();
 
-        if ($isAlreadyInQueue) { return; }
+        if ($isAlreadyInQueue) {
+            return;
+        }
 
         if (!$dateUpdateRequested) {
             $dateUpdateRequested = date('c');
@@ -58,11 +62,13 @@ class RefreshElementRelationsJob extends BaseJob
 
     public function execute($queue): void
     {
-        $datePushed = (int) strtotime($this->dateUpdateRequested);
-        $dateUpdated = (int) strtotime(CacheService::getDateUpdatedFromElementRelations($this->elementId));
+        $datePushed = (int)strtotime($this->dateUpdateRequested);
+        $dateUpdated = (int)strtotime(CacheService::getDateUpdatedFromElementRelations($this->elementId));
 
         // Don't refresh element that has been refresh since the creation of this job.
-        if ($dateUpdated > $datePushed) { return; }
+        if ($dateUpdated > $datePushed) {
+            return;
+        }
 
         ini_set('memory_limit', -1);
         CacheService::getElementRelationsCached($this->elementId, $this->force);
