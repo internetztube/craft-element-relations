@@ -4,7 +4,6 @@ namespace internetztube\elementRelations\jobs;
 
 use Craft;
 use craft\queue\BaseJob;
-use Illuminate\Support\Collection;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ElementRelationsService;
 
