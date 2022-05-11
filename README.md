@@ -1,4 +1,4 @@
-# Element Relations Plugin for Craft CMS 3.x
+# Element Relations Plugin for Craft CMS 4.x
 
 This plugin shows all relations of an element. For example, where an asset, entry or any other element is linked.
 
@@ -8,7 +8,7 @@ __Feature Requests are welcome!__
 
 ## Requirements
 
-This plugin requires Craft CMS 3.0.0-beta.23 or later.
+This plugin requires Craft CMS 4.0.0 or later.
 
 ## Installation
 To install this plugin, follow these steps:
