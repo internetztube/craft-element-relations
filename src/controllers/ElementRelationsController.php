@@ -13,7 +13,7 @@ use internetztube\elementRelations\services\MarkupService;
 class ElementRelationsController extends Controller
 {
     public $enableCsrfValidation = false;
-    protected $allowAnonymous = true;
+    protected array|int|bool $allowAnonymous = true;
 
     public function actionGetByElementId(): string
     {

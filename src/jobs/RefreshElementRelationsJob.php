@@ -12,20 +12,11 @@ use internetztube\elementRelations\services\CacheService;
  */
 class RefreshElementRelationsJob extends BaseJob
 {
-    /** @var string */
-    public $description = 'Element Relations: Refresh';
-
-    /** @var string */
+    public ?string $description = 'Element Relations: Refresh';
     public const DESCRIPTION_FORMAT = 'Element Relations: Refresh %s';
-
-    /** @var bool */
-    public $force = false;
-
-    /** @var int */
-    public $elementId;
-
-    /** @var string */
-    public $dateUpdateRequested;
+    public bool $force = false;
+    public int $elementId;
+    public string $dateUpdateRequested;
 
     /**
      * Create a RefreshElementRelationsJob and push it into the queue.

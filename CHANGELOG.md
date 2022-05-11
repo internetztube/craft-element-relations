@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 2.0.0-beta.1 - 2022-05-11
+### Added
+- Added basic support for Craft 4.
+
 # 1.3.6 - 2022-05-11
 ### Fixed
 - Fixed Exception which occurred while saving a user. [#16](https://github.com/internetztube/craft-element-relations/issues/16)

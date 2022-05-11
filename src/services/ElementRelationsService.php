@@ -275,6 +275,8 @@ class ElementRelationsService
         if ($fieldHandles->isNotEmpty()) {
             $mainQuery->leftJoin(['content' => Table::CONTENT], '[[content.elementId]] = [[elements.id]]');
             $mainQuery->addSelect('siteId');
+        } else {
+            return [];
         }
 
         $fieldsWithExternalContentTables = collect();

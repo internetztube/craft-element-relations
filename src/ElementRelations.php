@@ -27,13 +27,11 @@ use yii\base\Event;
 
 class ElementRelations extends Plugin
 {
-    /** @var ElementRelations */
-    public static $plugin;
-    public $schemaVersion = '1.0.3';
-    public $hasCpSettings = false;
-    public $hasCpSection = false;
-
-    private $pushedQueueTasks = [];
+    public static ElementRelations $plugin;
+    public string $schemaVersion = '1.0.3';
+    public bool $hasCpSettings = false;
+    public bool $hasCpSection = false;
+    private array $pushedQueueTasks = [];
 
     public function init()
     {

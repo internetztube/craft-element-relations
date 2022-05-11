@@ -14,11 +14,9 @@ use internetztube\elementRelations\services\ElementRelationsService;
  */
 class CreateRefreshElementRelationsJobsJob extends BaseJob
 {
-    /** @var string */
-    public $description = 'Element Relations: Create Refresh Cache Jobs';
+    public ?string $description = 'Element Relations: Create Refresh Cache Jobs';
 
-    /** @var bool */
-    public $force = false;
+    public bool $force = false;
 
     public function execute($queue): void
     {
