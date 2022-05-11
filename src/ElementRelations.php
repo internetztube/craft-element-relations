@@ -80,7 +80,6 @@ class ElementRelations extends Plugin
             // rebuild cache of new relations
             if ($user->photoId) {
                 RefreshElementRelationsJob::createJob($user->photoId);
-                Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
             }
         });
     }
