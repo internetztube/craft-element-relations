@@ -4,10 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 1.3.6 - 2022-05-11
+### Fixed
+- Fixed Exception which occurred while saving a user. [#16](https://github.com/internetztube/craft-element-relations/issues/16)
+
 # 1.3.5 - 2022-04-11
 ### Fixed
-- Fixed utilities total count mismatch. #13
-- Fix percentage of CreateRefreshElementRelationsJobsJob. #15
+- Fixed utilities total count mismatch. [#13](https://github.com/internetztube/craft-element-relations/issues/13)
+- Fix percentage of CreateRefreshElementRelationsJobsJob. [#15](https://github.com/internetztube/craft-element-relations/issues/15)
 
 ## 1.3.4 - 2022-04-11
 ### Updated
