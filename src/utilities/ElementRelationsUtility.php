@@ -39,7 +39,7 @@ class ElementRelationsUtility extends Utility
         $current = CacheService::getCountOfNonStaleElementRelations();
         $total = count(ElementRelationsService::getElementsWithElementRelationsField());
         $total = $current > $total ? $current : $total;
-        $percentage = round($current * 100 / $total, 2);
+        $percentage = $total > 0 ? round($current * 100 / $total, 2) : 100;
         $cacheDuration = CacheService::getCacheDuration();
 
         return Craft::$app->getView()->renderTemplate(
