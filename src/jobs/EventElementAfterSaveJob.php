@@ -10,7 +10,7 @@ use internetztube\elementRelations\services\ElementRelationsService;
 class EventElementAfterSaveJob extends BaseJob
 {
     /** @var string */
-    public $description = 'Element Relations: Event Element After Save';
+    public ?string $description = 'Element Relations: Event Element After Save';
 
     /** @var string */
     public const DESCRIPTION_FORMAT = 'Element Relations: Event Element After Save %s';

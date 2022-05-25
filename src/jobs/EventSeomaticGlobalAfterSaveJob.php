@@ -10,7 +10,7 @@ use internetztube\elementRelations\services\SeomaticService;
 class EventSeomaticGlobalAfterSaveJob extends BaseJob
 {
     /** @var string */
-    public $description = 'Element Relations: Event SEOmatic Global After Save';
+    public ?string $description = 'Element Relations: Event SEOmatic Global After Save';
 
     /** @var string */
     public const DESCRIPTION_FORMAT = 'Element Relations: Event SEOmatic Global After Save';
