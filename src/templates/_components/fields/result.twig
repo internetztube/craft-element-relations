@@ -1,0 +1,114 @@
+{% set detail = detail ?? false %}
+{% set currentSiteElements = currentSiteElements ?? null %}
+{% set otherSites = otherSites ?? null %}
+{% set isUsedInSeomaticGlobal = isUsedInSeomaticGlobal ?? null %}
+
+{% if not detail %}
+    {% if currentSiteElements or otherSites %}
+        <span style="color: green;">
+            {{ "used"|t('element-relations') }}
+        </span>
+    {% endif %}
+    {% if isUsedInSeomaticGlobal %}
+        <span style="color: green; white-space: nowrap;">
+            {{ "Used in SEOmatic"|t('element-relations') }}
+        </span>
+    {% endif %}
+
+    {# If unused #}
+    {% if not isUsedInSeomaticGlobal and not currentSiteElements and not otherSites %}
+        <span style="color: red;">{{ "unused"|t('element-relations') }}</span>
+    {% endif %}
+{% endif %}
+
+{% if detail %}
+    <div style="margin-bottom: var(--m);">
+        {% if currentSiteElements %}
+            <details open style="margin: var(--m) 0;">
+                <summary style="font-weight: 700; font-size: 18px; margin: 24px 0 12px;">
+                    {{ "Used in the folloing elements"|t('element-relations') }}
+                </summary>
+                <div style="width: 100%; overflow: scroll; border: 1px solid #e3e5e8; border-radius: 5px;">
+                    <table class="data fullwidth results">
+                        <thead>
+                        <tr>
+                            <th style="width: calc(50% - 270px);">{{ "Title"|t('element-relations') }}</th>
+                            <th style="width: calc(50% - 270px);">{{ "Related site"|t('element-relations') }}</th>
+                            <th style="width: 200px;">{{ "Section"|t('element-relations') }}</th>
+                            <th style="width: 200px;">{{ "Entry type"|t('element-relations') }}</th>
+                            <th style="width: 140px;">{{ "Element type"|t('element-relations') }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for element in currentSiteElements %}
+                            <tr>
+                                <td>
+                                    <div class="element hasstatus small"
+                                         title="{{ element.title }} - {{ element.author.name }} - {{ element.site.name }}">
+                                        <span class="status {{ element.status }}"></span>
+                                        <div class="label">
+                                            <a style="white-space: nowrap;" href="{{ element.cpEditUrl }}">
+                                                {{ element.title|split('', 35)[0] }}
+                                                {% if element.title | length > 35 %}
+                                                    …
+                                                {% endif %}
+                                            </a>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td title="{{ element.site.name }} - {{ element.site.handle }} - {{ "Site Id: "|t('element-relations') }}{{ element.site.id }}">{{ element.site.name }}</td>
+                                <td title="{{ element.section.handle }}">{{ element.section }}</td>
+                                <td title="{{ element.type }}">{{ element.type.name }}</td>
+                                <td title="{{ element.getType().elementType }}">{{ element.getType().elementType | replace({'craft\\elements\\': ''}) }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        {% endif %}
+
+        {% if otherSites %}
+            <details style="margin: var(--m) 0;">
+                <summary style="font-weight: 700; font-size: 18px; margin: 24px 0 12px;">
+                    {{ "Other sites"|t('element-relations') }}
+                </summary>
+                <div style="width: 100%; overflow: scroll; border: 1px solid #e3e5e8; border-radius: 5px;">
+                    <table class="data fullwidth results">
+                        <thead>
+                        <tr>
+                            <th style="width: calc(50% - 70px);">{{ "Site name"|t('element-relations') }}</th>
+                            <th style="width: calc(50% - 70px);">{{ "Site handle"|t('element-relations') }}</th>
+                            <th style="width: 140px;">{{ "Site id"|t('element-relations') }}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for site in otherSites %}
+                            {% set element = craft.app.getElements().getElementById(currentElementId, null, site.id) %}
+                            <tr>
+                                <td>
+                                    <div class="element hasstatus small" title="{{ site.name }} - {{ site.handle }}">
+                                        <span class="status {{ element.status }}"></span>
+                                        <div class="label">
+                                            <a style="white-space: nowrap;"
+                                               href="{{ element.cpEditUrl }}">{{ site.name }}</a>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ site.handle }}</td>
+                                <td>{{ site.id }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        {% endif %}
+
+        {% if isUsedInSeomaticGlobal %}
+            <div style="color: green; margin: var(--m) 0;">
+                {{ "Used in SEOmatic"|t('element-relations') }}
+            </div>
+        {% endif %}
+    </div>
+{% endif %}

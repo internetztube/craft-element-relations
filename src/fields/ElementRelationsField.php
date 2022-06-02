@@ -37,7 +37,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
             'elementId' => $element->id,
             'siteId' => $element->siteId,
-            'size' => 'small',
+            'detail' => $elementDetail ? 'true' : 'false',
         ], null, false);
         $refreshEndpoint = UrlHelper::actionUrl('element-relations/element-relations/refresh-by-element-id', [
             'elementId' => $element->id,
