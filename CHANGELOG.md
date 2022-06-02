@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 2.0.0-beta.1 - 2022-06-02
+### Added
+- Table view on detail views
+- Simplified used / unused view on overviews
+
 # 2.0.0-beta.3 - 2022-05-25
 ### Fixed
 - Fix Exception while creating a new entry. [#19](https://github.com/internetztube/craft-element-relations/issues/19)

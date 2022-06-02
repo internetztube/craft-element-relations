@@ -18,10 +18,11 @@ class ElementRelationsController extends Controller
     public function actionGetByElementId(): string
     {
         $elementId = Craft::$app->request->getParam('elementId');
+        $detail = Craft::$app->request->getParam('detail') === 'true';
         $siteId = Craft::$app->request->getParam('siteId');
         $force = Craft::$app->request->getParam('force') === 'true';
         $elementRelations = CacheService::getElementRelationsCached($elementId, $force);
-        $markup = MarkupService::getMarkupFromElementRelations($elementRelations, $elementId, $siteId);
+        $markup = MarkupService::getMarkupFromElementRelations($elementRelations, $elementId, $siteId, $detail);
         $result = $markup;
         if (CacheService::useCache()) {
             $dateUpdated = CacheService::getDateUpdatedFromElementRelations($elementId);
@@ -32,7 +33,7 @@ class ElementRelationsController extends Controller
             $markupReloadButton = sprintf('<button type="button" class="btn small js-element-relations-reload element-relations-lazy-hidden">%s</button>', Craft::t('element-relations', 'field-value-button-reload'));
             $markupRefreshButton = sprintf('<button type="button" class="btn small js-element-relations-refresh element-relations-lazy-hidden">%s</button>', Craft::t('element-relations', 'field-value-button-refresh'));
             $style = '<style>.element-relations-lazy-hidden { display: none; }</style>';
-            $result .= '<br />' . $markupReloadButton . ' ' . $markupRefreshButton . ' ' . $markupDate . ' ' . $style;
+            $result .= $markupReloadButton . ' ' . $markupRefreshButton . ' ' . $markupDate . ' ' . $style;
         }
         return $result;
     }
