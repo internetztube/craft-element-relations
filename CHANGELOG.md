@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 2.0.0 - 2022-06-16
+### Fixed
+- Fix bug when requested element id is null in `ElementRelationsController::actionGetByElementId`. `elementId` in  is now always an int. (0 = null = unused). [#21](https://github.com/internetztube/craft-element-relations/issues/21)
+
 # 2.0.0-beta.3 - 2022-05-25
 ### Fixed
 - Fix Exception while creating a new entry. [#19](https://github.com/internetztube/craft-element-relations/issues/19)
