@@ -311,11 +311,11 @@ class ElementRelationsService
         return collect($queryResults)
             ->merge($mainQuery->all())
             ->map(function (array $row) {
-                $element = ElementRelationsService::getElementById($row['id'], $row['siteId']);
+                $element = ElementRelationsService::getElementById($row['id'], $row['siteId'] ?? 1);
                 if (!$element) {
                     return null;
                 }
-                $rootElement = ElementRelationsService::getRootElement($element, $row['siteId']);
+                $rootElement = ElementRelationsService::getRootElement($element, $row['siteId'] ?? 1);
                 if (!$rootElement) {
                     return null;
                 }
