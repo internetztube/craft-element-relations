@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 1.3.9 - 2022-08-27
+### Fixed
+- Fallback to PrimarySiteId when siteId is not set. [#27](https://github.com/internetztube/craft-element-relations/issues/27)
+
 # 1.3.8 - 2022-08-27
 ### Fixed
 - Allow `illuminate/collections ^9.0` as dependency. [#24](https://github.com/internetztube/craft-element-relations/issues/24)
