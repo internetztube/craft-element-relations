@@ -158,6 +158,9 @@ class ElementRelationsService
         if (!$elementType) {
             return null;
         } // relation is broken
+        if (!$siteId) {
+            $siteId = Craft::$app->sites->getPrimarySite()->id;
+        }
         return $elementType::find()->id($elementId)->anyStatus()->siteId($siteId)->one();
     }
 
@@ -313,11 +316,11 @@ class ElementRelationsService
         return collect($queryResults)
             ->merge($mainQuery->all())
             ->map(function (array $row) {
-                $element = ElementRelationsService::getElementById($row['id'], $row['siteId']);
+                $element = ElementRelationsService::getElementById($row['id'], $row['siteId'] ?? null);
                 if (!$element) {
                     return null;
                 }
-                $rootElement = ElementRelationsService::getRootElement($element, $row['siteId']);
+                $rootElement = ElementRelationsService::getRootElement($element, $row['siteId'] ?? null);
                 if (!$rootElement) {
                     return null;
                 }
