@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+# 1.3.8 - 2022-08-27
+### Fixed
+- Allow `illuminate/collections ^9.0` as dependency. [#24](https://github.com/internetztube/craft-element-relations/issues/24)
+
 # 1.3.7 - 2022-06-16
 ### Fixed
 - Fix bug when requested element id is null in `ElementRelationsController::actionGetByElementId`. `elementId` in  is now always an int. (0 = null = unused). [#21](https://github.com/internetztube/craft-element-relations/issues/21)

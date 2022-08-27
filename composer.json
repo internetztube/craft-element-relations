@@ -2,7 +2,7 @@
     "name": "internetztube/craft-element-relations",
     "description": "Shows all relations of an element.",
     "type": "craft-plugin",
-    "version": "1.3.7",
+    "version": "1.3.8",
     "keywords": [
         "craft",
         "cms",
@@ -24,7 +24,7 @@
     "require": {
         "ext-json": "*",
         "craftcms/cms": "^3.5.0",
-        "illuminate/collections": "^8.0"
+        "illuminate/collections": "^8.0 || ^9.0"
     },
     "autoload": {
         "psr-4": {
@@ -39,5 +39,11 @@
         "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
         "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/master/CHANGELOG.md",
         "class": "internetztube\\elementRelations\\ElementRelations"
+    },
+    "config": {
+        "allow-plugins": {
+            "yiisoft/yii2-composer": false,
+            "craftcms/plugin-installer": false
+        }
     }
 }
