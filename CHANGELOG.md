@@ -4,23 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-# 1.3.9 - 2022-08-27
+## 1.3.10 - 2022-09-01
+### Fixed
+Fix error, if entry doesn't exist in primary site. Thank you, [@sfsmfc](https://github.com/sfsmfc)! [#28](https://github.com/internetztube/craft-element-relations/pull/28)
+
+## 1.3.9 - 2022-08-27
 ### Fixed
 - Fallback to PrimarySiteId when siteId is not set. [#27](https://github.com/internetztube/craft-element-relations/issues/27)
 
-# 1.3.8 - 2022-08-27
+## 1.3.8 - 2022-08-27
 ### Fixed
 - Allow `illuminate/collections ^9.0` as dependency. [#24](https://github.com/internetztube/craft-element-relations/issues/24)
 
-# 1.3.7 - 2022-06-16
+## 1.3.7 - 2022-06-16
 ### Fixed
 - Fix bug when requested element id is null in `ElementRelationsController::actionGetByElementId`. `elementId` in  is now always an int. (0 = null = unused). [#21](https://github.com/internetztube/craft-element-relations/issues/21)
 
-# 1.3.6 - 2022-05-11
+## 1.3.6 - 2022-05-11
 ### Fixed
 - Fixed Exception which occurred while saving a user. [#16](https://github.com/internetztube/craft-element-relations/issues/16)
 
-# 1.3.5 - 2022-04-11
+## 1.3.5 - 2022-04-11
 ### Fixed
 - Fixed utilities total count mismatch. [#13](https://github.com/internetztube/craft-element-relations/issues/13)
 - Fix percentage of CreateRefreshElementRelationsJobsJob. [#15](https://github.com/internetztube/craft-element-relations/issues/15)
