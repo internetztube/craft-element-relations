@@ -20,7 +20,7 @@ class MarkupService
      */
     public static function getMarkupFromElementRelations(string $elementRelations, int $elementId, int $siteId, string $size = 'small'): string
     {
-        $element = Craft::$app->elements->getElementById($elementId);
+        $element = Craft::$app->elements->getElementById($elementId, null, $siteId);
         $supportedSiteIds = $element->getSupportedSites();
         $allSiteIds = Craft::$app->sites->getAllSiteIds();
         $currentAndNotSupportedSites = collect($allSiteIds)->filter(function (int $allSiteId) use ($siteId, $allSiteIds, $supportedSiteIds) {
