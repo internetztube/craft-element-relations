@@ -4,31 +4,35 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-# 2.0.1 - 2022-08-27
+## 2.0.2 - 2022-09-01
+### Fixed
+Fix error, if entry doesn't exist in primary site. Thank you, [@sfsmfc](https://github.com/sfsmfc)! [#28](https://github.com/internetztube/craft-element-relations/pull/28)
+
+## 2.0.1 - 2022-08-27
 ### Fixed
 - Fallback to PrimarySiteId when siteId is not set. [#27](https://github.com/internetztube/craft-element-relations/issues/27)
 
-# 2.0.0 - 2022-06-16
+## 2.0.0 - 2022-06-16
 ### Fixed
 - Fix bug when requested element id is null in `ElementRelationsController::actionGetByElementId`. `elementId` in  is now always an int. (0 = null = unused). [#21](https://github.com/internetztube/craft-element-relations/issues/21)
 
-# 2.0.0-beta.3 - 2022-05-25
+## 2.0.0-beta.3 - 2022-05-25
 ### Fixed
 - Fix Exception while creating a new entry. [#19](https://github.com/internetztube/craft-element-relations/issues/19)
 
-# 2.0.0-beta.2 - 2022-05-21
+## 2.0.0-beta.2 - 2022-05-21
 ### Fixed
 - Fixed Utility Exception when total is zero. 
 
-# 2.0.0-beta.1 - 2022-05-11
+## 2.0.0-beta.1 - 2022-05-11
 ### Added
 - Added basic support for Craft 4.
 
-# 1.3.6 - 2022-05-11
+## 1.3.6 - 2022-05-11
 ### Fixed
 - Fixed Exception which occurred while saving a user. [#16](https://github.com/internetztube/craft-element-relations/issues/16)
 
-# 1.3.5 - 2022-04-11
+## 1.3.5 - 2022-04-11
 ### Fixed
 - Fixed utilities total count mismatch. [#13](https://github.com/internetztube/craft-element-relations/issues/13)
 - Fix percentage of CreateRefreshElementRelationsJobsJob. [#15](https://github.com/internetztube/craft-element-relations/issues/15)
