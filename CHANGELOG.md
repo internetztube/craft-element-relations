@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.0.3 - 2024-01-26
+### Fixed
+When caching is enabled but the relation fetching is not finished yet, an exception got thrown. [#31](https://github.com/internetztube/craft-element-relations/issues/31)
+
 ## 2.0.2 - 2022-09-01
 ### Fixed
 Fix error, if entry doesn't exist in primary site. Thank you, [@sfsmfc](https://github.com/sfsmfc)! [#28](https://github.com/internetztube/craft-element-relations/pull/28)

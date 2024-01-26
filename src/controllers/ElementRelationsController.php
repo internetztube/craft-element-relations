@@ -24,7 +24,7 @@ class ElementRelationsController extends Controller
         $markup = MarkupService::getMarkupFromElementRelations($elementRelations, $elementId, $siteId);
         $result = $markup;
         if (CacheService::useCache()) {
-            $dateUpdated = CacheService::getDateUpdatedFromElementRelations($elementId);
+            $dateUpdated = CacheService::getDateUpdatedFromElementRelations($elementId) ?? time();
             $dateUpdated = DateTimeHelper::toDateTime($dateUpdated)
                 ->setTimezone(new \DateTimeZone(Craft::$app->getTimeZone()))
                 ->format(Craft::$app->getFormattingLocale()->getDateTimeFormat(Locale::LENGTH_LONG, Locale::FORMAT_PHP));
