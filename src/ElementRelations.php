@@ -22,6 +22,7 @@ use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJob;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\SeomaticService;
+use internetztube\elementRelations\twigextensions\ControlPanel;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
 use yii\base\Event;
 
@@ -50,17 +51,16 @@ class ElementRelations extends Plugin
             $event->types[] = ElementRelationsUtility::class;
         });
 
-        if (CacheService::useCache()) {
-            $this->registerPluginEvents();
+        $this->registerPluginEvents();
 
-            if (self::$plugin->getSettings()->elementEvents !== false) {
-                $this->registerUserEvents();
-                $this->registerElementEvents();
-                if (SeomaticService::isSeomaticEnabled()) {
-                    $this->registerSeomaticEvents();
-                }
+        if (self::$plugin->getSettings()->elementEvents !== false) {
+            $this->registerUserEvents();
+            $this->registerElementEvents();
+            if (SeomaticService::isSeomaticEnabled()) {
+                $this->registerSeomaticEvents();
             }
         }
+        Craft::$app->view->registerTwigExtension(new ControlPanel());
     }
 
     /**
@@ -94,7 +94,7 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_AFTER_PROPAGATE, function (ModelEvent $event) {
             /** @var Element $element */
             $element = $event->sender->canonical;
-            if (in_array($element->id, $this->pushedQueueTasks)) {
+            if (in_array($element?->id, $this->pushedQueueTasks)) {
                 return;
             }
             $this->pushedQueueTasks[] = $element->id;
@@ -113,8 +113,8 @@ class ElementRelations extends Plugin
             if (!($event->plugin instanceof ElementRelations)) {
                 return;
             }
-            $job = new CreateRefreshElementRelationsJobsJob(['force' => true]);
-            Craft::$app->getQueue()->delay(1 * 60)->priority(4096)->push($job); // delay job by 1min
+            $job = new CreateRefreshElementRelationsJobsJob();
+            Craft::$app->getQueue()->delay(1 * 60)->priority(4090)->push($job); // delay job by 1min
         };
         Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);

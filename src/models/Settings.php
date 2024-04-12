@@ -13,12 +13,6 @@ class Settings extends Model
     public $cacheDuration = '2 weeks';
 
     /**
-     * Whether to cache element relations in the db or load them every time.
-     * @var bool
-     */
-    public $useCache = true;
-
-    /**
      * When you save an element and caching is enabled, on element save refresh queue jobs get created. With is
      * property you can disable those element events.
      * @var bool

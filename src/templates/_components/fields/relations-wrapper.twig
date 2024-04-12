@@ -1,0 +1,46 @@
+{% if statusQueue %}
+  <div data-queue-status="{{ statusQueue }}"></div>
+    {% if statusQueue == 'error' %}
+      An unexpected error occurred. Check Queue!
+    {% elseif statusQueue == 'queued' %}
+      <style>
+        .element-relations-queue-icon {
+          width: 20px;
+          height: 20px;
+          display: inline-block;
+        }
+        .element-relations-queue-icon path {
+            will-change: fill;
+          animation: 1.5s infinite alternate element-relations-queue-icon;
+        }
+
+        .element-relations-queue-icon #l1 {
+            animation-delay: 1s
+        }
+        .element-relations-queue-icon #l2 {
+            animation-delay: 0.5s
+        }
+        .element-relations-queue-icon #l3 {
+          animation-delay: 0s
+        }
+        @keyframes element-relations-queue-icon {
+            from { fill: #000; }
+            to { fill: #efefef; }
+        }
+      </style>
+      <svg class="element-relations-queue-icon" width="512" height="512" viewBox="0 0 512 512">
+        <g>
+          <path id="l1" d="M499.589 364.111L441.719 337.881L279.859 411.251C272.366 414.658 264.23 416.421 255.999 416.421C247.767 416.421 239.632 414.658 232.139 411.251L70.2886 337.881L12.4086 364.111C-4.14141 371.611 -4.14141 396.611 12.4086 404.111L245.349 509.701C248.691 511.223 252.321 512.011 255.994 512.011C259.666 512.011 263.296 511.223 266.639 509.701L499.639 404.111C516.139 396.611 516.139 371.611 499.589 364.111Z" />
+          <path id="l2" d="M12.4086 236.31L70.5086 210L232.139 283.27C239.632 286.677 247.767 288.44 255.999 288.44C264.23 288.44 272.366 286.677 279.859 283.27L441.499 210L499.589 236.33C516.139 243.83 516.139 268.83 499.589 276.33L266.639 381.9C263.296 383.422 259.666 384.21 255.994 384.21C252.321 384.21 248.691 383.422 245.349 381.9L12.4086 276.31C-4.14141 268.81 -4.14141 243.81 12.4086 236.31Z"  />
+          <path id="l3" d="M12.4086 147.999L245.349 253.699C248.69 255.226 252.32 256.016 255.994 256.016C259.667 256.016 263.298 255.226 266.639 253.699L499.579 147.999C516.129 140.489 516.129 115.479 499.579 107.999L266.649 2.31912C263.308 0.79222 259.677 0.00195312 256.004 0.00195312C252.33 0.00195312 248.7 0.79222 245.359 2.31912L12.4086 107.999C-4.14141 115.499 -4.14141 140.519 12.4086 147.999Z" />
+        </g>
+      </svg>
+
+      {% if isElementDetail %}
+        &nbsp;{{ 'field-value-queued' | t('element-relations') }}
+      {% endif %}
+    {% endif %}
+  </div>
+{% else %}
+  content
+{% endif %}

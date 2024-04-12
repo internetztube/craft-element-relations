@@ -2,39 +2,28 @@
 
 <h1>{{ 'utility-main-headline' | t('element-relations') }}</h1>
 
-{% if isCacheEnabled %}
-    <p>
-        {{ 'utility-main-description' | t('element-relations', params = {
-            percentage: percentage,
-            current: current,
-            total: total
-        }) | raw }}
-    </p>
+<p>
+    {{ 'utility-main-description' | t('element-relations', params = {
+        percentage: percentage,
+        current: current,
+        total: total
+    }) | raw }}
+</p>
 
-    <hr>
-    <h2>{{ 'utility-cache-headline' | t('element-relations') }}</h2>
-    <p>
-        {{ 'utility-cache-description' | t('element-relations', params = {
-            cacheDuration: cacheDuration,
-        }) | raw }}
-    </p>
-    <form method="post">
-        {{ csrfInput() }}
-        {{ forms.checkboxField({
-            label: 'utility-form-rebuild-cache-checkbox-label' | t('element-relations'),
-            id: 'force',
-            name: 'force',
-            checked: false
-        }) }}
-        <button type="submit" class="btn submit">
-            {{ 'utility-form-rebuild-cache-button-label' | t('element-relations') }}
-        </button>
-    </form>
-{% else %}
-    <p>
-        {{ 'utility-cache-disabled' | t('element-relations') }}
-    </p>
-{% endif %}
+<hr>
+<h2>{{ 'utility-cache-headline' | t('element-relations') }}</h2>
+<p>
+    {{ 'utility-cache-description' | t('element-relations', params = {
+        cacheDuration: cacheDuration,
+    }) | raw }}
+</p>
+<form method="post">
+    {{ csrfInput() }}
+    <button type="submit" class="btn submit">
+        {{ 'utility-form-rebuild-cache-button-label' | t('element-relations') }}
+    </button>
+</form>
+
 
 
 {% if pushed %}

@@ -28,11 +28,9 @@ class ElementRelationsUtility extends Utility
     public static function contentHtml(): string
     {
         $pushedQueueJob = false;
-        $isCacheEnabled = CacheService::useCache();
-        if (Craft::$app->request->getIsPost() && $isCacheEnabled) {
-            $force = !!Craft::$app->request->getParam('force', false);
-            $job = new CreateRefreshElementRelationsJobsJob(['force' => $force]);
-            Craft::$app->getQueue()->delay(10)->priority(4096)->push($job);
+        if (Craft::$app->request->getIsPost()) {
+            $job = new CreateRefreshElementRelationsJobsJob();
+            Craft::$app->getQueue()->delay(10)->priority(4090)->push($job);
             $pushedQueueJob = true;
         }
 
@@ -49,7 +47,6 @@ class ElementRelationsUtility extends Utility
                 'total' => $total,
                 'percentage' => $percentage,
                 'pushed' => $pushedQueueJob,
-                'isCacheEnabled' => $isCacheEnabled,
                 'cacheDuration' => $cacheDuration,
             ]
         );

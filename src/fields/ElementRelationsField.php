@@ -31,21 +31,32 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         return $this->_getLazyHtml($element, false);
     }
 
-    private function _getLazyHtml(ElementInterface $element, bool $elementDetail): string
+    private function _getLazyHtml(ElementInterface $element, bool $isElementDetail): string
     {
         $id = sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6));
         $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
             'elementId' => $element->id,
             'siteId' => $element->siteId,
             'size' => 'small',
+            'isElementDetail' => $isElementDetail ? 'true' : 'false',
         ], null, false);
-        $refreshEndpoint = UrlHelper::actionUrl('element-relations/element-relations/refresh-by-element-id', [
+
+        $refreshEndpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
             'elementId' => $element->id,
+            'siteId' => $element->siteId,
+            'size' => 'small',
+            'refresh' => 'true',
+            'isElementDetail' => $isElementDetail ? 'true' : 'false',
         ], null, false);
 
         return Craft::$app->getView()->renderTemplate(
-            'element-relations/_components/fields/Relations_lazy',
-            ['endpoint' => $endpoint, 'id' => $id, 'refreshEndpoint' => $refreshEndpoint, 'elementDetail' => $elementDetail,]
+            'element-relations/_components/fields/relations-lazy',
+            [
+                'id' => $id,
+                'isElementDetail' => $isElementDetail,
+                'endpoint' => $endpoint,
+                'refreshEndpoint' => $refreshEndpoint,
+            ]
         );
     }
 

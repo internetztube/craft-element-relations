@@ -1,0 +1,56 @@
+{% if (not isInSeomaticGlobal) and (not seomaticLocalElements) and (not currentSiteElements) %}
+  <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
+{% elseif isElementDetail %}
+  <table class="table">
+    <tbody>
+      {% if isInSeomaticGlobal %}
+        <tr>
+          <td colspan="2">{{ 'field-value-seomatic-global' | t('element-relations') }}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+      {% endif %}
+      {% for seomaticLocalElement in seomaticLocalElements %}
+        <tr>
+          <td>{{ 'field-relation-type-seomatic-local' | t('element-relations') }}</td>
+          <td>
+            <a href="{{ seomaticLocalElement.cpEditUrl }}" target="_blank">
+              <span class="status {{ seomaticLocalElement.status }}" role="img" aria-label="Status: {{ seomaticLocalElement.status }}"></span>{{ seomaticLocalElement.title }}
+            </a>
+          </td>
+          <td>
+            {% if seomaticLocalElement.url %}
+              <a href="{{ seomaticLocalElement.url }}" title="Visit webpage" rel="noopener" target="_blank" data-icon="world" aria-label="View" target="_blank"></a>
+            {% endif %}
+          </td>
+          <td>{{ seomaticLocalElement.site.name }}</td>
+        </tr>
+      {% endfor %}
+      {% for currentSiteElement in currentSiteElements %}
+        <tr>
+          <td>{{ 'field-relation-type-element' | t('element-relations') }}</td>
+          <td>
+            <a href="{{ currentSiteElement.cpEditUrl }}" target="_blank">
+              <span class="status {{ currentSiteElement.status }}" role="img" aria-label="Status: {{ currentSiteElement.status }}"></span>{{ currentSiteElement.title }}
+            </a>
+          </td>
+          <td>
+            {% if currentSiteElement.url %}
+              <a href="{{ currentSiteElement.url }}" title="Visit webpage" rel="noopener" target="_blank" data-icon="world" aria-label="View" target="_blank"></a>
+            {% endif %}
+          </td>
+          <td>{{ currentSiteElement.site.name }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  {% if seomaticLocalElements %}
+    {{ 'field-value-seomatic-local' | t('element-relations') }} <br />
+  {% endif %}
+  {% if isInSeomaticGlobal %}
+    {{ 'field-value-seomatic-global' | t('element-relations') }} <br />
+  {% endif %}
+  {{ elementRelationsElementPreviewHtml(currentSiteElements, 'small', true, false) | raw }}
+{% endif %}

@@ -26,9 +26,6 @@ class RefreshRelatedElementRelationsJob extends BaseJob
 
     public static function createJob($identifier, $dateUpdateRequested = null): void
     {
-        if (!CacheService::useCache()) {
-            return;
-        }
         $description = sprintf(self::DESCRIPTION_FORMAT, $identifier);
         $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function (array $job) use ($description) {
             return $job['description'] === $description;
@@ -55,7 +52,7 @@ class RefreshRelatedElementRelationsJob extends BaseJob
         $relatedElementRelations = CacheService::getRelatedElementRelations($this->identifier);
         $count = count($relatedElementRelations);
         foreach ($relatedElementRelations as $index => $elementId) {
-            RefreshElementRelationsJob::createJob($elementId, true, $this->dateUpdateRequested);
+            RefreshElementRelationsJob::createJob($elementId, 4096, $this->dateUpdateRequested);
             $queue->setProgress(($index + 1) * 100 / $count);
         }
     }

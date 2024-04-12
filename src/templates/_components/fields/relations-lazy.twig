@@ -1,0 +1,100 @@
+<div data-id="{{ id }}" data-timeout="2000">
+  <div class="spinner hidden"></div>
+
+  {% if isElementDetail %}
+    <div class="action-buttons hidden">
+      <button type="button" class="btn small">{{ 'field-value-button-refresh' | t('element-relations') }}</button>
+    </div>
+  {% endif %}
+  <div class="content"></div>
+</div>
+<script>
+  (() => {
+    if (!window.elementRelationsQueue) {
+      window.elementRelationsQueue = {
+        items: [],
+        isRunning: false,
+        async start() {
+          if (this.isRunning) return
+          await this.execute()
+        },
+        async execute() {
+          this.isRunning = true
+          const callback = this.items.pop()
+          if (!callback) {
+            this.isRunning = false
+            return
+          }
+          try {
+            await callback()
+          } catch (e) {
+            console.log(e)
+          }
+          await this.execute()
+        }
+      }
+    }
+
+    const endpointFetch = "{{ endpoint | raw }}"
+    const endpointRefresh = "{{ refreshEndpoint | raw }}"
+    const $container = document.querySelector('[data-id="{{ id }}"]')
+    const $content = $container?.querySelector('.content')
+    const $spinner = $container?.querySelector('.spinner')
+    const $containerActions = $container?.querySelector('.action-buttons')
+    const timeoutIncrease = {% if isElementDetail %}0{% else %}1000{% endif %};
+    const timeoutMax = 60000
+
+    const callback = async (endpoint = endpointFetch, showSpinner = true) => {
+      if (!$container) {
+        return
+      }
+
+      // Show only spinner when loading
+      if (showSpinner) {
+        $spinner.classList.remove('hidden')
+        $containerActions?.classList.add('hidden')
+        $content.innerHTML = ''
+      }
+
+      try {
+        const response = await fetch(endpoint)
+        const {content, statusQueue} = await (response).json()
+        const isCurrentlyInQueue = !!$content.querySelector('[data-queue-status="queued"]')
+        // Don't replace the markup when already in queue.
+        if (!(isCurrentlyInQueue && statusQueue === 'queued')) {
+          $content.innerHTML = content
+        }
+
+        // Don't show $containerActions when in queue.
+        if (statusQueue !== 'queued' && $containerActions) {
+          console.log('show actions')
+          $containerActions?.classList.remove('hidden')
+        }
+
+        // When in queue, reload content every ~ 2 seconds.
+        if (statusQueue === 'queued') {
+          const currentTimeout = +$container.dataset.timeout
+          setTimeout(() => {
+            callback(endpointFetch, false)
+            if (currentTimeout < timeoutMax) {
+              $container.dataset.timeout = currentTimeout + timeoutIncrease
+            }
+          }, currentTimeout)
+        }
+      } catch (e) {
+        console.log(e)
+        $content.innerText = 'An unexpected error occurred'
+      }
+      $spinner.classList.add('hidden')
+    };
+
+    const $buttonRefresh = $containerActions?.querySelector('button')
+    if ($buttonRefresh) {
+      $buttonRefresh.addEventListener('click', () => callback(endpointRefresh))
+    }
+
+    window.elementRelationsQueue.items.unshift(callback)
+    window.elementRelationsQueue.start()
+
+  })();
+</script>

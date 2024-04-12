@@ -23,9 +23,6 @@ class EventElementAfterSaveJob extends BaseJob
 
     public static function createJob($elementId): void
     {
-        if (!CacheService::useCache()) {
-            return;
-        }
         $description = sprintf(self::DESCRIPTION_FORMAT, $elementId);
         $isAlreadyInQueue = collect(\Craft::$app->queue->getJobInfo())->filter(function (array $job) use ($description) {
             return $job['description'] === $description;
@@ -50,7 +47,7 @@ class EventElementAfterSaveJob extends BaseJob
         // refresh cache of new relations (elements used in the element)
         $elementsUsedInThisElement = ElementRelationsService::getRelationsUsedInElement($this->elementId);
         foreach ($elementsUsedInThisElement as $elementId) {
-            RefreshElementRelationsJob::createJob($elementId, true, $this->dateUpdateRequested);
+            RefreshElementRelationsJob::createJob($elementId, 4096, $this->dateUpdateRequested);
         }
     }
 }

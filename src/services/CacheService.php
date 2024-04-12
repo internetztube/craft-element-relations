@@ -5,6 +5,7 @@ namespace internetztube\elementRelations\services;
 use Craft;
 use craft\helpers\Db;
 use internetztube\elementRelations\ElementRelations;
+use internetztube\elementRelations\jobs\RefreshElementRelationsJob;
 use internetztube\elementRelations\records\ElementRelationsRecord;
 use Throwable;
 use yii\db\Query;
@@ -18,29 +19,21 @@ class CacheService
     /**
      * Get cached stringified element relations.
      * @param int $elementId
-     * @param bool $force
      * @return string
      */
-    public static function getElementRelationsCached(int $elementId, bool $force = false): string
+    public static function getElementRelations(int $elementId, int $priority = 100): ?string
     {
-        $useCache = self::useCache();
         $validCachedRelations = self::getNonStaleStoredRelations($elementId);
-        $gatherElementRelations = $force || !$useCache || !$validCachedRelations;
+        $gatherElementRelations = !$validCachedRelations;
         if ($gatherElementRelations) {
-            $relations = ElementRelationsService::getElementRelations($elementId);
-            if ($useCache) {
-                self::setStoredRelations($elementId, $relations);
-            }
-            return $relations;
+            RefreshElementRelationsJob::createJob($elementId, $priority);
+            return null;
         }
         return $validCachedRelations;
     }
 
     public static function getDateUpdatedFromElementRelations(int $elementId): ?string
     {
-        if (!self::useCache()) {
-            return null;
-        }
         $record = self::getBaseQueryForNonStaleRecords()
             ->andWhere(['elementId' => $elementId])
             ->one();
@@ -58,15 +51,6 @@ class CacheService
     public static function hasStoredElementRelations(int $elementId): bool
     {
         return !!self::getNonStaleStoredRelations($elementId);
-    }
-
-    /**
-     * Is Caching enabled in settings?
-     * @return bool
-     */
-    public static function useCache(): bool
-    {
-        return !!ElementRelations::$plugin->getSettings()->useCache;
     }
 
     /**
@@ -108,9 +92,6 @@ class CacheService
      */
     public static function getCacheDuration(): ?string
     {
-        if (!self::useCache()) {
-            return null;
-        }
         $settings = ElementRelations::$plugin->getSettings();
         return $settings->cacheDuration ?? self::DEFAULT_CACHE_DURATION;
     }
@@ -120,7 +101,7 @@ class CacheService
      * @param int $elementId
      * @param string $relations
      */
-    private static function setStoredRelations(int $elementId, string $relations): void
+    public static function setStoredRelations(int $elementId, string $relations): void
     {
         if (!Craft::$app->elements->getElementById($elementId)) {
             return;
@@ -152,9 +133,6 @@ class CacheService
      */
     public static function getCountOfNonStaleElementRelations(): int
     {
-        if (!self::useCache()) {
-            return 0;
-        }
         return self::getBaseQueryForNonStaleRecords()->count();
     }
 
@@ -165,9 +143,6 @@ class CacheService
      */
     public static function getRelatedElementRelations($identifier): array
     {
-        if (!self::useCache()) {
-            return [];
-        }
         $like = sprintf('%s%s%s', ElementRelationsService::IDENTIFIER_DELIMITER, $identifier, ElementRelationsService::IDENTIFIER_DELIMITER);
         $records = self::getBaseQueryForNonStaleRecords()->andWhere(['like', 'relations', $like])->all();
         return collect($records)->pluck('elementId')
@@ -186,10 +161,6 @@ class CacheService
      */
     public static function deleteElementRelationsRecord(int $elementId): void
     {
-        if (!self::useCache()) {
-            return;
-        }
-        $record = self::getStoredRelationsRecord($elementId);
-        $record->delete();
+        self::getStoredRelationsRecord($elementId)?->delete();
     }
 }
