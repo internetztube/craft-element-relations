@@ -20,7 +20,7 @@ class ElementRelationsUtility extends Utility
         return 'element-relations';
     }
 
-    public static function iconPath(): string
+    public static function icon(): string
     {
         return Craft::getAlias("@internetztube/elementRelations/icon-mask.svg");
     }

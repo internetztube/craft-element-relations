@@ -26,7 +26,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         return Craft::t('element-relations', 'Element Relations');
     }
 
-    public function getTableAttributeHtml($value, ElementInterface $element): string
+    public function getPreviewHtml(mixed $value, ElementInterface $element): string
     {
         return $this->_getLazyHtml($element, false);
     }
@@ -60,7 +60,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         );
     }
 
-    public function getInputHtml($value, ElementInterface $element = null): string
+    public function getInputHtml(mixed $value, ?\craft\base\ElementInterface $element = null): string
     {
         return $this->_getLazyHtml($element, true);
     }

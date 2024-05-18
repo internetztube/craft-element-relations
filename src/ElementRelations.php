@@ -21,7 +21,9 @@ use internetztube\elementRelations\jobs\RefreshElementRelationsJob;
 use internetztube\elementRelations\jobs\RefreshRelatedElementRelationsJob;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
+use internetztube\elementRelations\services\ProfilePhotoService;
 use internetztube\elementRelations\services\SeomaticService;
+use internetztube\elementRelations\services\UserPhotoService;
 use internetztube\elementRelations\twigextensions\ControlPanel;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
 use yii\base\Event;
@@ -29,7 +31,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = '1.0.3';
+    public string $schemaVersion = '1.0.4';
     public bool $hasCpSettings = false;
     public bool $hasCpSection = false;
     private array $pushedQueueTasks = [];
@@ -47,9 +49,11 @@ class ElementRelations extends Plugin
             $event->types[] = ElementRelationsField::class;
         });
 
-        Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITY_TYPES, function (RegisterComponentTypesEvent $event) {
+        Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITIES, function (RegisterComponentTypesEvent $event) {
             $event->types[] = ElementRelationsUtility::class;
         });
+
+        return;
 
         $this->registerPluginEvents();
 

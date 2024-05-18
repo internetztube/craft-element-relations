@@ -5,6 +5,7 @@ namespace internetztube\elementRelations\services;
 use Craft;
 use craft\db\Query;
 use craft\db\Table;
+use nystudio107\seomatic\Seomatic;
 
 class SeomaticService
 {
@@ -24,6 +25,7 @@ class SeomaticService
      */
     public static function getGlobalSeomaticAssets(): array
     {
+        Seomatic::$plugin;
         $extractIdFromString = function ($input) {
             if (!$input) {
                 return false;
