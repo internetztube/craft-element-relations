@@ -44,11 +44,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         $allRelations = $allRelations->merge($data['userPhoto']);
         $allRelations = $allRelations->merge($data['genericRelations']);
 
-        if (Craft::$app->plugins->isPluginEnabled('seomatic')) {
-            $data['seoMaticLocal'] = $element instanceof Asset ? SeoMaticLocalRelationsService::getReverseRelations($element) : [];
-            $data['seoMaticGlobal'] = $element instanceof Asset && SeoMaticGlobalRelationsService::getReverseRelations($element);
-            $allRelations = $allRelations->merge($data['seoMaticLocal']);
-        }
+        $data['seoMaticLocal'] = $element instanceof Asset ? SeoMaticLocalRelationsService::getReverseRelations($element) : [];
+        $data['seoMaticGlobal'] = $element instanceof Asset && SeoMaticGlobalRelationsService::getReverseRelations($element);
+        $allRelations = $allRelations->merge($data['seoMaticLocal']);
+
         $data['allRelations'] = $allRelations->all();
         return $data;
     }

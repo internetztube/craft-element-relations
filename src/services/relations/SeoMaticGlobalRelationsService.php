@@ -4,7 +4,6 @@ namespace internetztube\elementRelations\services\relations;
 
 use craft\db\Query;
 use craft\elements\Asset;
-use nystudio107\seomatic\records\MetaBundle;
 use Craft;
 
 class SeoMaticGlobalRelationsService
@@ -15,11 +14,14 @@ class SeoMaticGlobalRelationsService
      */
     public static function getReverseRelations(Asset $asset): bool
     {
+        if (!Craft::$app->plugins->isPluginEnabled('seomatic')) {
+            return false;
+        }
         $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
-        $columnSelector = $queryBuilder->jsonExtract('metaBundleSettings', ['seoImageIds']);
+        $columnSelector = $queryBuilder->jsonExtract("metaBundleSettings", ["seoImageIds"]);
 
         return (new Query())
-            ->from([MetaBundle::tableName()])
+            ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
             ->where(['=', $columnSelector, "[\"$asset->id\"]"])
             ->collect()
             ->isNotEmpty();

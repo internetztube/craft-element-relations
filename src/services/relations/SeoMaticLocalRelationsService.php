@@ -7,7 +7,6 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Asset;
 use internetztube\elementRelations\services\FieldLayoutUsageService;
-use nystudio107\seomatic\fields\SeoSettings;
 use Craft;
 
 class SeoMaticLocalRelationsService
@@ -18,7 +17,10 @@ class SeoMaticLocalRelationsService
      */
     public static function getReverseRelations(Asset $asset): array
     {
-        $customFields = FieldLayoutUsageService::getCustomFieldsByFieldClass(SeoSettings::class);
+        if (!Craft::$app->plugins->isPluginEnabled('seomatic')) {
+            return [];
+        }
+        $customFields = FieldLayoutUsageService::getCustomFieldsByFieldClass(nystudio107\seomatic\fields\SeoSettings::class);
 
         $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
         $searchValue = "[\"$asset->id\"]";
@@ -32,7 +34,7 @@ class SeoMaticLocalRelationsService
             ->map(function (string $uid) use ($queryBuilder, $searchValue, $tableElementsSites) {
                 $columnSelector = $queryBuilder->jsonExtract(
                     "$tableElementsSites.content",
-                    [$uid, 'metaBundleSettings', 'seoImageIds']
+                    [$uid, "metaBundleSettings", "seoImageIds"]
                 );
                 return ["=", $columnSelector, $searchValue];
             })
