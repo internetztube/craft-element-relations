@@ -3,6 +3,7 @@
 namespace internetztube\elementRelations\migrations;
 
 use Craft;
+use craft\db\Table;
 use craft\db\Migration;
 use internetztube\elementRelations\records\ElementRelationsRecord;
 
@@ -14,21 +15,21 @@ class Install extends Migration
         if (!$this->db->tableExists($table)) {
             $this->createTable($table, [
                 'id' => $this->primaryKey(),
-                'elementId' => $this->integer()->notNull(),
-                'relations' => $this->mediumText(),
+                'type' => $this->string(32),
+                'sourceElementId' => $this->integer()->null(),
+                'sourceSiteId' => $this->integer()->null(),
+                'targetElementId' => $this->integer()->notNull(),
+                'targetSiteId' => $this->integer()->null(),
                 'dateCreated' => $this->dateTime()->notNull(),
                 'dateUpdated' => $this->dateTime()->notNull(),
                 'uid' => $this->uid(),
             ]);
 
-            $this->createIndex(null, $table, ['elementId'], true);
-            // Adding an index on a text field in mysql requires a length
-            if (Craft::$app->db->getIsMysql()) {
-                $this->createIndex(null, $table, ['relations(250)', 'dateUpdated']);
-            } else {
-                $this->createIndex(null, $table, ['relations', 'dateUpdated']);
-            }
-            $this->addForeignKey(null, $table, 'elementId', '{{%elements}}', 'id', 'CASCADE');
+            $this->createIndex(null, $table, ['targetElementId', 'targetSiteId', 'type'], false);
+            $this->addForeignKey(null, $table, 'sourceElementId', Table::ELEMENTS, 'id', 'CASCADE');
+            $this->addForeignKey(null, $table, 'targetElementId', Table::ELEMENTS, 'id', 'CASCADE');
+            $this->addForeignKey(null, $table, 'sourceSiteId', Table::SITES, 'id', 'CASCADE');
+            $this->addForeignKey(null, $table, 'targetSiteId', Table::SITES, 'id', 'CASCADE');
 
             // Refresh the db schema caches
             Craft::$app->db->schema->refresh();

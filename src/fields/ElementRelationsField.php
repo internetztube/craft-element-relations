@@ -6,16 +6,14 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\PreviewableFieldInterface;
-use craft\helpers\StringHelper;
-use craft\helpers\UrlHelper;
+use craft\elements\Asset;
+use internetztube\elementRelations\services\relations\GenericRelationsService;
+use internetztube\elementRelations\services\relations\SeoMaticGlobalRelationsService;
+use internetztube\elementRelations\services\relations\SeoMaticLocalRelationsService;
+use internetztube\elementRelations\services\relations\UserPhotoRelationService;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
-    /**
-     * This field's data IS NOT stored in the content table, but is stored separately.
-     * Therefore, this field must not be translatable.
-     * @return array
-     */
     public static function supportedTranslationMethods(): array
     {
         return [self::TRANSLATION_METHOD_NONE];
@@ -28,40 +26,30 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public function getPreviewHtml(mixed $value, ElementInterface $element): string
     {
-        return $this->_getLazyHtml($element, false);
+        return Craft::$app->getView()->renderTemplate('element-relations/_components/fields/relations_preview', $this->getInputData($element));
     }
 
-    private function _getLazyHtml(ElementInterface $element, bool $isElementDetail): string
+    public function getInputHtml(mixed $value, ElementInterface $element = null): string
     {
-        $id = sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6));
-        $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
-            'elementId' => $element->id,
-            'siteId' => $element->siteId,
-            'size' => 'small',
-            'isElementDetail' => $isElementDetail ? 'true' : 'false',
-        ], null, false);
-
-        $refreshEndpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
-            'elementId' => $element->id,
-            'siteId' => $element->siteId,
-            'size' => 'small',
-            'refresh' => 'true',
-            'isElementDetail' => $isElementDetail ? 'true' : 'false',
-        ], null, false);
-
-        return Craft::$app->getView()->renderTemplate(
-            'element-relations/_components/fields/relations-lazy',
-            [
-                'id' => $id,
-                'isElementDetail' => $isElementDetail,
-                'endpoint' => $endpoint,
-                'refreshEndpoint' => $refreshEndpoint,
-            ]
-        );
+        return Craft::$app->getView()->renderTemplate('element-relations/_components/fields/relations', $this->getInputData($element));
     }
 
-    public function getInputHtml(mixed $value, ?\craft\base\ElementInterface $element = null): string
+    private function getInputData(ElementInterface $element)
     {
-        return $this->_getLazyHtml($element, true);
+        $allRelations = collect();
+        $data = [
+            'genericRelations' => GenericRelationsService::getReverseRelations($element),
+            'userPhoto' => $element instanceof Asset ? UserPhotoRelationService::getReverseRelations($element) : [],
+        ];
+        $allRelations = $allRelations->merge($data['userPhoto']);
+        $allRelations = $allRelations->merge($data['genericRelations']);
+
+        if (Craft::$app->plugins->isPluginEnabled('seomatic')) {
+            $data['seoMaticLocal'] = $element instanceof Asset ? SeoMaticLocalRelationsService::getReverseRelations($element) : [];
+            $data['seoMaticGlobal'] = $element instanceof Asset && SeoMaticGlobalRelationsService::getReverseRelations($element);
+            $allRelations = $allRelations->merge($data['seoMaticLocal']);
+        }
+        $data['allRelations'] = $allRelations->all();
+        return $data;
     }
 }

@@ -1,0 +1,61 @@
+{% if not allRelations and not seoMaticGlobal %}
+    <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
+{% else %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Element</th>
+                <th>Relation Type</th>
+                <th></th>
+                <th>Site</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% if seoMaticGlobal ?? null %}
+            <tr>
+                <td colspan="2">{{ 'field-value-seomatic-global' | t('element-relations') }}</td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+        {% endif %}
+        {% for seoMaticLocalElement in seoMaticLocal ?? [] %}
+            <tr>
+                <td>{{ elementRelationsElementPreviewHtml([seoMaticLocalElement]) | raw }}</td>
+                <td>{{ 'field-relation-type-seomatic-local' | t('element-relations') }}</td>
+                <td>
+                    {% if seoMaticLocalElement.url %}
+                        <a href="{{ seoMaticLocalElement.url }}" title="Visit webpage" rel="noopener" target="_blank"
+                           data-icon="world" aria-label="View" target="_blank"></a>
+                    {% endif %}
+                </td>
+                <td>{{ seoMaticLocalElement.site.name }}</td>
+            </tr>
+        {% endfor %}
+        {% for genericRelation in genericRelations %}
+            <tr>
+                <td>{{ elementRelationsElementPreviewHtml([genericRelation]) | raw }}</td>
+                <td>{{ 'field-relation-type-element' | t('element-relations') }}</td>
+                <td>
+                    {% if genericRelation.url %}
+                        <a href="{{ genericRelation.url }}" title="Visit webpage" rel="noopener" target="_blank"
+                           data-icon="world" aria-label="View" target="_blank"></a>
+                    {% endif %}
+                </td>
+                <td>{{ genericRelation.site.name }}</td>
+            </tr>
+        {% endfor %}
+        {% for user in userPhoto %}
+            <tr>
+                <td>User</td>
+                <td>
+                    {{ elementRelationsElementPreviewHtml([user]) | raw }}
+                </td>
+                <td></td>
+                <td></td>
+            </tr>
+        {% endfor %}
+
+        </tbody>
+    </table>
+{% endif %}
