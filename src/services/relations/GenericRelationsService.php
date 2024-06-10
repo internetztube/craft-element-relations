@@ -121,8 +121,9 @@ class GenericRelationsService
         $tableElements = Table::ELEMENTS;
         $tableElementsSites = Table::ELEMENTS_SITES;
         $tableEntries = Table::ENTRIES;
-        $aliasTableElementForEntries = "alias_elements_for_entries";
-        $aliasTableElementForNeoblocks = "alias_elements_for_neoblocks";
+        $aliasTableElementsForEntries = "alias_elements_for_entries";
+        $aliasTableElementsForNeoblocks = "alias_elements_for_neoblocks";
+        $aliasTableElementsForCommerceVariants = "alias_elements_for_commerce_variants";
 
         $query = (new Query())
             ->select([
@@ -131,13 +132,19 @@ class GenericRelationsService
                 "$tableElements.type",
 
                 // Matrix
-                "entries_primaryOwnerId_elements_elementId" => "$aliasTableElementForEntries.id",
-                "entries_primaryOwnerId_elements_type" => "$aliasTableElementForEntries.type",
+                "entries_primaryOwnerId_elements_elementId" => "$aliasTableElementsForEntries.id",
+                "entries_primaryOwnerId_elements_type" => "$aliasTableElementsForEntries.type",
 
                 // NEO
-                ...(self::pluginIsNeoEnabled() ? [
-                    "neoblocks_primaryOwnerId_elements_elementId" => "$aliasTableElementForNeoblocks.id",
-                    "neoblocks_primaryOwnerId_elements_type" => "$aliasTableElementForNeoblocks.type"
+                ...(self::isPluginNeoEnabled() ? [
+                    "neoblocks_primaryOwnerId_elements_elementId" => "$aliasTableElementsForNeoblocks.id",
+                    "neoblocks_primaryOwnerId_elements_type" => "$aliasTableElementsForNeoblocks.type"
+                ] : []),
+
+                // Commerce Variants
+                ...(self::isPluginCommerceEnabled() ? [
+                    "commerce_variants_primaryOwnerId_elements_elementId" => "$aliasTableElementsForCommerceVariants.id",
+                    "commerce_variants_primaryOwnerId_elements_type" => "$aliasTableElementsForCommerceVariants.type"
                 ] : [])
             ])
             ->from([$tableElementsSites => $elementsSitesQuery])
@@ -145,13 +152,20 @@ class GenericRelationsService
 
             // Matrix
             ->leftJoin($tableEntries, "$tableElements.id = $tableEntries.id")
-            ->leftJoin([$aliasTableElementForEntries => $tableElements], "$tableEntries.primaryOwnerId = $aliasTableElementForEntries.id");
+            ->leftJoin([$aliasTableElementsForEntries => $tableElements], "$tableEntries.primaryOwnerId = $aliasTableElementsForEntries.id");
 
-        if (self::pluginIsNeoEnabled()) {
+        if (self::isPluginNeoEnabled()) {
             $tableNeoblocks = \benf\neo\records\Block::tableName();
             $query
                 ->leftJoin($tableNeoblocks, "$tableElements.id = $tableNeoblocks.id")
-                ->leftJoin([$aliasTableElementForNeoblocks => $tableElements], "$tableNeoblocks.primaryOwnerId = $aliasTableElementForNeoblocks.id");
+                ->leftJoin([$aliasTableElementsForNeoblocks => $tableElements], "$tableNeoblocks.primaryOwnerId = $aliasTableElementsForNeoblocks.id");
+        }
+
+        if (self::isPluginCommerceEnabled()) {
+            $tableCommerceVariants = \craft\commerce\db\Table::VARIANTS;
+            $query
+                ->leftJoin($tableCommerceVariants, "$tableElements.id = $tableCommerceVariants.id")
+                ->leftJoin([$aliasTableElementsForCommerceVariants => $tableElements], "$tableCommerceVariants.id = $aliasTableElementsForCommerceVariants.id");
         }
 
         return $query->collect()
@@ -169,8 +183,13 @@ class GenericRelationsService
             ->all();
     }
 
-    private static function pluginIsNeoEnabled(): bool
+    private static function isPluginNeoEnabled(): bool
     {
         return Craft::$app->plugins->isPluginEnabled("neo");
+    }
+
+    private static function isPluginCommerceEnabled(): bool
+    {
+        return Craft::$app->plugins->isPluginEnabled("commerce");
     }
 }
