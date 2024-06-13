@@ -3,12 +3,41 @@
 namespace internetztube\elementRelations\services;
 
 use Craft;
+use craft\db\Query;
+use craft\db\Table;
 use craft\fieldlayoutelements\CustomField;
 use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
 
 class FieldLayoutUsageService
 {
+    public static function getElementsSitesSearchQueryByFieldClass(string $fieldClass, $searchValue, array $pathForNestedJson = []): ?Query
+    {
+        $customFields = self::getCustomFieldsByFieldClass($fieldClass);
+        $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
+        $tableElementsSites = Table::ELEMENTS_SITES;
+
+        $whereStatements = collect($customFields)
+            ->flatten()
+            ->pluck('uid')
+            ->map(function (string $uid) use ($queryBuilder, $searchValue, $pathForNestedJson, $tableElementsSites) {
+                $columnSelector = $queryBuilder->jsonExtract(
+                    "$tableElementsSites.content",
+                    [$uid, ...$pathForNestedJson]
+                );
+                return ["=", $columnSelector, $searchValue];
+            });
+
+        if ($whereStatements->isEmpty()) {
+            return null;
+        }
+
+        return (new Query())
+            ->select("$tableElementsSites.*")
+            ->from($tableElementsSites)
+            ->where(["or", ...$whereStatements]);
+    }
+
     /**
      * Retrieves all field layouts where a specific field type is used. The uid of all Custom Fields with the 
      * respective field type are extracted. This uid is used as a key in `elements_sites`.`content`.
@@ -16,7 +45,7 @@ class FieldLayoutUsageService
      * @param string $fieldClass The class name of the field type to search for.
      * @return CustomField[]
      */
-    public static function getCustomFieldsByFieldClass(string $fieldClass): array
+    private static function getCustomFieldsByFieldClass(string $fieldClass): array
     {
 
         $fields = Craft::$app->fields->getFieldsByType($fieldClass);

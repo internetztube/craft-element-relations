@@ -1,5 +1,8 @@
-{% if not allRelations and not seoMaticGlobal %}
+{% if not relations and not seomaticGlobal %}
     <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
 {% else %}
-    {{ elementRelationsElementPreviewHtml(allRelations) | raw }}
+    {{ elementRelationsElementPreviewHtml(relations) | raw }}
+    {% if seomaticGlobal %}
+        {{ 'field-value-seomatic-global' | t('element-relations') }}
+    {% endif %}
 {% endif %}

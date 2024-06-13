@@ -1,20 +1,17 @@
 <?php
 
-namespace internetztube\elementRelations\services\relations;
+namespace internetztube\elementRelations\services;
 
+use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\Asset;
 use Craft;
 
-class SeoMaticGlobalRelationsService
+class SpecialSeomaticGlobalService
 {
-    /**
-     * @param Asset $asset
-     * @return bool
-     */
-    public static function getReverseRelations(Asset $asset): bool
+    public static function isInUse(ElementInterface $element): bool
     {
-        if (!Craft::$app->plugins->isPluginEnabled('seomatic')) {
+        if (!Craft::$app->plugins->isPluginEnabled('seomatic') || !($element instanceof Asset)) {
             return false;
         }
         $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
@@ -22,7 +19,7 @@ class SeoMaticGlobalRelationsService
 
         return (new Query())
             ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
-            ->where(['=', $columnSelector, "[\"$asset->id\"]"])
+            ->where(['=', $columnSelector, "[\"$element->id\"]"])
             ->collect()
             ->isNotEmpty();
     }

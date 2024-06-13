@@ -6,11 +6,8 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\PreviewableFieldInterface;
-use craft\elements\Asset;
-use internetztube\elementRelations\services\relations\GenericRelationsService;
-use internetztube\elementRelations\services\relations\SeoMaticGlobalRelationsService;
-use internetztube\elementRelations\services\relations\SeoMaticLocalRelationsService;
-use internetztube\elementRelations\services\relations\UserPhotoRelationService;
+use internetztube\elementRelations\services\SpecialSeomaticGlobalService;
+use internetztube\elementRelations\services\RelationsService;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
@@ -36,19 +33,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     private function getInputData(ElementInterface $element)
     {
-        $allRelations = collect();
-        $data = [
-            'genericRelations' => GenericRelationsService::getReverseRelations($element),
-            'userPhoto' => $element instanceof Asset ? UserPhotoRelationService::getReverseRelations($element) : [],
+        return [
+            'relations' => RelationsService::getReverseRelations($element),
+            'seomaticGlobal' => SpecialSeomaticGlobalService::isInUse($element),
         ];
-        $allRelations = $allRelations->merge($data['userPhoto']);
-        $allRelations = $allRelations->merge($data['genericRelations']);
-
-        $data['seoMaticLocal'] = $element instanceof Asset ? SeoMaticLocalRelationsService::getReverseRelations($element) : [];
-        $data['seoMaticGlobal'] = $element instanceof Asset && SeoMaticGlobalRelationsService::getReverseRelations($element);
-        $allRelations = $allRelations->merge($data['seoMaticLocal']);
-
-        $data['allRelations'] = $allRelations->all();
-        return $data;
     }
 }
