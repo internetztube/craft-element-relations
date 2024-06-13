@@ -30,10 +30,6 @@ class ElementRelations extends Plugin
         parent::init();
         self::$plugin = $this;
 
-        if (Craft::$app instanceof ConsoleApplication) {
-            $this->controllerNamespace = 'internetztube\elementRelations\console\controllers';
-        }
-
         Event::on(Fields::class, Fields::EVENT_REGISTER_FIELD_TYPES, function (RegisterComponentTypesEvent $event) {
             $event->types[] = ElementRelationsField::class;
         });
