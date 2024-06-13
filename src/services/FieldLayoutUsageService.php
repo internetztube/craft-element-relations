@@ -14,17 +14,11 @@ class FieldLayoutUsageService
     public static function getElementsSitesSearchQueryByFieldClass(string $fieldClass, $searchValue, array $pathForNestedJson = []): ?Query
     {
         $customFields = self::getCustomFieldsByFieldClass($fieldClass);
-        $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
-        $tableElementsSites = Table::ELEMENTS_SITES;
 
         $whereStatements = collect($customFields)
-            ->flatten()
             ->pluck('uid')
-            ->map(function (string $uid) use ($queryBuilder, $searchValue, $pathForNestedJson, $tableElementsSites) {
-                $columnSelector = $queryBuilder->jsonExtract(
-                    "$tableElementsSites.content",
-                    [$uid, ...$pathForNestedJson]
-                );
+            ->map(function (string $uid) use ($searchValue, $pathForNestedJson) {
+                $columnSelector = self::dbJsonExtract("elements_sites.content", [$uid, ...$pathForNestedJson]);
                 return ["=", $columnSelector, $searchValue];
             });
 
@@ -33,13 +27,13 @@ class FieldLayoutUsageService
         }
 
         return (new Query())
-            ->select("$tableElementsSites.*")
-            ->from($tableElementsSites)
+            ->select("elements_sites.*")
+            ->from(["elements_sites" => Table::ELEMENTS_SITES])
             ->where(["or", ...$whereStatements]);
     }
 
     /**
-     * Retrieves all field layouts where a specific field type is used. The uid of all Custom Fields with the 
+     * Retrieves all field layouts where a specific field type is used. The uid of all Custom Fields with the
      * respective field type are extracted. This uid is used as a key in `elements_sites`.`content`.
      *
      * @param string $fieldClass The class name of the field type to search for.
@@ -55,7 +49,7 @@ class FieldLayoutUsageService
         return collect($fieldLayouts)
             ->map(function (FieldLayout $fieldLayout) use ($fieldClass, $fieldsUid) {
                 $customFields = collect($fieldLayout->getTabs())
-                    ->map(fn (FieldLayoutTab $fieldLayoutTab) => $fieldLayoutTab->elements)
+                    ->map(fn(FieldLayoutTab $fieldLayoutTab) => $fieldLayoutTab->elements)
                     ->flatten(1)
                     ->filter(fn($field) => $field instanceof CustomField)
                     ->filter(fn(CustomField $customField) => in_array($customField->fieldUid, $fieldsUid))
@@ -66,7 +60,34 @@ class FieldLayoutUsageService
                 return $customFields->all();
             })
             ->filter()
+            ->flatten()
             ->values()
             ->all();
+    }
+
+    public static function dbJsonExtract(string $column, array $path): string
+    {
+        $db = Craft::$app->getDb();
+        $column = $db->quoteColumnName($column);
+
+        if ($db->getIsMysql()) {
+            $path = $db->quoteValue(
+                sprintf('$.%s', implode('.', array_map(fn(string $seg) => sprintf('"%s"', $seg), $path)))
+            );
+            // Maria doesn't support ->/->> operators :(
+            if ($db->getIsMaria()) {
+                return "JSON_UNQUOTE(JSON_EXTRACT($column, $path))";
+            }
+            return "($column->>$path)";
+        }
+
+        if ($db->getIsPgsql()) {
+            $path = $db->quoteValue(
+                sprintf('{%s}', implode(',', array_map(fn(string $seg) => sprintf('"%s"', $seg), $path)))
+            );
+
+            return "($column#>>$path)";
+        }
+        return "";
     }
 }

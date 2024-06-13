@@ -6,14 +6,14 @@ use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
-use internetztube\elementRelations\services\fields\FieldRelationsService;
-use internetztube\elementRelations\services\fields\FieldUserPhotoService;
-use internetztube\elementRelations\services\fields\FieldHyperService;
-use internetztube\elementRelations\services\fields\FieldLinkItService;
-use internetztube\elementRelations\services\fields\FieldSeomaticService;
 use internetztube\elementRelations\services\contentbehaviors\ContentBehaviorCommerceService;
 use internetztube\elementRelations\services\contentbehaviors\ContentBehaviorMatrixService;
 use internetztube\elementRelations\services\contentbehaviors\ContentBehaviorNeoService;
+use internetztube\elementRelations\services\fields\FieldHyperService;
+use internetztube\elementRelations\services\fields\FieldLinkItService;
+use internetztube\elementRelations\services\fields\FieldRelationsService;
+use internetztube\elementRelations\services\fields\FieldSeomaticService;
+use internetztube\elementRelations\services\fields\FieldUserPhotoService;
 
 class RelationsService
 {
@@ -44,47 +44,6 @@ class RelationsService
         return self::getElementsByBaseElementInfo(
             self::getReverseRelationsForElementsSitesQuery($elementsSitesUnionQuery)
         );
-    }
-
-    /**
-     * @param Query $elementsSitesQuery
-     * @return array BaseElementInfo
-     */
-    private static function getReverseRelationsForElementsSitesQuery(Query $elementsSitesQuery): array
-    {
-        $tableElementsSites = Table::ELEMENTS_SITES;
-        $tableElements = Table::ELEMENTS;
-        $query = (new Query())
-            ->select([
-                "$tableElementsSites.elementId",
-                "$tableElementsSites.siteId",
-                "$tableElements.type",
-                ...ContentBehaviorMatrixService::getColumns(),
-                ...ContentBehaviorNeoService::getColumns(),
-                ...ContentBehaviorCommerceService::getColumns(),
-            ])
-            ->from([$tableElementsSites => $elementsSitesQuery])
-            ->innerJoin($tableElements, "$tableElementsSites.elementId = $tableElements.id");
-
-        $query = ContentBehaviorMatrixService::enrichQuery($query);
-        $query = ContentBehaviorNeoService::enrichQuery($query);
-        $query = ContentBehaviorCommerceService::enrichQuery($query);
-
-        return $query->collect()
-            ->map(fn(array $row) => [
-                "elementId" =>
-                    $row[ContentBehaviorMatrixService::getColumnElementsId()] ??
-                    $row[ContentBehaviorNeoService::getColumnElementsId()] ??
-                    $row[ContentBehaviorCommerceService::getColumnElementsId()] ??
-                    $row["elementId"],
-                "type" =>
-                    $row[ContentBehaviorMatrixService::getColumnElementsType()] ??
-                    $row[ContentBehaviorNeoService::getColumnElementsType()] ??
-                    $row[ContentBehaviorCommerceService::getColumnElementsType()] ??
-                    $row["type"],
-                "siteId" => $row["siteId"],
-            ])
-            ->all();
     }
 
     private static function getElementsByBaseElementInfo(array $baseElementInfo): array
@@ -125,5 +84,44 @@ class RelationsService
                 return $element;
             })
             ->toArray();
+    }
+
+    /**
+     * @param Query $elementsSitesQuery
+     * @return array BaseElementInfo
+     */
+    private static function getReverseRelationsForElementsSitesQuery(Query $elementsSitesQuery): array
+    {
+        $query = (new Query())
+            ->select([
+                "elements_sites.elementId",
+                "elements_sites.siteId",
+                "elements.type",
+                ...ContentBehaviorMatrixService::getColumns(),
+                ...ContentBehaviorNeoService::getColumns(),
+                ...ContentBehaviorCommerceService::getColumns(),
+            ])
+            ->from(["elements_sites" => $elementsSitesQuery])
+            ->innerJoin(["elements" => Table::ELEMENTS], "elements_sites.elementId = elements.id");
+
+        $query = ContentBehaviorMatrixService::enrichQuery($query);
+        $query = ContentBehaviorNeoService::enrichQuery($query);
+        $query = ContentBehaviorCommerceService::enrichQuery($query);
+
+        return $query->collect()
+            ->map(fn(array $row) => [
+                "elementId" =>
+                    $row[ContentBehaviorMatrixService::getColumnElementsId()] ??
+                        $row[ContentBehaviorNeoService::getColumnElementsId()] ??
+                        $row[ContentBehaviorCommerceService::getColumnElementsId()] ??
+                        $row["elementId"],
+                "type" =>
+                    $row[ContentBehaviorMatrixService::getColumnElementsType()] ??
+                        $row[ContentBehaviorNeoService::getColumnElementsType()] ??
+                        $row[ContentBehaviorCommerceService::getColumnElementsType()] ??
+                        $row["type"],
+                "siteId" => $row["siteId"],
+            ])
+            ->all();
     }
 }

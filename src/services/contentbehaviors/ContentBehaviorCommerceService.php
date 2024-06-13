@@ -16,11 +16,25 @@ class ContentBehaviorCommerceService implements InterfaceContentBehaviourService
             return [];
         }
 
-        $tableAliasElements = self::TABLE_ALIAS_ELEMENTS;
         return [
-            self::getColumnElementsId() => "$tableAliasElements.id",
-            self::getColumnElementsType() => "$tableAliasElements.type"
+            self::getColumnElementsId() => self::TABLE_ALIAS_ELEMENTS . ".id",
+            self::getColumnElementsType() => self::TABLE_ALIAS_ELEMENTS . ".type"
         ];
+    }
+
+    private static function isInUse(): bool
+    {
+        return Craft::$app->plugins->isPluginEnabled("commerce");
+    }
+
+    public static function getColumnElementsId(): string
+    {
+        return self::class . "_commerce_variants_primaryOwnerId_elements_elementId";
+    }
+
+    public static function getColumnElementsType(): string
+    {
+        return self::class . "_commerce_variants_primaryOwnerId_elements_type";
     }
 
     public static function enrichQuery(Query $query): Query
@@ -29,26 +43,14 @@ class ContentBehaviorCommerceService implements InterfaceContentBehaviourService
             return $query;
         }
 
-        $tableAliasElements = self::TABLE_ALIAS_ELEMENTS;
-        $tableElements = Table::ELEMENTS;
-        $tableCommerceVariants = \craft\commerce\db\Table::VARIANTS;
         return $query
-            ->leftJoin($tableCommerceVariants, "$tableElements.id = $tableCommerceVariants.id")
-            ->leftJoin([$tableAliasElements => $tableElements], "$tableCommerceVariants.id = $tableAliasElements.id");
-    }
-
-    public static function getColumnElementsId(): string
-    {
-        return "commerce_variants_primaryOwnerId_elements_elementId";
-    }
-
-    public static function getColumnElementsType(): string
-    {
-        return "commerce_variants_primaryOwnerId_elements_type";
-    }
-
-    private static function isInUse(): bool
-    {
-        return Craft::$app->plugins->isPluginEnabled("commerce");
+            ->leftJoin(
+                ["commerce_variants" => \craft\commerce\db\Table::VARIANTS],
+                "[[elements_sites.elementId]] = [[commerce_variants.id]]"
+            )
+            ->leftJoin(
+                [self::TABLE_ALIAS_ELEMENTS => Table::ELEMENTS],
+                "[[commerce_variants.id]] = [[" . self::TABLE_ALIAS_ELEMENTS . ".id]]"
+            );
     }
 }

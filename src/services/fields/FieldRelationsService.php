@@ -10,18 +10,22 @@ class FieldRelationsService implements InterfaceFieldService
 {
     public static function getElementsSitesQuery(ElementInterface $element): Query
     {
-        $tableRelations = Table::RELATIONS;
-        $tableElementsSites = Table::ELEMENTS_SITES;
-
         return (new Query())
-            ->select("$tableElementsSites.*")
-            ->from($tableRelations)
-            ->innerJoin($tableElementsSites, "
-                (
-                    ($tableRelations.sourceId = $tableElementsSites.elementId AND $tableRelations.sourceSiteId IS NULL) OR 
-                    ($tableRelations.sourceId = $tableElementsSites.elementId AND $tableRelations.sourceSiteId = $tableElementsSites.siteId)
-                )
-            ")
-            ->where(['and', ['=', "$tableRelations.targetId", $element->id]]);
+            ->select("elements_sites.*")
+            ->from(["relations" => Table::RELATIONS])
+            ->innerJoin(["elements_sites" => Table::ELEMENTS_SITES], [
+                "or",
+                [
+                    "and",
+                    "[[relations.sourceId]] = [[elements_sites.elementId]]",
+                    "[[relations.sourceSiteId]] IS NULL"
+                ],
+                [
+                    "and",
+                    "[[relations.sourceId]] = [[elements_sites.elementId]]",
+                    "[[relations.sourceSiteId]] = [[elements_sites.siteId]]"
+                ]
+            ])
+            ->where(['and', ['=', "relations.targetId", $element->id]]);
     }
 }

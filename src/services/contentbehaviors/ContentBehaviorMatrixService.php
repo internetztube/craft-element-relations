@@ -11,30 +11,32 @@ class ContentBehaviorMatrixService implements InterfaceContentBehaviourService
 
     public static function getColumns(): array
     {
-        $tableAliasElements = self::TABLE_ALIAS_ELEMENTS;
         return [
-            self::getColumnElementsId() => "$tableAliasElements.id",
-            self::getColumnElementsType() => "$tableAliasElements.type",
+            self::getColumnElementsId() => self::TABLE_ALIAS_ELEMENTS . ".id",
+            self::getColumnElementsType() => self::TABLE_ALIAS_ELEMENTS . ".type",
         ];
-    }
-
-    public static function enrichQuery(Query $query): Query
-    {
-        $tableAliasElements = self::TABLE_ALIAS_ELEMENTS;
-        $tableElements = Table::ELEMENTS;
-        $tableEntries = Table::ENTRIES;
-        return $query
-            ->leftJoin($tableEntries, "$tableElements.id = $tableEntries.id")
-            ->leftJoin([$tableAliasElements => $tableElements], "$tableEntries.primaryOwnerId = $tableAliasElements.id");
     }
 
     public static function getColumnElementsId(): string
     {
-        return self::class . "entries_primaryOwnerId_elements_elementId";
+        return self::class . "_entries_primaryOwnerId_elements_elementId";
     }
 
     public static function getColumnElementsType(): string
     {
-        return "entries_primaryOwnerId_elements_type";
+        return self::class . "_entries_primaryOwnerId_elements_type";
+    }
+
+    public static function enrichQuery(Query $query): Query
+    {
+        return $query
+            ->leftJoin(
+                ['entries' => Table::ENTRIES],
+                "[[elements_sites.elementId]] = [[entries.id]]"
+            )
+            ->leftJoin(
+                [self::TABLE_ALIAS_ELEMENTS => Table::ELEMENTS],
+                "[[entries.primaryOwnerId]] = [[" . self::TABLE_ALIAS_ELEMENTS . ".id]]"
+            );
     }
 }

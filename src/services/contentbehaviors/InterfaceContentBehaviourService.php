@@ -10,6 +10,8 @@ interface InterfaceContentBehaviourService
     public static function enrichQuery(Query $query): Query;
 
     public static function getColumns(): array;
+
     public static function getColumnElementsType(): string;
+
     public static function getColumnElementsId(): string;
 }

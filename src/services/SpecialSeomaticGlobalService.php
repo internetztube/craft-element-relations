@@ -2,10 +2,10 @@
 
 namespace internetztube\elementRelations\services;
 
+use Craft;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\Asset;
-use Craft;
 
 class SpecialSeomaticGlobalService
 {

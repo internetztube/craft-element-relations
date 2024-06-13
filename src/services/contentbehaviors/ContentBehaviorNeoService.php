@@ -16,11 +16,25 @@ class ContentBehaviorNeoService implements InterfaceContentBehaviourService
             return [];
         }
 
-        $tableAliasElements = self::TABLE_ALIAS_ELEMENTS;
         return [
-            self::getColumnElementsId() => "$tableAliasElements.id",
-            self::getColumnElementsType() => "$tableAliasElements.type"
+            self::getColumnElementsId() => self::TABLE_ALIAS_ELEMENTS . ".id",
+            self::getColumnElementsType() => self::TABLE_ALIAS_ELEMENTS . ".type"
         ];
+    }
+
+    private static function isInUse(): bool
+    {
+        return Craft::$app->plugins->isPluginEnabled("neo");
+    }
+
+    public static function getColumnElementsId(): string
+    {
+        return self::class . "_neoblocks_primaryOwnerId_elements_elementId";
+    }
+
+    public static function getColumnElementsType(): string
+    {
+        return self::class . "_neoblocks_primaryOwnerId_elements_type";
     }
 
     public static function enrichQuery(Query $query): Query
@@ -29,26 +43,14 @@ class ContentBehaviorNeoService implements InterfaceContentBehaviourService
             return $query;
         }
 
-        $tableNeoblocks = \benf\neo\records\Block::tableName();
-        $tableAliasElements = self::TABLE_ALIAS_ELEMENTS;
-        $tableElements = Table::ELEMENTS;
         return $query
-            ->leftJoin($tableNeoblocks, "$tableElements.id = $tableNeoblocks.id")
-            ->leftJoin([$tableAliasElements => $tableElements], "$tableNeoblocks.primaryOwnerId = $tableAliasElements.id");
-    }
-
-    public static function getColumnElementsId(): string
-    {
-        return "neoblocks_primaryOwnerId_elements_elementId";
-    }
-
-    public static function getColumnElementsType(): string
-    {
-        return "neoblocks_primaryOwnerId_elements_type";
-    }
-
-    private static function isInUse(): bool
-    {
-        return Craft::$app->plugins->isPluginEnabled("neo");
+            ->leftJoin(
+                ['neoblocks' => \benf\neo\records\Block::tableName()],
+                "[[elements_sites.elementId]] = [[neoblocks.id]]"
+            )
+            ->leftJoin(
+                [self::TABLE_ALIAS_ELEMENTS => Table::ELEMENTS],
+                "[[neoblocks.primaryOwnerId]] = [[" . self::TABLE_ALIAS_ELEMENTS . ".id]]"
+            );
     }
 }

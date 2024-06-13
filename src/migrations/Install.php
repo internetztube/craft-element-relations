@@ -3,8 +3,8 @@
 namespace internetztube\elementRelations\migrations;
 
 use Craft;
-use craft\db\Table;
 use craft\db\Migration;
+use craft\db\Table;
 use internetztube\elementRelations\records\ElementRelationsRecord;
 
 class Install extends Migration

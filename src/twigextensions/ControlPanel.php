@@ -11,7 +11,7 @@ class ControlPanel extends AbstractExtension
     public function getFunctions()
     {
         return [
-            new TwigFunction('elementRelationsElementPreviewHtml', function(...$args) {
+            new TwigFunction('elementRelationsElementPreviewHtml', function (...$args) {
                 return Cp::elementPreviewHtml(...$args);
             }),
         ];
