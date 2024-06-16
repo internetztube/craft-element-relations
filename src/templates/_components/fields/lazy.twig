@@ -1,0 +1,58 @@
+<div class="element-relations-lazy" data-id="{{ id }}">
+    <div class="spinner element-relations-lazy-hidden"></div>
+    <div class="js-element-relations-content"></div>
+</div>
+<style>
+    .element-relations-lazy-hidden {
+        display: none;
+    }
+</style>
+<script>
+  (() => {
+    if (!window.elementRelationsQueue) {
+      window.elementRelationsQueue = {
+        items: [],
+        isRunning: false,
+        start() {
+          if(this.isRunning) { return }
+          this.execute()
+        },
+        async execute() {
+          this.isRunning = true
+          const callback = this.items.pop()
+          if (!callback) {
+            this.isRunning = false
+            return
+          }
+          try {
+            await callback()
+          } catch (e) {
+            console.log(e)
+          }
+          this.execute()
+        }
+      }
+    }
+
+    const callback = async () => {
+      let $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
+      let $content = $container.querySelector('.js-element-relations-content')
+      if (!$container) { return; }
+
+      const $spinner = $container.querySelector('.spinner');
+      $spinner.classList.remove('element-relations-lazy-hidden')
+
+      $content.innerHTML = ''
+      const request = await fetch('{{ endpoint | raw }}');
+      $spinner.classList.add('element-relations-lazy-hidden')
+      $container = document.querySelector('[data-id="{{ id }}"].element-relations-lazy');
+      $content = $container.querySelector('.js-element-relations-content');
+      if (!$container) { return; }
+
+      $content.innerHTML = await request.text();
+    };
+    window.elementRelationsQueue.items.unshift(callback)
+    window.elementRelationsQueue.start()
+
+  })();
+</script>

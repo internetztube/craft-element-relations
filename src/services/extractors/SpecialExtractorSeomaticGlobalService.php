@@ -1,13 +1,13 @@
 <?php
 
-namespace internetztube\elementRelations\services;
+namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\Asset;
 
-class SpecialSeomaticGlobalService
+class SpecialExtractorSeomaticGlobalService
 {
     public static function isInUse(ElementInterface $element): bool
     {
