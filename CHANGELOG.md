@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.8 - 2025-06-11
+### Added
+- Display section names next to related elements in relations field. Thank you, [@albertvisuals](https://github.com/albertvisuals)! [#44](https://github.com/internetztube/craft-element-relations/pull/44) 
+
 ## 3.0.7 - 2024-10-04
 ### Added
 - Add table indexes to improve read performance. Thank you, [@webrgp](https://github.com/webrgp)! [#38](https://github.com/internetztube/craft-element-relations/issues/38)
