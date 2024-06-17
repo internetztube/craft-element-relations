@@ -12,6 +12,7 @@ use internetztube\elementRelations\services\extractors\FieldExtractorHyperServic
 use internetztube\elementRelations\services\extractors\FieldExtractorLinkItService;
 use internetztube\elementRelations\services\extractors\FieldExtractorRedactorCkEditorService;
 use internetztube\elementRelations\services\extractors\FieldExtractorSeomaticService;
+use internetztube\elementRelations\services\extractors\FieldExtractorTypedLinkFieldService;
 
 class ExtractorService
 {
@@ -53,6 +54,9 @@ class ExtractorService
                     return $records;
                 }
                 if ($records = FieldExtractorRedactorCkEditorService::getRelations($field, $element, clone $baseRecord)) {
+                    return $records;
+                }
+                if ($records = FieldExtractorTypedLinkFieldService::getRelations($field, $element, clone $baseRecord)) {
                     return $records;
                 }
                 return null;

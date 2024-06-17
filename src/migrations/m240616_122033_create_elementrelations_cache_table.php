@@ -30,8 +30,9 @@ class m240616_122033_create_elementrelations_cache_table extends Migration
         $this->addForeignKey(null, $table, 'sourceSiteId', TABLE::SITES, 'id', 'CASCADE');
         $this->addForeignKey(null, $table, 'sourcePrimaryOwnerId', Table::ELEMENTS, 'id', 'CASCADE');
 
-        $this->addForeignKey(null, $table, 'targetElementId', Table::ELEMENTS, 'id', 'CASCADE');
-        $this->addForeignKey(null, $table, 'targetSiteId', TABLE::SITES, 'id', 'CASCADE');
+        // Removing those, since elements can be linked that are not there anymore, like in Redactor, CkEditor, ....
+//        $this->addForeignKey(null, $table, 'targetElementId', Table::ELEMENTS, 'id', 'CASCADE');
+//        $this->addForeignKey(null, $table, 'targetSiteId', TABLE::SITES, 'id', 'CASCADE');
 
         $this->addForeignKey(null, $table, 'fieldId', TABLE::FIELDS, 'id', 'CASCADE');
 
