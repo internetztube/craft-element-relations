@@ -29,7 +29,7 @@ class FieldExtractorHyperService implements InterfaceFieldExtractor
         return collect($links)
             ->filter(fn (\verbb\hyper\base\Link $link) => $link instanceof ElementLink)
             ->map(function (\verbb\hyper\base\ElementLink $link) use ($field, $baseRecord) {
-               return collect($link->getElements())
+                return collect($link->getElements())
                     ->map(function (ElementInterface $element) use ($field, $baseRecord) {
                         $record = clone $baseRecord;
                         $record->setAttributes([

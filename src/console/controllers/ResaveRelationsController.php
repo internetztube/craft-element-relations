@@ -25,6 +25,8 @@ class ResaveRelationsController extends Controller
      */
     public function actionIndex(): int
     {
+        $this->stdout("Find all elements ..." . PHP_EOL);
+
         ResaveRelationsService::resave(function ($index, $totalCount, $elementType) {
             $message = sprintf("%3s%% - %5s / %5s - %20s", (int) ($index * 100 / $totalCount), $index, $totalCount, $elementType);
             $this->stdout($message . PHP_EOL);

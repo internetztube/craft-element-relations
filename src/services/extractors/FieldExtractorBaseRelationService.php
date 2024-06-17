@@ -24,7 +24,7 @@ class FieldExtractorBaseRelationService implements InterfaceFieldExtractor
         }
 
         /** @var ElementQuery $query */
-        $query = $element->{$field->handle};
+        $query = $element->{$field->handle}->status(null);
 
         /** @var Element $entries */
         $elements = [

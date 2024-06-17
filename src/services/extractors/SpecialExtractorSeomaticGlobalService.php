@@ -14,13 +14,38 @@ class SpecialExtractorSeomaticGlobalService
         if (!Craft::$app->plugins->isPluginEnabled('seomatic') || !($element instanceof Asset)) {
             return false;
         }
-        $queryBuilder = Craft::$app->getDb()->getQueryBuilder();
-        $columnSelector = $queryBuilder->jsonExtract("metaBundleSettings", ["seoImageIds"]);
+        $columnSelector = self::dbJsonExtract("metaBundleSettings", ["seoImageIds"]);
 
         return (new Query())
             ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
             ->where(['=', $columnSelector, "[\"$element->id\"]"])
             ->collect()
             ->isNotEmpty();
+    }
+
+    public static function dbJsonExtract(string $column, array $path): string
+    {
+        $db = Craft::$app->getDb();
+        $column = $db->quoteColumnName($column);
+
+        if ($db->getIsMysql()) {
+            $path = $db->quoteValue(
+                sprintf('$.%s', implode('.', array_map(fn(string $seg) => sprintf('"%s"', $seg), $path)))
+            );
+            // Maria doesn't support ->/->> operators :(
+            if ($db->getIsMaria()) {
+                return "JSON_UNQUOTE(JSON_EXTRACT($column, $path))";
+            }
+            return "($column->>$path)";
+        }
+
+        if ($db->getIsPgsql()) {
+            $path = $db->quoteValue(
+                sprintf('{%s}', implode(',', array_map(fn(string $seg) => sprintf('"%s"', $seg), $path)))
+            );
+
+            return "($column#>>$path)";
+        }
+        return "";
     }
 }

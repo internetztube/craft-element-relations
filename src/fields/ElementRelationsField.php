@@ -6,14 +6,8 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\PreviewableFieldInterface;
-use craft\db\Query;
-use craft\db\Table;
-use craft\elements\db\ElementQuery;
-use Illuminate\Support\Collection;
-use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use internetztube\elementRelations\services\extractors\SpecialExtractorSeomaticGlobalService;
 use internetztube\elementRelations\services\RelationsService;
-use internetztube\elementRelations\services\SpecialSeomaticGlobalService;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
@@ -29,6 +23,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public function getPreviewHtml(mixed $value, ElementInterface $element): string
     {
+        /**
+         * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
+         * to the canonical.
+         */
+        $element = $element->getCanonical();
         return Craft::$app->getView()->renderTemplate('element-relations/_components/fields/relations_preview', [
             'relations' => RelationsService::getRelations($element),
             'seomaticGlobal' => SpecialExtractorSeomaticGlobalService::isInUse($element),
@@ -37,6 +36,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public function getInputHtml(mixed $value, ElementInterface $element = null): string
     {
+        /**
+         * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
+         * to the canonical.
+         */
+        $element = $element->getCanonical();
         return Craft::$app->getView()->renderTemplate('element-relations/_components/fields/relations', [
             'relations' => RelationsService::getRelations($element),
             'seomaticGlobal' => SpecialExtractorSeomaticGlobalService::isInUse($element),
