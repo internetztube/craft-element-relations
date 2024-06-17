@@ -18,7 +18,9 @@ class ResaveSingleElementRelations extends BaseJob
     function execute($queue): void
     {
         $element = Craft::$app->getElements()->getElementById($this->elementId, null, $this->siteId);
-        ExtractorService::refreshRelationsForElement($element);
+        if ($element) {
+            ExtractorService::refreshRelationsForElement($element);
+        }
     }
 
     protected function defaultDescription(): ?string
