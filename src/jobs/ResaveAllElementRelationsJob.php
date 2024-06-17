@@ -19,6 +19,6 @@ class ResaveAllElementRelationsJob extends BaseJob
     }
     protected function defaultDescription(): ?string
     {
-        return "Resave Element Relations";
+        return "Resave All Element Relations";
     }
 }

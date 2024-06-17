@@ -11,10 +11,10 @@ use craft\services\Fields;
 use craft\services\Plugins;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
+use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ProfilePhotoService;
-use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\SeomaticService;
 use internetztube\elementRelations\services\UserPhotoService;
 use internetztube\elementRelations\twigextensions\ControlPanel;
@@ -45,10 +45,11 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (Event $event) {
             /** @var Element $element */
             $element = $event->sender;
-            // @TODO move logic into queue to not increase save times
-//            $job = new ResaveSingleElementRelations(['element' => $element]);
-//            Craft::$app->getQueue()->priority(1022)->push($job);
-            ExtractorService::refreshRelationsForElement($element);
+            $job = new ResaveSingleElementRelations([
+                'elementId' => $element->id,
+                'siteId' => $element->siteId,
+            ]);
+            Craft::$app->getQueue()->priority(1022)->push($job);
         });
 
         $pluginEnableCallback = function (PluginEvent $event) {

@@ -5,18 +5,20 @@ namespace internetztube\elementRelations\jobs;
 use Craft;
 use craft\base\ElementInterface;
 use craft\queue\BaseJob;
+use internetztube\elementRelations\services\ExtractorService;
 
 /**
  * Resave Single Element Relations queue job
  */
 class ResaveSingleElementRelations extends BaseJob
 {
-    public ElementInterface $element;
+    public int $elementId;
+    public int $siteId;
 
     function execute($queue): void
     {
-        // @TODO move logic into queue
-        dd($this->element);
+        $element = Craft::$app->getElements()->getElementById($this->elementId, null, $this->siteId);
+        ExtractorService::refreshRelationsForElement($element);
     }
 
     protected function defaultDescription(): ?string
