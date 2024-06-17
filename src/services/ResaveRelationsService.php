@@ -23,8 +23,10 @@ class ResaveRelationsService
                 if (!class_exists($elementType)) {
                     return [];
                 }
+
                 /** @var ElementQuery $query */
-                $query = $elementType::find()->status(null);
+                $query = $elementType::find();
+                $query->status(null)->site('*');
                 return [clone $query, (clone $query)->drafts()];
             })
             ->flatten(1);
@@ -32,6 +34,7 @@ class ResaveRelationsService
         $totalCount = $queries
             ->map(fn (ElementQuery $query) => $query->count())
             ->sum();
+
         $index = 0;
 
         $queries->map(function (ElementQuery $elementQuery) use (&$index, $totalCount, $progressCallback) {
