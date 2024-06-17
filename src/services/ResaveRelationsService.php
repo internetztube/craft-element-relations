@@ -12,6 +12,8 @@ class ResaveRelationsService
 {
     public static function resave(callable $progressCallback = null): void
     {
+        $totalCount = 0;
+
         /** @var Collection $queries */
         $queries = (new Query())
             ->select("type")
@@ -19,7 +21,7 @@ class ResaveRelationsService
             ->groupBy("type")
             ->collect()
             ->pluck("type")
-            ->map(function (string $elementType) {
+            ->map(function (string $elementType) use (&$totalCount) {
                 if (!class_exists($elementType)) {
                     return [];
                 }
@@ -27,13 +29,23 @@ class ResaveRelationsService
                 /** @var ElementQuery $query */
                 $query = $elementType::find();
                 $query->status(null)->site('*');
-                return [clone $query, (clone $query)->drafts()];
-            })
-            ->flatten(1);
 
-        $totalCount = $queries
-            ->map(fn (ElementQuery $query) => $query->count())
-            ->sum();
+                $defaultQuery = clone $query;
+                $draftQuery = (clone $query)->drafts();
+
+                try {
+                    $localCount = 0;
+                    $localCount += (clone $defaultQuery)->count();
+                    $localCount += (clone $draftQuery)->count();
+                    $totalCount += $localCount;
+                    return [$defaultQuery, $draftQuery];
+                } catch (\Exception $e) {
+                    echo $e->getMessage();
+                    return null;
+                }
+            })
+            ->flatten(1)
+            ->filter();
 
         $index = 0;
 
