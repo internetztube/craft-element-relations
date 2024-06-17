@@ -4,17 +4,13 @@ namespace internetztube\elementRelations;
 
 use Craft;
 use craft\base\Element;
-use craft\base\Model;
 use craft\base\Plugin;
 use craft\events\PluginEvent;
 use craft\events\RegisterComponentTypesEvent;
-use craft\services\Elements;
 use craft\services\Fields;
 use craft\services\Plugins;
-use craft\services\Utilities;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
-use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ProfilePhotoService;
