@@ -15,11 +15,12 @@ class ResaveSingleElementRelations extends BaseJob
 
     function execute($queue): void
     {
+        // @TODO move logic into queue
         dd($this->element);
     }
 
     protected function defaultDescription(): ?string
     {
-        return "Resave Element Relation";
+        return "Resave Single Element Relation";
     }
 }

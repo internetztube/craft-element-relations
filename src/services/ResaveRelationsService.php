@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 
 class ResaveRelationsService
 {
-    public static function resave(callable $progressCallback): void
+    public static function resave(callable $progressCallback = null): void
     {
         /** @var Collection $queries */
         $queries = (new Query())
@@ -51,8 +51,7 @@ class ResaveRelationsService
                 $result = (clone $elementQuery)->offset($i)->collect();
                 $index += $result->count();
                 $progressCallback && $progressCallback($index, $totalCount, $item["type"]);
-
-                $result->each(fn (ElementInterface $element) => RelationsExtractorService::getRelations($element));
+                $result->each(fn (ElementInterface $element) => ExtractorService::refreshRelationsForElement($element));
             }
         });
     }

@@ -17,9 +17,8 @@ class ResaveAllElementRelationsJob extends BaseJob
             $this->setProgress($queue, $index / $totalCount, "$index/$totalCount");
         });
     }
-
     protected function defaultDescription(): ?string
     {
-        return "Resave All Element Relations";
+        return "Resave Element Relations";
     }
 }

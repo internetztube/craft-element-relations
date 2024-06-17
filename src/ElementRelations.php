@@ -6,16 +6,19 @@ use Craft;
 use craft\base\Element;
 use craft\base\Model;
 use craft\base\Plugin;
+use craft\events\PluginEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\services\Elements;
 use craft\services\Fields;
+use craft\services\Plugins;
 use craft\services\Utilities;
 use internetztube\elementRelations\fields\ElementRelationsField;
+use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
 use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ProfilePhotoService;
-use internetztube\elementRelations\services\RelationsExtractorService;
+use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\SeomaticService;
 use internetztube\elementRelations\services\UserPhotoService;
 use internetztube\elementRelations\twigextensions\ControlPanel;
@@ -46,10 +49,21 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (Event $event) {
             /** @var Element $element */
             $element = $event->sender;
+            // @TODO move logic into queue to not increase save times
 //            $job = new ResaveSingleElementRelations(['element' => $element]);
 //            Craft::$app->getQueue()->priority(1022)->push($job);
-            RelationsExtractorService::getRelations($element);
+            ExtractorService::refreshRelationsForElement($element);
         });
+
+        $pluginEnableCallback = function (PluginEvent $event) {
+            if (!($event->plugin instanceof ElementRelations)) {
+                return;
+            }
+            Craft::$app->getQueue()->priority(1021)->push(new ResaveAllElementRelationsJob);
+        };
+        Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
+        Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
+
         Craft::$app->view->registerTwigExtension(new ControlPanel());
     }
 }

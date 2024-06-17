@@ -13,11 +13,20 @@ use internetztube\elementRelations\services\extractors\FieldExtractorLinkItServi
 use internetztube\elementRelations\services\extractors\FieldExtractorRedactorCkEditorService;
 use internetztube\elementRelations\services\extractors\FieldExtractorSeomaticService;
 
-class RelationsExtractorService
+class ExtractorService
 {
-    public static function getRelations(ElementInterface $element)
+    /**
+     * @param ElementInterface $element
+     * @return bool
+     * @throws \yii\db\Exception
+     */
+    public static function refreshRelationsForElement(ElementInterface $element): bool
     {
-        $fields = $element->getFieldLayout()?->getCustomFields();
+        $fieldLayout = $element->getFieldLayout();
+        if (!$fieldLayout) {
+            return false;
+        }
+        $fields = $fieldLayout->getCustomFields();
         if (!$fields) {
             return false;
         }

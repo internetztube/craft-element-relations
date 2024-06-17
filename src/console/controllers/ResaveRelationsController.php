@@ -12,8 +12,6 @@ use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\ElementQueryInterface;
 use Illuminate\Support\Collection;
-use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
-use internetztube\elementRelations\services\RelationsExtractorService;
 use internetztube\elementRelations\services\ResaveRelationsService;
 use yii\console\ExitCode;
 
@@ -27,10 +25,8 @@ class ResaveRelationsController extends Controller
      */
     public function actionIndex(): int
     {
-        Craft::$app->queue->priority(1023)->push(new ResaveAllElementRelationsJob());
-        return ExitCode::OK;
         ResaveRelationsService::resave(function ($index, $totalCount, $elementType) {
-            $message = sprintf("%5s / %5s - %20s", $index, $totalCount, $elementType);
+            $message = sprintf("%3s%% - %5s / %5s - %20s", (int) ($index * 100 / $totalCount), $index, $totalCount, $elementType);
             $this->stdout($message . PHP_EOL);
         });
         return ExitCode::OK;
