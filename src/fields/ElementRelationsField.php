@@ -6,8 +6,8 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\PreviewableFieldInterface;
-use internetztube\elementRelations\services\extractors\SpecialExtractorSeomaticGlobalService;
-use internetztube\elementRelations\services\RelationsService;
+use craft\helpers\StringHelper;
+use craft\helpers\UrlHelper;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
@@ -23,27 +23,33 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public function getPreviewHtml(mixed $value, ElementInterface $element): string
     {
-        /**
-         * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
-         * to the canonical.
-         */
-        $element = $element->getCanonical();
-        return Craft::$app->getView()->renderTemplate('element-relations/_components/fields/relations_preview', [
-            'relations' => RelationsService::getRelations($element),
-            'seomaticGlobal' => SpecialExtractorSeomaticGlobalService::isInUse($element),
-        ]);
+        return $this->render($element, true);
     }
 
     public function getInputHtml(mixed $value, ElementInterface $element = null): string
+    {
+        return $this->render($element, false);
+    }
+
+    private function render(ElementInterface $element, bool $isPreview): string
     {
         /**
          * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
          * to the canonical.
          */
         $element = $element->getCanonical();
-        return Craft::$app->getView()->renderTemplate('element-relations/_components/fields/relations', [
-            'relations' => RelationsService::getRelations($element),
-            'seomaticGlobal' => SpecialExtractorSeomaticGlobalService::isInUse($element),
-        ]);
+        $endpoint = UrlHelper::actionUrl('element-relations/element-relations/get-by-element-id', [
+            'elementId' => $element->id,
+            'siteId' => $element->siteId,
+            'is-preview' => $isPreview ? 'true' : 'false',
+        ], null, false);
+
+        return Craft::$app->getView()->renderTemplate(
+            'element-relations/_components/fields/lazy',
+            [
+                'id' => sprintf('%s-%s-%s', $element->id, $element->siteId, StringHelper::randomString(6)),
+                'endpoint' => $endpoint,
+            ]
+        );
     }
 }
