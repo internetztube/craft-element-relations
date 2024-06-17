@@ -2,12 +2,12 @@
 
 namespace internetztube\elementRelations\services;
 
+use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use internetztube\elementRelations\services\extractors\ElementExtractorUserPhotoService;
 use internetztube\elementRelations\services\extractors\FieldExtractorBaseRelationService;
-use internetztube\elementRelations\services\extractors\FieldExtractorCkEditorService;
 use internetztube\elementRelations\services\extractors\FieldExtractorHyperService;
 use internetztube\elementRelations\services\extractors\FieldExtractorLinkItService;
 use internetztube\elementRelations\services\extractors\FieldExtractorRedactorCkEditorService;
@@ -74,8 +74,12 @@ class ExtractorService
 
     private static function getPrimaryOwner(ElementInterface $element): ElementInterface
     {
-        while (method_exists($element, 'getPrimaryOwner') && $primaryOwner = $element->getPrimaryOwner()) {
-            $element = $primaryOwner;
+        while (
+            property_exists($element, 'primaryOwnerId')
+            && $element->primaryOwnerId
+            && $newElement = Craft::$app->getElements()->getElementById($element->primaryOwnerId, null, $element->siteId)
+        ) {
+            $element = $newElement;
         }
         return $element;
     }
