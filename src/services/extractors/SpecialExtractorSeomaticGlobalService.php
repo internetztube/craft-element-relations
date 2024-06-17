@@ -44,7 +44,7 @@ class SpecialExtractorSeomaticGlobalService
                 sprintf('{%s}', implode(',', array_map(fn(string $seg) => sprintf('"%s"', $seg), $path)))
             );
 
-            return "($column#>>$path)";
+            return "($column::json#>>$path)";
         }
         return "";
     }
