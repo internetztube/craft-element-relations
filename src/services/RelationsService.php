@@ -44,6 +44,7 @@ class RelationsService
                 /** @var ElementQuery $query */
                 $query = $elementType::find()
                     ->where(["or", ...$whereStatements])
+                    ->site('*')
                     ->status(null);
 
                 return [
