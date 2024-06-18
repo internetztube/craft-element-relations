@@ -2,7 +2,7 @@
     "name": "internetztube/craft-element-relations",
     "description": "Shows all relations of an element.",
     "type": "craft-plugin",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "keywords": [
         "craft",
         "cms",
