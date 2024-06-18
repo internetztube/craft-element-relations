@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 3.0.0
+## 3.0.1 - 2024-06-18
+### Added
+- Utility for pushing ResaveAllElementRelationsJob into Queue.
+
+### Fixed
+- Resaving issue where there a lot of Elements.
+
+## 3.0.0 - 2024-06-18
 ### Added
 - Added support for Craft 5 and kept support for Craft 4.
 - Added support for Matrix on Craft 5.
