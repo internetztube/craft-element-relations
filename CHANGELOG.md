@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Utility for pushing ResaveAllElementRelationsJob into Queue.
 
 ### Fixed
-- Resaving issue where there a lot of Elements.
+- Resaving issue when there a lot of Elements.
 
 ## 3.0.0 - 2024-06-18
 ### Added
