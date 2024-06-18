@@ -1,4 +1,4 @@
-# Element Relations Plugin for Craft CMS 4.x
+# Element Relations Plugin for Craft CMS 4.x and 5.x
 
 This plugin shows all relations of an element. For example, where an asset, entry or any other element is linked.
 
@@ -8,7 +8,7 @@ __Feature Requests are welcome!__
 
 ## Requirements
 
-This plugin requires Craft CMS 4.0.0 or later.
+This plugin requires Craft CMS 4.0.0 or 5.0.0 later.
 
 ## Installation
 To install this plugin, follow these steps:
@@ -17,26 +17,21 @@ To install this plugin, follow these steps:
 
 You can also install this plugin via the Plugin Store in the Craft Control Panel.
 
-Optional:
-Copy config file into project.
-```
-cp vendor/internetztube/craft-element-relations/src/config.php config/element-relations.php
-```
-
 ## Support
 As a basis the relations table is used. This means that any field that stores relations in the relations table will work out of the box.
-* Most Craft CMS internal fields
-* NEO
+
+* Entries, Assets, Categories, Globals, Users, Products, ... 
+* Matrix
+* Neo
 * SuperTable
+* User Photo
 * SEOmatic
-* Profile Photos
 * Redactor
+* CkEditor
+* Hyper
 * LinkIt
-* ... and many more.
-
-
-## Caching
-Caching is enabled by default and set to `1 week`. These settings can be overridden using a local config file.
+* TypedLinkField   
+... and many more.
 
 ## Screenshots
 
