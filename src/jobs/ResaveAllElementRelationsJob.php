@@ -3,22 +3,24 @@
 namespace internetztube\elementRelations\jobs;
 
 use Craft;
+use craft\helpers\Db;
 use craft\queue\BaseJob;
-use internetztube\elementRelations\services\ResaveRelationsService;
+use internetztube\elementRelations\services\ExtractorService;
 
-/**
- * Resave Element Relations Job queue job
- */
 class ResaveAllElementRelationsJob extends BaseJob
 {
+    public array $batch;
+
     function execute($queue): void
     {
-        ResaveRelationsService::resave(function (int $index, int $totalCount, string $elementType) use ($queue) {
+        $totalCount = count($this->batch);
+        foreach ($this->batch as $index => $row) {
+            $element = \Craft::$app->getElements()->getElementById($row['elementId'], trim($row['type']), $row['siteId']);
             $this->setProgress($queue, $index / $totalCount, "$index/$totalCount");
-        });
-    }
-    protected function defaultDescription(): ?string
-    {
-        return "Resave All Element Relations";
+            if (!$element) {
+                continue;
+            }
+            ExtractorService::refreshRelationsForElement($element);
+        }
     }
 }

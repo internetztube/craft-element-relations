@@ -12,7 +12,7 @@ use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
 use internetztube\elementRelations\fields\ElementRelationsField;
-use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
+use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
 use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\services\CacheService;
@@ -66,7 +66,7 @@ class ElementRelations extends Plugin
             if (!($event->plugin instanceof ElementRelations)) {
                 return;
             }
-            Craft::$app->getQueue()->priority(1021)->push(new ResaveAllElementRelationsJob);
+            Craft::$app->getQueue()->priority(1021)->push(new GenerateResaveAllElementRelationsJobsJob());
         };
         Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);

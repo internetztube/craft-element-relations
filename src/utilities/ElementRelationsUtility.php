@@ -4,7 +4,7 @@ namespace internetztube\elementRelations\utilities;
 
 use Craft;
 use craft\base\Utility;
-use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
+use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
 
 /**
  * Element Relations utility
@@ -30,7 +30,7 @@ class ElementRelationsUtility extends Utility
     {
         $pushed = false;
         if (Craft::$app->request->getIsPost()) {
-            Craft::$app->getQueue()->push(new ResaveAllElementRelationsJob());
+            Craft::$app->getQueue()->push(new GenerateResaveAllElementRelationsJobsJob());
             $pushed = true;
         }
         return Craft::$app->getView()->renderTemplate("element-relations/_utility", ["pushed" => $pushed]);
