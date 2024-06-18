@@ -26,7 +26,7 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
             ->where(['is', 'elements.dateDeleted', null])
             ->where(['is', 'elements.revisionId', null]);
 
-        $batchSize = 10000;
+        $batchSize = 2000;
         $totalCount = $query->count();
         $totalBatches = ceil($totalCount / $batchSize);
         $index = 0;
