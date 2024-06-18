@@ -14,47 +14,24 @@ class ResaveRelationsService
     {
         $totalCount = 0;
 
-        /** @var Collection $queries */
-        $queries = (new Query())
-            ->select("type")
-            ->from(Table::ELEMENTS)
-            ->groupBy("type")
-            ->collect()
-            ->pluck("type")
-            ->map(function (string $elementType) use (&$totalCount) {
-                if (!class_exists($elementType)) {
-                    return [];
-                }
+        /** @var Collection $rows */
+        $rows = (new Query())
+            ->select([
+                'elements_sites.elementId',
+                'elements_sites.siteId',
+                'elements.type'
+            ])
+            ->from(['elements_sites' => Table::ELEMENTS_SITES])
+            ->innerJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elements_sites.elementId]]")
+            ->where(['is', 'elements.dateDeleted', null])
+            ->collect();
 
-                /** @var ElementQuery $query */
-                $query = $elementType::find();
-                $query->status(null)->site('*');
+        $totalCount = $rows->count();
 
-                $defaultQuery = clone $query;
-                $draftQuery = (clone $query)->drafts();
-
-                try {
-                    $localCount = 0;
-                    $localCount += (clone $defaultQuery)->count();
-                    $localCount += (clone $draftQuery)->count();
-                    $totalCount += $localCount;
-                    return [$defaultQuery, $draftQuery];
-                } catch (\Exception $e) {
-                    echo $e->getMessage();
-                    return null;
-                }
-            })
-            ->flatten(1)
-            ->filter();
-
-        $index = 0;
-
-        $queries->map(function (ElementQuery $elementQuery) use (&$index, $totalCount, $progressCallback) {
-            foreach ($elementQuery->each() as $item) {
-                $progressCallback && $progressCallback($index, $totalCount, $item::class);
-                ExtractorService::refreshRelationsForElement($item);
-                $index += 1;
-            }
+        $rows->each(function (array $row, int $index) use (&$totalCount, $progressCallback) {
+            $element = \Craft::$app->getElements()->getElementById($row['elementId'], null, $row['siteId']);
+            $progressCallback && $progressCallback($index+1, $totalCount, $element::class);
+            ExtractorService::refreshRelationsForElement($element);
         });
     }
 }

@@ -13,7 +13,7 @@ class ResaveAllElementRelationsJob extends BaseJob
 {
     function execute($queue): void
     {
-        ResaveRelationsService::resave(function ($index, $totalCount, $elementType) use ($queue) {
+        ResaveRelationsService::resave(function (int $index, int $totalCount, string $elementType) use ($queue) {
             $this->setProgress($queue, $index / $totalCount, "$index/$totalCount");
         });
     }
