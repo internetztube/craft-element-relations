@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.2 - 2024-06-18
+### Fixed
+- Move Resaving completely into queue + 10k batching.
+
 ## 3.0.1 - 2024-06-18
 ### Added
 - Utility for pushing ResaveAllElementRelationsJob into Queue.
