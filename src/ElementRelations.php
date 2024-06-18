@@ -5,10 +5,12 @@ namespace internetztube\elementRelations;
 use Craft;
 use craft\base\Element;
 use craft\base\Plugin;
+use craft\console\Application as ConsoleApplication;
 use craft\events\PluginEvent;
 use craft\events\RegisterComponentTypesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
+use craft\services\Utilities;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\ResaveAllElementRelationsJob;
 use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
@@ -20,12 +22,11 @@ use internetztube\elementRelations\services\UserPhotoService;
 use internetztube\elementRelations\twigextensions\ControlPanel;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
 use yii\base\Event;
-use craft\console\Application as ConsoleApplication;
 
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = '1.0.6';
+    public string $schemaVersion = "1.0.6";
     public bool $hasCpSettings = false;
     public bool $hasCpSection = false;
 
@@ -40,6 +41,15 @@ class ElementRelations extends Plugin
 
         Event::on(Fields::class, Fields::EVENT_REGISTER_FIELD_TYPES, function (RegisterComponentTypesEvent $event) {
             $event->types[] = ElementRelationsField::class;
+        });
+
+        if (version_compare(Craft::$app->getVersion(), "5.0", ">=")) {
+            $utilitiesEvent = Utilities::EVENT_REGISTER_UTILITIES;
+        } else {
+            $utilitiesEvent = Utilities::EVENT_REGISTER_UTILITY_TYPES;
+        }
+        Event::on(Utilities::class, $utilitiesEvent, function (RegisterComponentTypesEvent $event) {
+            $event->types[] = ElementRelationsUtility::class;
         });
 
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (Event $event) {

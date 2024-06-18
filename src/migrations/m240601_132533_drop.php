@@ -11,8 +11,8 @@ class m240601_132533_drop extends Migration
 {
     public function safeUp()
     {
-        if ($this->db->tableExists('{{%elementrelations}}')) {
-            $this->dropTable('{{%elementrelations}}');
+        if ($this->db->tableExists("{{%elementrelations}}")) {
+            $this->dropTable("{{%elementrelations}}");
         }
         return true;
     }

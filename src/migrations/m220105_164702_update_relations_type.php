@@ -10,7 +10,7 @@ class m220105_164702_update_relations_type extends Migration
     public function safeUp()
     {
         $table = ElementRelationsRecord::tableName();
-        $this->alterColumn($table, 'relations', $this->mediumText());
+        $this->alterColumn($table, "relations", $this->mediumText());
         return true;
     }
 

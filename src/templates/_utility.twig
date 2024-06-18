@@ -1,0 +1,19 @@
+{% import "_includes/forms" as forms %}
+
+<h1>{{ "utility-main-headline" | t("element-relations") }}</h1>
+
+<form method="post">
+    {{ csrfInput() }}
+    <button type="submit" class="btn submit">
+        {{ "utility-form-rebuild-cache-button-label" | t("element-relations") }}
+    </button>
+</form>
+
+
+{% if pushed %}
+    <script>
+        window.addEventListener("load", function () {
+            Craft.cp.displayNotice("{{ "utility-form-rebuild-cache-success-notice" | t("element-relations") }}.");
+        })
+    </script>
+{% endif %}

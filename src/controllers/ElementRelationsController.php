@@ -17,16 +17,16 @@ class ElementRelationsController extends Controller
 
     public function actionGetByElementId()
     {
-        $elementId = (int)Craft::$app->request->getParam('elementId');
-        $siteId = Craft::$app->request->getParam('siteId');
-        $isPreview = Craft::$app->request->getParam('is-preview') === 'true';
+        $elementId = (int)Craft::$app->request->getParam("elementId");
+        $siteId = Craft::$app->request->getParam("siteId");
+        $isPreview = Craft::$app->request->getParam("is-preview") === "true";
 
         $element = Craft::$app->elements->getElementById($elementId, null, $siteId);
-        $template = 'element-relations/_components/fields/relations' . ($isPreview ? '_preview' : '');
+        $template = "element-relations/_components/fields/relations" . ($isPreview ? "_preview" : "");
 
         return Craft::$app->getView()->renderTemplate($template, [
-            'relations' => RelationsService::getRelations($element),
-            'seomaticGlobal' => SpecialExtractorSeomaticGlobalService::isInUse($element),
+            "relations" => RelationsService::getRelations($element),
+            "seomaticGlobal" => SpecialExtractorSeomaticGlobalService::isInUse($element),
         ]);
     }
 }

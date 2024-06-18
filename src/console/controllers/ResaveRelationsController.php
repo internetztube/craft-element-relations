@@ -26,7 +26,7 @@ class ResaveRelationsController extends Controller
     public function options($actionID): array
     {
         $options = parent::options($actionID);
-        $options[] = 'queue';
+        $options[] = "queue";
         return $options;
     }
 

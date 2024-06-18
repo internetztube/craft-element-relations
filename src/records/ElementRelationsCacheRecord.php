@@ -23,25 +23,25 @@ use craft\db\ActiveRecord;
 class ElementRelationsCacheRecord extends ActiveRecord
 {
 
-    public const TYPE_FIELD = 'field';
-    public const TYPE_ELEMENT_USER_PHOTO = 'element-user-photo';
+    public const TYPE_FIELD = "field";
+    public const TYPE_ELEMENT_USER_PHOTO = "element-user-photo";
 
     public static function tableName()
     {
-        return '{{%elementrelations_cache}}';
+        return "{{%elementrelations_cache}}";
     }
 
     public function safeAttributes(): array
     {
         return [
-            'sourceElementId',
-            'sourceSiteId',
-            'sourcePrimaryOwnerId',
-            'targetElementId',
-            'targetSiteId',
-            'fieldId',
-            'customFieldUid',
-            'type',
+            "sourceElementId",
+            "sourceSiteId",
+            "sourcePrimaryOwnerId",
+            "targetElementId",
+            "targetSiteId",
+            "fieldId",
+            "customFieldUid",
+            "type",
         ];
     }
 
