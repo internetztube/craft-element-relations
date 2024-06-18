@@ -24,7 +24,7 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
             ->from(['elements_sites' => Table::ELEMENTS_SITES])
             ->innerJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elements_sites.elementId]]")
             ->where(['is', 'elements.dateDeleted', null])
-            ->where(['is', 'elements.revisionId', null]);
+            ->andWhere(['is', 'elements.revisionId', null]);
 
         $batchSize = 2000;
         $totalCount = $query->count();
