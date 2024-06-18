@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.3 - 2024-06-18
+### Fixed
+- Fixed an issue which occurred when an Entry has an `entries.primaryOwnerId` which does not exist anymore. [#35](https://github.com/internetztube/craft-element-relations/issues/35)
+
 ## 3.0.2 - 2024-06-18
 ### Fixed
 - Move Resaving completely into queue + 2k batching.

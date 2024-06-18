@@ -34,6 +34,7 @@ class RelationsService
                 ['=', 'elementrelations_cache.targetSiteId', $element->siteId],
             ])
             ->collect()
+            ->filter(fn (array $row) => $row['type'])
             ->groupBy('type')
             ->map(function (Collection $items, string $elementType) {
                 $whereStatements = $items->map(fn($value) => [
@@ -53,6 +54,26 @@ class RelationsService
                 ];
             })
             ->flatten()
+
+            // Check if Element has a valid `primaryOwner` or ´owner`
+            // https://github.com/internetztube/craft-element-relations/issues/35
+            ->filter(function (ElementInterface $element) {
+                if (method_exists($element, 'getPrimaryOwner')) {
+                    try {
+                        $element->getPrimaryOwner();
+                    } catch (\Exception $e) {
+                        return false;
+                    }
+                }
+                if (method_exists($element, 'getOwner')) {
+                    try {
+                        $element->getOwner();
+                    } catch (\Exception $e) {
+                        return false;
+                    }
+                }
+                return true;
+            })
             ->all();
     }
 }
