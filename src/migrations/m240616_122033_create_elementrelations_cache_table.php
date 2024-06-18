@@ -12,30 +12,21 @@ class m240616_122033_create_elementrelations_cache_table extends Migration
     {
         $table = ElementRelationsCacheRecord::tableName();
         $this->createTable($table, [
-            "id" => $this->primaryKey(),
-            "sourceElementId" => $this->integer()->notNull(),
-            "sourceSiteId" => $this->integer()->notNull(),
-            "sourcePrimaryOwnerId" => $this->integer()->notNull(),
-            "targetElementId" => $this->integer()->notNull(),
-            "targetSiteId" => $this->integer()->notNull(),
-            "customFieldUid" => $this->string(),
-            "fieldId" => $this->integer(),
-            "type" => $this->string()->notNull(),
-            "dateCreated" => $this->dateTime()->notNull(),
-            "dateUpdated" => $this->dateTime()->notNull(),
-            "uid" => $this->uid(),
+            'id' => $this->primaryKey(),
+            'sourceElementId' => $this->integer()->notNull(),
+            'sourceSiteId' => $this->integer()->notNull(),
+            'sourcePrimaryOwnerId' => $this->integer()->notNull(),
+            'targetElementId' => $this->integer()->notNull(),
+            'targetSiteId' => $this->integer()->notNull(),
+            'customFieldUid' => $this->string(),
+            'fieldId' => $this->integer(),
+            'type' => $this->string()->notNull(),
+            'dateCreated' => $this->dateTime()->notNull(),
+            'dateUpdated' => $this->dateTime()->notNull(),
+            'uid' => $this->uid(),
         ]);
 
-        $this->addForeignKey(null, $table, "sourceElementId", Table::ELEMENTS, "id", "CASCADE");
-        $this->addForeignKey(null, $table, "sourceSiteId", TABLE::SITES, "id", "CASCADE");
-        $this->addForeignKey(null, $table, "sourcePrimaryOwnerId", Table::ELEMENTS, "id", "CASCADE");
-
-        // Removing those, since elements can be linked that are not there anymore, like in Redactor, CkEditor, ....
-//        $this->addForeignKey(null, $table, "targetElementId", Table::ELEMENTS, "id", "CASCADE");
-//        $this->addForeignKey(null, $table, "targetSiteId", TABLE::SITES, "id", "CASCADE");
-
-        $this->addForeignKey(null, $table, "fieldId", TABLE::FIELDS, 'id', 'CASCADE');
-
+        // No foreign keys, since elements can be linked that are not there anymore, like in Redactor, CkEditor, ....
         return true;
     }
 

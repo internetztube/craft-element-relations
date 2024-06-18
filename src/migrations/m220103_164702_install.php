@@ -4,39 +4,36 @@ namespace internetztube\elementRelations\migrations;
 
 use Craft;
 use craft\db\Migration;
-use internetztube\elementRelations\records\ElementRelationsRecord;
+use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class m220103_164702_install extends Migration
 {
     public function safeUp()
     {
-        $table = ElementRelationsRecord::tableName();
-        if (!$this->db->tableExists($table)) {
-            $this->createTable($table, [
-                "id" => $this->primaryKey(),
-                "elementId" => $this->integer()->notNull(),
-                "siteId" => $this->integer()->notNull(),
-                "relations" => $this->mediumText(),
-                "markup" => $this->text(),
-                "dateCreated" => $this->dateTime()->notNull(),
-                "dateUpdated" => $this->dateTime()->notNull(),
-                "uid" => $this->uid(),
-            ]);
+        $table = ElementRelationsCacheRecord::tableName();
+        $this->createTable($table, [
+            'id' => $this->primaryKey(),
+            'sourceElementId' => $this->integer()->notNull(),
+            'sourceSiteId' => $this->integer()->notNull(),
+            'sourcePrimaryOwnerId' => $this->integer()->notNull(),
+            'targetElementId' => $this->integer()->notNull(),
+            'targetSiteId' => $this->integer()->notNull(),
+            'customFieldUid' => $this->string(),
+            'fieldId' => $this->integer(),
+            'type' => $this->string()->notNull(),
+            'dateCreated' => $this->dateTime()->notNull(),
+            'dateUpdated' => $this->dateTime()->notNull(),
+            'uid' => $this->uid(),
+        ]);
+        Craft::$app->db->schema->refresh();
 
-            $this->createIndex(null, $table, ["elementId", "siteId"], true);
-            $this->addForeignKey(null, $table, "elementId", "{{%elements}}", "id", "CASCADE");
-            $this->addForeignKey(null, $table, "siteId", "{{%sites}}", "id", "CASCADE");
-
-            // Refresh the db schema caches
-            Craft::$app->db->schema->refresh();
-        }
-
+        // No foreign keys, since elements can be linked that are not there anymore, like in Redactor, CkEditor, ....
         return true;
     }
 
     public function safeDown()
     {
-        $table = ElementRelationsRecord::tableName();
+        $table = ElementRelationsCacheRecord::tableName();
         if ($this->db->tableExists($table)) {
             $this->dropTable($table);
             Craft::$app->db->schema->refresh();
