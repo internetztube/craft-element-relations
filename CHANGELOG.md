@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.4 - 2024-06-21
+### Fixed
+- Fixed Field Preview on Craft 4.
+- Fixed Craft 4 MySql SEOmatic Global Relations Issue. [#36](https://github.com/internetztube/craft-element-relations/issues/36)
+
 ## 3.0.3 - 2024-06-18
 ### Fixed
 - Fixed an issue which occurred when an Entry has an `entries.primaryOwnerId` which does not exist anymore. [#35](https://github.com/internetztube/craft-element-relations/issues/35)
@@ -34,11 +39,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## 2.0.3 - 2024-01-26
 ### Fixed
-When caching is enabled but the relation fetching is not finished yet, an exception got thrown. [#31](https://github.com/internetztube/craft-element-relations/issues/31)
+- When caching is enabled but the relation fetching is not finished yet, an exception got thrown. [#31](https://github.com/internetztube/craft-element-relations/issues/31)
 
 ## 2.0.2 - 2022-09-01
 ### Fixed
-Fix error, if entry doesn't exist in primary site. Thank you, [@sfsmfc](https://github.com/sfsmfc)! [#28](https://github.com/internetztube/craft-element-relations/pull/28)
+- Fix error, if entry doesn't exist in primary site. Thank you, [@sfsmfc](https://github.com/sfsmfc)! [#28](https://github.com/internetztube/craft-element-relations/pull/28)
 
 ## 2.0.1 - 2022-08-27
 ### Fixed
@@ -106,7 +111,7 @@ Fix error, if entry doesn't exist in primary site. Thank you, [@sfsmfc](https://
 - Don't refresh non-stale element relations when rebuilding cache without force option.
 
 ### Fixed
-- Use illuminate/collections as `collect()` package. #9
+- Use illuminate/collections as `collect()` package. [#9](https://github.com/internetztube/craft-element-relations/issues/9)
 - Only load one element relation at a time. Improves performance on overview pages.
 
 ## 1.2.6 - 2022-02-04
@@ -156,7 +161,7 @@ Version Bump
 
 ## 1.1.0 - 2021-12-28
 ### Added
-- Added caching system and new table to store data and speed up repeated fetches. Big thanks to [@gbowne](https://github.com/gbowne-quickbase) for the implementation! #3
+- Added caching system and new table to store data and speed up repeated fetches. Big thanks to [@gbowne](https://github.com/gbowne-quickbase) for the implementation! [#3](https://github.com/internetztube/craft-element-relations/issues/3)
 
 ## 1.0.6 - 2021-11-18
 ### Added
