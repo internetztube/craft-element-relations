@@ -5,7 +5,6 @@ namespace internetztube\elementRelations\services\extractors;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
-use presseddigital\linkit\base\Link;
 use Craft;
 
 class FieldExtractorLinkItService implements InterfaceFieldExtractor
@@ -22,7 +21,7 @@ class FieldExtractorLinkItService implements InterfaceFieldExtractor
             return false;
         }
 
-        /** @var Link $value */
+        /** @var \presseddigital\linkit\base\Link $value */
         $value = $element->{$field->handle};
 
         if (!($value instanceof \presseddigital\linkit\base\ElementLink) || !$linkElement = $value->getElement()) {

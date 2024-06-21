@@ -2,11 +2,10 @@
 
 namespace internetztube\elementRelations\services\extractors;
 
+use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
-use verbb\hyper\base\ElementLink;
-use Craft;
 
 class FieldExtractorHyperService implements InterfaceFieldExtractor
 {
@@ -27,7 +26,7 @@ class FieldExtractorHyperService implements InterfaceFieldExtractor
         $links = $value->getLinks();
 
         return collect($links)
-            ->filter(fn (\verbb\hyper\base\Link $link) => $link instanceof ElementLink)
+            ->filter(fn (\verbb\hyper\base\Link $link) => $link instanceof \verbb\hyper\base\ElementLink)
             ->map(function (\verbb\hyper\base\ElementLink $link) use ($field, $baseRecord) {
                 return collect($link->getElements())
                     ->map(function (ElementInterface $element) use ($field, $baseRecord) {

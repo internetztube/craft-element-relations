@@ -2,6 +2,7 @@
 
 namespace internetztube\elementRelations\services\extractors;
 
+use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
@@ -16,6 +17,10 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor
      */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
+        if (!(Craft::$app->plugins->isPluginEnabled('redactor') || Craft::$app->plugins->isPluginEnabled('ckeditor'))) {
+            return false;
+        }
+        
         if (!($field instanceof \craft\redactor\Field) && !($field instanceof \craft\ckeditor\Field)) {
             return false;
         }
