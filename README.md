@@ -10,6 +10,9 @@ __Feature Requests are welcome!__
 
 This plugin requires Craft CMS 4.0.0 or 5.0.0 later.
 
+__For Craft CMS 4:__
+When using SEOmatic: MySQL 8.0.17+, MariaDB 10.4.6+, or PostgreSQL 13+ is required.
+
 ## Installation
 To install this plugin, follow these steps:
 1. Install with Composer via `composer require internetztube/craft-element-relations`
