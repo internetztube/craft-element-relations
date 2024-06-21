@@ -21,9 +21,17 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         return Craft::t("element-relations", "Element Relations");
     }
 
+    // Craft 4
+    public function getTableAttributeHtml(mixed $value, ElementInterface $element): string
+    {
+        return $this->render($element, true);
+    }
+
+    // Craft 5
     public function getPreviewHtml(mixed $value, ElementInterface $element): string
     {
         return $this->render($element, true);
+
     }
 
     public function getInputHtml(mixed $value, ElementInterface $element = null): string
@@ -34,7 +42,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
     private function render(ElementInterface $element, bool $isPreview): string
     {
         /**
-         * Since you cannot really use a Draft or a Revision inside a Relation Field, we"re always defaulting
+         * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
          * to the canonical.
          */
         $element = $element->getCanonical();
