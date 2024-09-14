@@ -2,11 +2,12 @@
 
 namespace internetztube\elementRelations\services;
 
+use Craft;
 use craft\base\ElementInterface;
-use craft\base\Field;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
+use craft\models\Site;
 use Illuminate\Support\Collection;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use internetztube\elementRelations\services\extractors\FieldExtractorCkEditorService;
@@ -75,5 +76,19 @@ class RelationsService
                 return true;
             })
             ->all();
+    }
+
+    public static function isUsedInSeomaticGlobalSettings(ElementInterface $element): bool
+    {
+        if (!Craft::$app->plugins->isPluginEnabled('seomatic') || !($element instanceof Asset)) {
+            return false;
+        }
+        $columnSelector = DatabaseService::jsonExtract("metaBundleSettings", ["seoImageIds"]);
+
+        return (new Query())
+            ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
+            ->where(['=', $columnSelector, "[\"$element->id\"]"])
+            ->collect()
+            ->isNotEmpty();
     }
 }

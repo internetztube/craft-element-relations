@@ -36,6 +36,31 @@ As a basis the relations table is used. This means that any field that stores re
 * TypedLinkField   
 ... and many more.
 
+
+## Usage in Templates
+You would like to use the relation information in your templates, no problemo! There are two methods available for use 
+in Twig Templates and Element API.
+
+`elementRelationsGetRelations` and `RelationsService::getRelations` return both an array of Elements. 
+
+### Twig
+```twig
+{# Expects an Element; Returns an array of Elements. #}
+{% set relations = elementRelationsGetRelations(element) %}
+
+{# Expects an Element; Returns a boolen. #}
+{% set seomaticGlobal = elementRelationsIsUsedInSeomaticGlobalSettings(element) %}
+```
+
+### Element API / PHP
+```php
+// Expects Element; Returns an array of Elements
+$relations = \internetztube\elementRelations\services\RelationsService::getRelations($element)
+
+// Expects an Element; Returns a boolean.
+$seomaticGlobal = \internetztube\elementRelations\services\RelationsService::isUsedInSeomaticGlobalSettings($element);
+```
+
 ## Screenshots
 
 Asset Overview

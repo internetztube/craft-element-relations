@@ -1,3 +1,8 @@
+{# Expects an Element; Returns on array of Elements. #}
+{% set relations = elementRelationsGetRelations(element) %}
+{# Expects an Elements; Returns a boolen. #}
+{% set seomaticGlobal = elementRelationsIsUsedInSeomaticGlobalSettings(element) %}
+
 {% if not relations and not seomaticGlobal %}
     <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
 {% else %}

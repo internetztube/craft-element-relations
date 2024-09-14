@@ -6,7 +6,6 @@ use Craft;
 use craft\web\Controller;
 use internetztube\elementRelations\jobs\RefreshElementRelationsJob;
 use internetztube\elementRelations\services\CacheService;
-use internetztube\elementRelations\services\extractors\SpecialExtractorSeomaticGlobalService;
 use internetztube\elementRelations\services\MarkupService;
 use internetztube\elementRelations\services\RelationsService;
 
@@ -25,8 +24,7 @@ class ElementRelationsController extends Controller
         $template = "element-relations/_components/fields/relations" . ($isPreview ? "_preview" : "");
 
         return Craft::$app->getView()->renderTemplate($template, [
-            "relations" => RelationsService::getRelations($element),
-            "seomaticGlobal" => SpecialExtractorSeomaticGlobalService::isInUse($element),
+            "element" => $element,
         ]);
     }
 }

@@ -20,6 +20,7 @@ use internetztube\elementRelations\services\ProfilePhotoService;
 use internetztube\elementRelations\services\SeomaticService;
 use internetztube\elementRelations\services\UserPhotoService;
 use internetztube\elementRelations\twigextensions\ControlPanel;
+use internetztube\elementRelations\twigextensions\Main;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
 use yii\base\Event;
 
@@ -72,5 +73,6 @@ class ElementRelations extends Plugin
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
 
         Craft::$app->view->registerTwigExtension(new ControlPanel());
+        Craft::$app->view->registerTwigExtension(new Main());
     }
 }
