@@ -4,9 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.7 - 2024-10-04
+### Added
+- Add table indexes to improve read performance. Thank you, [@webrgp](https://github.com/webrgp)! [#38](https://github.com/internetztube/craft-element-relations/issues/38)
+
 ## 3.0.6 - 2024-10-04
 ### Fixed
-- Removed unnecessary join in RelationsService to improve performance. [#37](https://github.com/internetztube/craft-element-relations/issues/36)
+- Removed unnecessary join in RelationsService to improve performance. [#37](https://github.com/internetztube/craft-element-relations/issues/37)
 
 ## 3.0.5 - 2024-09-14
 ### Added

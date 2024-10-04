@@ -27,7 +27,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.6";
+    public string $schemaVersion = "1.0.7";
     public bool $hasCpSettings = false;
     public bool $hasCpSection = false;
 
