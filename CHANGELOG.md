@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.6 - 2024-10-04
+### Fixed
+- Removed unnecessary join in RelationsService to improve performance. [#37](https://github.com/internetztube/craft-element-relations/issues/36)
+
 ## 3.0.5 - 2024-09-14
 ### Added
 - Added Support for Element API / PHP.
