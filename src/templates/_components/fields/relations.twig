@@ -17,7 +17,13 @@
         {% endif %}
         {% for relation in relations %}
             <tr>
-                <td>{{ elementRelationsElementPreviewHtml([relation]) | raw }}</td>
+                <td style="white-space: nowrap;">
+                    <span style="display: inline-block;">{{ elementRelationsElementPreviewHtml([relation]) | raw }}</span>
+                    {# Add belonging section name to relationship entry. #}
+                    {% if relation.section is defined %}
+                        <span style="color: #666; font-weight: normal; margin-left: 4px;">({{ relation.section.name }})</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if relation.url %}
                         <a href="{{ relation.url }}" title="Visit webpage" rel="noopener" target="_blank"
