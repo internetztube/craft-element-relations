@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.10 - 2025-06-13
+### Fixed
+- Replace `ElementRelationsCacheRecord::tableName()` with static string to make migrations more robust. [#42](https://github.com/internetztube/craft-element-relations/issues/42)
+
 ## 3.0.9 - 2025-06-13
 ### Added
 - Added setting for bulk refresh batch size. Thank you, [@webrgp](https://github.com/webrgp)! [#39](https://github.com/internetztube/craft-element-relations/issues/39)

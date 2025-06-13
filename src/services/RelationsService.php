@@ -9,7 +9,6 @@ use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use craft\models\Site;
 use Illuminate\Support\Collection;
-use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use internetztube\elementRelations\services\extractors\FieldExtractorCkEditorService;
 
 class RelationsService
