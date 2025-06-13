@@ -7,6 +7,7 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\helpers\Db;
 use craft\queue\BaseJob;
+use internetztube\elementRelations\ElementRelations;
 
 /**
  * Resave Element Relations Job queue job
@@ -26,7 +27,8 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
             ->where(['is', 'elements.dateDeleted', null])
             ->andWhere(['is', 'elements.revisionId', null]);
 
-        $batchSize = 2000;
+        $batchSize = ElementRelations::getInstance()->getSettings()->bulkRefreshBatchSize;
+
         $totalCount = $query->count();
         $totalBatches = ceil($totalCount / $batchSize);
         $index = 0;

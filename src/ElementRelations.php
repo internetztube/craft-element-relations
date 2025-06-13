@@ -4,6 +4,7 @@ namespace internetztube\elementRelations;
 
 use Craft;
 use craft\base\Element;
+use craft\base\Model;
 use craft\base\Plugin;
 use craft\console\Application as ConsoleApplication;
 use craft\events\PluginEvent;
@@ -15,6 +16,7 @@ use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
 use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
+use internetztube\elementRelations\models\SettingsModel;
 use internetztube\elementRelations\services\CacheService;
 use internetztube\elementRelations\services\ProfilePhotoService;
 use internetztube\elementRelations\services\SeomaticService;
@@ -28,7 +30,7 @@ class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
     public string $schemaVersion = "1.0.7";
-    public bool $hasCpSettings = false;
+    public bool $hasCpSettings = true;
     public bool $hasCpSection = false;
 
     public function init()
@@ -74,5 +76,19 @@ class ElementRelations extends Plugin
 
         Craft::$app->view->registerTwigExtension(new ControlPanel());
         Craft::$app->view->registerTwigExtension(new Main());
+    }
+
+    protected function settingsHtml(): ?string
+    {
+        return \Craft::$app->getView()->renderTemplate(
+            'element-relations/settings',
+            ['settings' => $this->getSettings()]
+        );
+    }
+
+
+    protected function createSettingsModel(): ?Model
+    {
+        return new SettingsModel();
     }
 }

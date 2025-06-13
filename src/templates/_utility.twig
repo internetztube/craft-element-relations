@@ -4,6 +4,7 @@
 
 <form method="post">
     {{ csrfInput() }}
+    <p>Batch-refresh all element relations via queue jobs — recommended after manual database changes.</p>
     <button type="submit" class="btn submit">
         {{ "utility-form-rebuild-cache-button-label" | t("element-relations") }}
     </button>
