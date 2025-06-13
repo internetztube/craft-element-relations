@@ -26,7 +26,7 @@ class RelationsService
                 "siteId" => 'elementrelations_cache.sourceSiteId',
                 "type" => 'elements.type'
             ])
-            ->from(['elementrelations_cache' => ElementRelationsCacheRecord::tableName()])
+            ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
             ->leftJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]")
             ->where([
                 'and',

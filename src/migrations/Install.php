@@ -4,14 +4,12 @@ namespace internetztube\elementRelations\migrations;
 
 use Craft;
 use craft\db\Migration;
-use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class Install extends Migration
 {
     public function safeUp()
     {
-        $table = ElementRelationsCacheRecord::tableName();
-        $this->createTable($table, [
+        $this->createTable('{{%elementrelations_cache}}', [
             'id' => $this->primaryKey(),
             'sourceElementId' => $this->integer()->notNull(),
             'sourceSiteId' => $this->integer()->notNull(),
@@ -32,7 +30,7 @@ class Install extends Migration
 
     public function safeDown()
     {
-        $table = ElementRelationsCacheRecord::tableName();
+        $table = '{{%elementrelations_cache}}';
         if ($this->db->tableExists($table)) {
             $this->dropTable($table);
             Craft::$app->db->schema->refresh();

@@ -9,7 +9,7 @@ class m220105_164702_update_relations_type extends Migration
 {
     public function safeUp()
     {
-        $table = ElementRelationsRecord::tableName();
+        $table = '{{%elementrelations_cache}}';
         $this->alterColumn($table, "relations", $this->mediumText());
         return true;
     }

@@ -4,7 +4,6 @@ namespace internetztube\elementRelations\migrations;
 
 use Craft;
 use craft\db\Migration;
-use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 /**
  * m241004_144031_optimize_index_elementrelations_table migration.
@@ -37,9 +36,9 @@ class m241004_144031_optimize_index_elementrelations_table extends Migration
     private function _indexes(): array
     {
         return [
-            [ElementRelationsCacheRecord::tableName(), ['sourceElementId', 'sourceSiteId'], false],
-            [ElementRelationsCacheRecord::tableName(), ['targetElementId', 'targetSiteId'], false],
-            [ElementRelationsCacheRecord::tableName(), ['sourcePrimaryOwnerId'], false],
+            ['{{%elementrelations_cache}}', ['sourceElementId', 'sourceSiteId'], false],
+            ['{{%elementrelations_cache}}', ['targetElementId', 'targetSiteId'], false],
+            ['{{%elementrelations_cache}}', ['sourcePrimaryOwnerId'], false],
         ];
     }
 }

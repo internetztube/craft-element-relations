@@ -4,14 +4,12 @@ namespace internetztube\elementRelations\migrations;
 
 use craft\db\Migration;
 use craft\db\Table;
-use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class m240616_122033_create_elementrelations_cache_table extends Migration
 {
     public function safeUp()
     {
-        $table = ElementRelationsCacheRecord::tableName();
-        $this->createTable($table, [
+        $this->createTable('{{%elementrelations_cache}}', [
             'id' => $this->primaryKey(),
             'sourceElementId' => $this->integer()->notNull(),
             'sourceSiteId' => $this->integer()->notNull(),

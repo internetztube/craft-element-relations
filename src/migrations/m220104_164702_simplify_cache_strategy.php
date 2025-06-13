@@ -10,8 +10,8 @@ class m220104_164702_simplify_cache_strategy extends Migration
 {
     public function safeUp()
     {
-        $table = ElementRelationsRecord::tableName();
-        // drop previous foreign key on "siteId` which was built by the install so we can drop the column
+        $table = '{{%elementrelations_cache}}';
+        // drop previous foreign key on `siteId` which was built by the install so we can drop the column
         foreach (Craft::$app->db->getSchema()->getTableForeignKeys($table) as $foreignKey) {
             if (in_array("siteId", $foreignKey->columnNames)) {
                 $this->dropForeignKey($foreignKey->name, $table);
