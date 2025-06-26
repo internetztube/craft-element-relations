@@ -23,20 +23,33 @@
                 <td></td>
             </tr>
         {% endif %}
+
         {% for relation in relations %}
+            {# Check on className to help configure other plugins #}
+            {% set className = className(relation) %}
+
+            {% switch(className) %}
+                {% case "verbb\\formie\\elements\\Submission" %}
+                    {% set sectionName = "Formie Submission"|t("element-relations") %}
+                    {% set relationUrl = relation.getCpEditUrl() %}
+
+                {% default %}
+                    {% set sectionName = relation.section.name|default("") %}
+                    {% set relationUrl = relation.url %}
+            {% endswitch %}
+            {% set siteName = relation.site.name %}
+
             <tr>
                 <td style="white-space: nowrap;">
                     <span style="display: inline-block;">{{ elementRelationsElementPreviewHtml([relation]) | raw }}</span>
                 </td>
-                <td>{{ relation.site.name }}</td>
+                <td>{{ siteName }}</td>
                 <td>
-                    {% if relation.section is defined %}
-                        <span style="color: #666; font-weight: normal; margin-left: 4px;">{{ relation.section.name }}</span>
-                    {% endif %}
+                    <span style="color: #666; font-weight: normal; margin-left: 4px;">{{ sectionName ?? "-" }}</span>
                 </td>
                 <td>
-                    {% if relation.url %}
-                        <a href="{{ relation.url }}" title="Visit webpage" rel="noopener" target="_blank"
+                    {% if relationUrl %}
+                        <a href="{{ relationUrl }}" title="Visit webpage" rel="noopener" target="_blank"
                            data-icon="world" aria-label="View"></a>
                     {% endif %}
                 </td>
