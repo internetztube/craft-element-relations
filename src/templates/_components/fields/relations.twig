@@ -10,6 +10,7 @@
         <thead>
             <tr>
                 <th>Element</th>
+                <th>Type</th>
                 <th>Site</th>
                 <th>Section</th>
                 <th>Link</th>
@@ -28,9 +29,14 @@
                 <td style="white-space: nowrap;">
                     <span style="display: inline-block;">{{ elementRelationsElementPreviewHtml([relation]) | raw }}</span>
                 </td>
-                <td>{{ relation.site.name }}</td>
+                <td title="{{ className(relation) }}">
+                    {{ relation.displayName }}
+                </td>
+                <td title="{{ relation.site.handle }}">
+                    {{ relation.site.name }}
+                </td>
                 <td>
-                    {% if relation.section is defined %}
+                    {% if className(relation) == 'craft\\elements\\Entry' and relation.section %}
                         <span style="color: #666; font-weight: normal; margin-left: 4px;">{{ relation.section.name }}</span>
                     {% endif %}
                 </td>

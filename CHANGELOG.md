@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.0.11.1 - 2025-06-26
+### Fixed
+- Fix rendering of non-entry relations. [#46](https://github.com/internetztube/craft-element-relations/issues/46)
+
 ## 3.0.11 - 2025-06-26
 ### Fixed
 - Deeply nested relation did not disappear when removed. [#45](https://github.com/internetztube/craft-element-relations/issues/45)
