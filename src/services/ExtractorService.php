@@ -67,13 +67,17 @@ class ExtractorService
             ])
             ->filter();
 
+        self::deleteRelationsForElement($element);
+        $records->each(fn(ElementRelationsCacheRecord $record) => $record->save());
+        return true;
+    }
+
+    public static function deleteRelationsForElement(ElementInterface $element)
+    {
         ElementRelationsCacheRecord::deleteAll([
             'sourceElementId' => $element->id,
             'sourceSiteId' => $element->siteId,
         ]);
-
-        $records->each(fn(ElementRelationsCacheRecord $record) => $record->save());
-        return true;
     }
 
     private static function getPrimaryOwner(ElementInterface $element): ElementInterface

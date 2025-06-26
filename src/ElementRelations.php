@@ -7,8 +7,10 @@ use craft\base\Element;
 use craft\base\Model;
 use craft\base\Plugin;
 use craft\console\Application as ConsoleApplication;
+use craft\events\ModelEvent;
 use craft\events\PluginEvent;
 use craft\events\RegisterComponentTypesEvent;
+use craft\services\Elements;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
@@ -18,6 +20,7 @@ use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\models\SettingsModel;
 use internetztube\elementRelations\services\CacheService;
+use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\ProfilePhotoService;
 use internetztube\elementRelations\services\SeomaticService;
 use internetztube\elementRelations\services\UserPhotoService;
@@ -55,7 +58,7 @@ class ElementRelations extends Plugin
             $event->types[] = ElementRelationsUtility::class;
         });
 
-        Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (Event $event) {
+        Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {
             /** @var Element $element */
             $element = $event->sender;
             $job = new ResaveSingleElementRelations([
@@ -63,6 +66,12 @@ class ElementRelations extends Plugin
                 'siteId' => $element->siteId,
             ]);
             Craft::$app->getQueue()->priority(1022)->push($job);
+        });
+
+        Event::on(Element::class, Element::EVENT_BEFORE_DELETE, function(ModelEvent $event) {
+            /** @var Element $element */
+            $element = $event->sender;
+            ExtractorService::deleteRelationsForElement($element);
         });
 
         $pluginEnableCallback = function (PluginEvent $event) {

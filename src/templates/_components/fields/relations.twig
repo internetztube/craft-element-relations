@@ -7,6 +7,14 @@
     <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
 {% else %}
     <table class="table">
+        <thead>
+            <tr>
+                <th>Element</th>
+                <th>Site</th>
+                <th>Section</th>
+                <th>Link</th>
+            </tr>
+        </thead>
         <tbody>
         {% if seomaticGlobal ?? null %}
             <tr>
@@ -19,9 +27,11 @@
             <tr>
                 <td style="white-space: nowrap;">
                     <span style="display: inline-block;">{{ elementRelationsElementPreviewHtml([relation]) | raw }}</span>
-                    {# Add belonging section name to relationship entry. #}
+                </td>
+                <td>{{ relation.site.name }}</td>
+                <td>
                     {% if relation.section is defined %}
-                        <span style="color: #666; font-weight: normal; margin-left: 4px;">({{ relation.section.name }})</span>
+                        <span style="color: #666; font-weight: normal; margin-left: 4px;">{{ relation.section.name }}</span>
                     {% endif %}
                 </td>
                 <td>
@@ -30,7 +40,6 @@
                            data-icon="world" aria-label="View"></a>
                     {% endif %}
                 </td>
-                <td>{{ relation.site.name }}</td>
             </tr>
         {% endfor %}
         </tbody>
