@@ -6,10 +6,6 @@ use Craft;
 
 class DatabaseService
 {
-    /**
-     * Cached result of the MariaDB check. `null` indicates it has not been
-     * determined yet.
-     */
     private static ?bool $isMaria = null;
 
     public static function jsonExtract(string $column, array $path): string
@@ -51,8 +47,6 @@ class DatabaseService
             self::$isMaria = $connection->getIsMysql()
                 && str_contains(strtolower($connection->getSchema()->getServerVersion()), 'mariadb');
         }
-
-        // self::$isMaria is guaranteed to be a bool here.
         return self::$isMaria;
     }
 }
