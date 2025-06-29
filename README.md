@@ -48,7 +48,7 @@ in Twig Templates and Element API.
 {# Expects an Element; Returns an array of Elements. #}
 {% set relations = elementRelationsGetRelations(element) %}
 
-{# Expects an Element; Returns a boolen. #}
+{# Expects an Element; Returns a boolean. #}
 {% set seomaticGlobal = elementRelationsIsUsedInSeomaticGlobalSettings(element) %}
 ```
 
