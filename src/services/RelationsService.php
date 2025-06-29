@@ -7,6 +7,7 @@ use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
+use craft\elements\Asset;
 use craft\models\Site;
 use Illuminate\Support\Collection;
 use internetztube\elementRelations\services\extractors\FieldExtractorCkEditorService;
