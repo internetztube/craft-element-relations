@@ -1,6 +1,6 @@
-{# Expects an Element; Returns on array of Elements. #}
+{# Expects an Element; Returns an array of Elements. #}
 {% set relations = elementRelationsGetRelations(element) %}
-{# Expects an Elements; Returns a boolen. #}
+{# Expects an Elements; Returns a boolean. #}
 {% set seomaticGlobal = elementRelationsIsUsedInSeomaticGlobalSettings(element) %}
 
 {% if not relations and not seomaticGlobal %}
