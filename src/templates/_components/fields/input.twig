@@ -4,34 +4,16 @@
         border-radius: var(--medium-border-radius)
     ">
     {% if value %}
+        {#
+            {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
+        #}
         {% if value.isInUse %}
-            {% set currentSiteCount = value.count([]) %}
+            {% set currentSiteCount = value.count() %}
         {% if currentSiteCount %}
             <h3>Relations of this site:</h3>
-
-            <div id="{{ containerId }}"></div>
-            <div id="{{ containerId }}-pager"></div>
-
-            <script>
-                window.addEventListener('load', () => {
-                    new ElementRelationsPaginator({
-                        pagerContainerSelector: '#fields-{{ containerId }}-pager',
-                        endpoint: '{{ paginationEndpoint | raw }}',
-                        pageSize: 20,
-                        initialPage: 0,
-                        render: (html) => {
-                            const container = document.querySelector('#fields-{{ containerId }}');
-                            container.innerHTML = html
-                        }
-                    });
-
-                    console.log(ElementRelationsPaginator)
-                })
-            </script>
+            <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"></div>
         {% endif %}
-
             {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
-
         {% if otherSites %}
         {% if currentSiteCount %}
         <br><br>

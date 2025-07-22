@@ -114,7 +114,12 @@ class RelationsModel
                     ->revisions(false)
                     ->provisionalDrafts(false)
                     ->site('*')
-                    ->andWhere(['exists', $subQuery]);
+                    ->status(null)
+                    ->andWhere(['exists', $subQuery])
+                    ->drafts(false);
+
+                // echo "<pre>{$query->getRawSql()}</pre>";
+                // die();
 
                 return [
                     (clone $query)->drafts(true),
@@ -215,17 +220,13 @@ class RelationsModel
                 '[[elements.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]'
             )
 
-            // 2) left‐join entries
-            ->leftJoin(
-                ['entries' => Table::ENTRIES],
-                '[[entries.id]] = [[elements.id]]'
-            )
-
             // 3) (optional) drafts logic
             ->leftJoin(
                 ['drafts' => Table::DRAFTS],
                 '[[drafts.id]] = [[elements.draftId]]'
             )
+
+            // add drafts.provisional if to make sure is not 1
 
             // 4) restrict to our target element
             ->where(['[[elementrelations_cache.targetElementId]]' => $this->elementId])
@@ -237,37 +238,32 @@ class RelationsModel
             ->andWhere(['[[elements.enabled]]' => 1])
             ->andWhere(['[[elements.archived]]' => 0])
             ->andWhere(['[[elements.revisionId]]' => null])
+            ->andWhere(['[[elements.revisionId]]' => null])
 
-            // 6) entry date‐filters (non‐entries always pass)
             ->andWhere([
                 'or',
-                // non‐entry elements
-                ['<>', '[[elements.type]]', Entry::class],
-                // only “live” entries
-                [
-                    'and',
-                    ['<=', '[[entries.postDate]]', new Expression('NOW()')],
-                    [
-                        'or',
-                        ['[[entries.expiryDate]]' => null],
-                        ['>', '[[entries.expiryDate]]', new Expression('NOW()')],
-                    ],
-                ],
+                ['[[drafts.id]]'          => null],               // no draft
+                ['<>', '[[drafts.provisional]]', 1],              // or not provisional
             ])
+
             ->groupBy([
                 '[[elementrelations_cache.sourcePrimaryOwnerId]]',
                 '[[elementrelations_cache.sourceSiteId]]',
             ]);
 
-        $this->_fastCountQueryResult = (new Query())
+        $query = (new Query())
             ->select([
                 'siteId' => '[[siteId]]',
                 'type'   => '[[type]]',
                 'count'  => 'COUNT(*)',
             ])
             ->from(['sub' => $subQuery])
-            ->groupBy(['[[siteId]]', '[[type]]'])
-            ->all();
+            ->groupBy(['[[siteId]]', '[[type]]']);
+
+        // echo "<pre>{$query->getRawSql()}</pre>";
+        // die();
+
+        $this->_fastCountQueryResult = $query->all();
 
         return $this->_fastCountQueryResult;
     }

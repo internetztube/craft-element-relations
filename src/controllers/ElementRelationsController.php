@@ -16,7 +16,7 @@ class ElementRelationsController extends Controller
         $request = Craft::$app->getRequest();
         $elementId = (int)$request->getParam('elementId');
         $siteId = (int)$request->getParam('siteId');
-        $limit = max(1, (int)$request->getParam('limit', 20));  // at least 1
+        $limit = max(1, (int)$request->getParam('limit', 10));  // at least 1
         $pageParam = max(0, (int)$request->getParam('page', 0));    // zero‑indexed input
 
         // element must exist

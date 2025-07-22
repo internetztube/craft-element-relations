@@ -8,14 +8,12 @@ use craft\base\Field;
 use craft\base\FieldInterface;
 use craft\base\PreviewableFieldInterface;
 use craft\fieldlayoutelements\CustomField;
-use craft\fields\BaseRelationField;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use craft\models\FieldLayoutTab;
+use internetztube\elementRelations\assetbundles\ElementRelationsAsset;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\models\RelationsModel;
-use internetztube\elementRelations\twigextensions\Main;
-use internetztube\elementRelations\web\assets\input\InputAsset;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
@@ -55,7 +53,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                 "value" => $value,
                 "currentSite" => $element->site,
                 "tabHash" => $this->getTabHash($element),
-                "previewElementsCount" => ElementRelations::getInstance()->getSettings()->previewElementsCount,
             ]);
     }
 
@@ -78,7 +75,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public function getInputHtml(mixed $value, ElementInterface $element = null): string
     {
-        Craft::$app->getView()->registerAssetBundle(InputAsset::class);
+        Craft::$app->getView()->registerAssetBundle(ElementRelationsAsset::class);
 
         $paginationEndpoint = UrlHelper::actionUrl("element-relations/element-relations/paginate", [
             "elementId" => $element->id,

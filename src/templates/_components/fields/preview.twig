@@ -10,7 +10,7 @@
     {% else %}
         <div>
             {% set cpEditUrl = element.cpEditUrl ~ "#" ~ tabHash %}
-            {{ elementRelationsElementPreviewHtml(currentSiteElements, value.count, cpEditUrl) | raw }}
+            {{ elementRelationsElementPreviewHtml(currentSiteElements, value.count(currentSite.id), cpEditUrl) | raw }}
         </div>
     {% endif %}
 
