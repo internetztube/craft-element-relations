@@ -5,43 +5,47 @@
     ">
     {% if value %}
         {#
-            {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
+        {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
         #}
         {% if value.isInUse %}
             {% set currentSiteCount = value.count() %}
-        {% if currentSiteCount %}
-            <h3>Relations of this site:</h3>
-            <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"></div>
-        {% endif %}
+            {% if currentSiteCount %}
+                <h3>Relations of this site:</h3>
+                <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"></div>
+            {% endif %}
             {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
-        {% if otherSites %}
-        {% if currentSiteCount %}
-        <br><br>
-        {% endif %}
-            <div>
-                <h3>Used in these other sites:</h3>
+            {% if otherSites %}
+                {% if currentSiteCount %}
+                    <br><br>
+                {% endif %}
+                <div>
+                    <h3>Used in these other sites:</h3>
 
-                <ul>
-                    {% for site in otherSites %}
-                        <li>
-                            <a href="{{ element.cpEditUrl | replace("?site=" ~ element.site.handle, "?site=" ~ site.handle) }}#{{ tabHash }}"
-                               title="{{ site.handle }}">
-                                {{ site.name }}
-                            </a>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        {% endif %}
+                    <ul>
+                        {% for site in otherSites %}
+                            <li>
+                                <a href="{{ element.cpEditUrl | replace("?site=" ~ element.site.handle, "?site=" ~ site.handle) }}#{{ tabHash }}"
+                                   title="{{ site.handle }}">
+                                    {{ site.name }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
 
-        {% if value.isUsedInSeomaticGlobalSettings %}
-        {% if otherSites or currentSiteCount %}
-        <hr>
-        {% endif %}
-            {{ 'field-value-seomatic-global' | t('element-relations') }}
-        {% endif %}
+            {% if value.isUsedInSeomaticGlobalSettings %}
+                {% if otherSites or currentSiteCount %}
+                    <hr>
+                {% endif %}
+                {{ 'field-value-seomatic-global' | t('element-relations') }}
+            {% endif %}
         {% else %}
-            <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
+            {% if element.isDraft %}
+                Drafts cannot be used in relations
+            {% else %}
+                <span style="color: #ff0000">{{ 'field-value-unused' | t('element-relations') }}</span>
+            {% endif %}
         {% endif %}
 
     {% else %}

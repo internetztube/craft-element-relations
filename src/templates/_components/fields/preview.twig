@@ -20,5 +20,9 @@
         </div>
     {% endif %}
 {% else %}
-    <span style="color: #ff0000">{{ 'field-value-unused' | t('element-relations') }}</span>
+    {% if element.isDraft %}
+        Drafts cannot be used in relations
+    {% else %}
+        <span style="color: #ff0000">{{ 'field-value-unused' | t('element-relations') }}</span>
+    {% endif %}
 {% endif %}
