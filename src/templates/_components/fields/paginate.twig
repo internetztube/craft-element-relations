@@ -1,0 +1,29 @@
+<table class="table" style="width: 100%;">
+    {% for element in elements %}
+        <tr style="border-block: 1px solid #e5e7eb;">
+            <td>
+                {{ elementRelationsElementPreviewHtml([element], 1, "") | raw }}
+            </td>
+            <td title="{{ className(element) }} (Class Name)">
+                {{ element.displayName }}
+            </td>
+            <td title="{{ element.site.handle }} (Site)">
+                {{ element.site.name }}
+            </td>
+            {% if className(element) == 'craft\\elements\\Entry' and element.section %}
+                <td title="{{ element.section.handle }} (Section)">
+                    {{ element.section.name }}
+                </td>
+            {% else %}
+                <td></td>
+            {% endif %}
+            {% if className(element) == 'craft\\elements\\Entry' and element.type %}
+                <td title="{{ element.type.handle }} (Section)">
+                    {{ element.type.name }}
+                </td>
+            {% else %}
+                <td></td>
+            {% endif %}
+        </tr>
+    {% endfor %}
+</table>

@@ -1,0 +1,24 @@
+{% if value.isInUse %}
+    {% set currentSiteElements = value.getElements(currentSite.id, 2) %}
+
+    {% if not currentSiteElements %}
+        {% if value.sites %}
+            <div>
+                Used in different sites
+            </div>
+        {% endif %}
+    {% else %}
+        <div>
+            {% set cpEditUrl = element.cpEditUrl ~ "#" ~ tabHash %}
+            {{ elementRelationsElementPreviewHtml(currentSiteElements, value.count, cpEditUrl) | raw }}
+        </div>
+    {% endif %}
+
+    {% if value.isUsedInSeomaticGlobalSettings %}
+        <div>
+            {{ 'field-value-seomatic-global' | t('element-relations') }}
+        </div>
+    {% endif %}
+{% else %}
+    <span style="color: #ff0000">{{ 'field-value-unused' | t('element-relations') }}</span>
+{% endif %}

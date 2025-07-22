@@ -1,0 +1,68 @@
+<div style="
+        padding: var(--l);
+        box-shadow: 0 0 0 1px #cdd8e4,0 2px 12px hsla(212,30%,85%,.5);
+        border-radius: var(--medium-border-radius)
+    ">
+    {% if value %}
+        {% if value.isInUse %}
+            {% set currentSiteCount = value.count([]) %}
+        {% if currentSiteCount %}
+            <h3>Relations of this site:</h3>
+
+            <div id="{{ containerId }}"></div>
+            <div id="{{ containerId }}-pager"></div>
+
+            <script>
+                window.addEventListener('load', () => {
+                    new ElementRelationsPaginator({
+                        pagerContainerSelector: '#fields-{{ containerId }}-pager',
+                        endpoint: '{{ paginationEndpoint | raw }}',
+                        pageSize: 20,
+                        initialPage: 0,
+                        render: (html) => {
+                            const container = document.querySelector('#fields-{{ containerId }}');
+                            container.innerHTML = html
+                        }
+                    });
+
+                    console.log(ElementRelationsPaginator)
+                })
+            </script>
+        {% endif %}
+
+            {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
+
+        {% if otherSites %}
+        {% if currentSiteCount %}
+        <br><br>
+        {% endif %}
+            <div>
+                <h3>Used in these other sites:</h3>
+
+                <ul>
+                    {% for site in otherSites %}
+                        <li>
+                            <a href="{{ element.cpEditUrl | replace("?site=" ~ element.site.handle, "?site=" ~ site.handle) }}#{{ tabHash }}"
+                               title="{{ site.handle }}">
+                                {{ site.name }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        {% if value.isUsedInSeomaticGlobalSettings %}
+        {% if otherSites or currentSiteCount %}
+        <hr>
+        {% endif %}
+            {{ 'field-value-seomatic-global' | t('element-relations') }}
+        {% endif %}
+        {% else %}
+            <span style="color: red">{{ 'field-value-unused' | t('element-relations') }}</span>
+        {% endif %}
+
+    {% else %}
+        Element not saved yet
+    {% endif %}
+</div>
