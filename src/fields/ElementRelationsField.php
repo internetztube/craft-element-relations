@@ -80,6 +80,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         $paginationEndpoint = UrlHelper::actionUrl("element-relations/element-relations/paginate", [
             "elementId" => $element->id,
             "siteId" => $element->siteId,
+            "limit" => 10
         ], null, false);
 
         return Craft::$app->getView()

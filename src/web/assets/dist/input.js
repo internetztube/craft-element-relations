@@ -14686,7 +14686,10 @@ const Pagination = ({ endpoint }) => {
     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { dangerouslySetInnerHTML: { __html: html } }),
     totalPages > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: "pagination flex", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: "pagination flex", style: {
+        opacity: isFetching ? 0.5 : 1,
+        pointerEvents: isFetching ? "none" : "all"
+      }, children: [
         items.map((_b2, index) => {
           var _c2 = _b2, { page, type, selected } = _c2, item = __objRest(_c2, ["page", "type", "selected"]);
           let children = null;
@@ -14734,7 +14737,9 @@ const Pagination = ({ endpoint }) => {
           }
           return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children }, index);
         }),
-        isFetching ? /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "spinner" }) }) : ""
+        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { style: {
+          opacity: isFetching ? 1 : 0
+        }, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "spinner" }) })
       ] })
     ] }) : ""
   ] });

@@ -45,7 +45,10 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
             {totalPages > 1 ? (
                 <>
                     <br/>
-                    <ul className="pagination flex">
+                    <ul className="pagination flex" style={{
+                        opacity: isFetching ? 0.5 : 1,
+                        pointerEvents: isFetching ? 'none' : 'all'
+                    }}>
                         {items.map(({page, type, selected, ...item}, index) => {
                             let children = null;
 
@@ -96,9 +99,12 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
 
                             return <li key={index}>{children}</li>;
                         })}
-                        {isFetching ? (<li>
+                        <li style={{
+                            opacity: isFetching ? 1 : 0
+                        }}>
                             <div className="spinner"></div>
-                        </li>) : ""}
+                        </li>
+
                     </ul>
                 </>
             ) : ''}
