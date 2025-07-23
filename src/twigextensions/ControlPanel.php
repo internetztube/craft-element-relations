@@ -49,11 +49,11 @@ class ControlPanel extends AbstractExtension
         if ($missingCount > 0 && $buttonHref) {
             $html .= Html::tag('a', '+' . \Craft::$app->getFormatter()->asInteger($missingCount), [
                 'title' => implode(', ', array_map(fn(ElementInterface $element) => $element->id, $elements)),
-                'class' => 'btn small',
+                'class' => 'btn small hairline',
                 'href' => $buttonHref,
             ]);
         }
-        return "<div style='display: flex; align-items: center;'>{$html}</div>";
+        return '<div class="flex gap-xs">' . $html . '</div>';
     }
 
 }

@@ -4,6 +4,12 @@
             <td>
                 {{ elementRelationsElementPreviewHtml([element], 1, "") | raw }}
             </td>
+            <td>
+                {% if element.url %}
+                    <a href="{{ element.url }}" title="Visit webpage" rel="noopener" target="_blank"
+                       data-icon="world" aria-label="View"></a>
+                {% endif %}
+            </td>
             <td title="{{ className(element) }} (Class Name)">
                 {{ element.displayName }}
             </td>
@@ -18,7 +24,7 @@
                 <td></td>
             {% endif %}
             {% if className(element) == 'craft\\elements\\Entry' and element.type %}
-                <td title="{{ element.type.handle }} (Section)">
+                <td title="{{ element.type.handle }} (Entry Type)">
                     {{ element.type.name }}
                 </td>
             {% else %}

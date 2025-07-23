@@ -1,7 +1,8 @@
 <div style="
+        border: 1px solid #e3e5e8;
+        border-radius: 3px;
+        margin-bottom: 10px;
         padding: var(--l);
-        box-shadow: 0 0 0 1px #cdd8e4,0 2px 12px hsla(212,30%,85%,.5);
-        border-radius: var(--medium-border-radius)
     ">
     {% if value %}
         {#
@@ -11,7 +12,8 @@
             {% set currentSiteCount = value.count() %}
             {% if currentSiteCount %}
                 <h3>Relations of this site:</h3>
-                <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"></div>
+                <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"
+                     style="overflow: scroll;"></div>
             {% endif %}
             {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
             {% if otherSites %}
