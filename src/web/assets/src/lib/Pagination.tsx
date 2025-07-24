@@ -8,7 +8,7 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
     const [html, setHtml] = useState("")
     const {isFetching, isError, refetch} = useQuery({
         queryKey: [endpoint], async queryFn() {
-            const url = `${endpoint}&page=${currentPage - 1}`
+            const url = `${endpoint}&page=${currentPage}`
             const response = await fetch(url)
             const data = await response.json()
             setHtml(data.html)

@@ -27,11 +27,19 @@ class RelationsModel
         $this->elementId = $elementId;
     }
 
-    /**
-     * @param array|int $siteIds
-     * @return mixed
-     */
     public function getCount(array|int $siteIds = [])
+    {
+        if (!is_array($siteIds)) {
+            $siteIds = [$siteIds];
+        }
+
+        $elementQueries = $this->getElementQueries($siteIds);
+        return collect($elementQueries)
+            ->map(fn (ElementQueryInterface $query) => $query->count())
+            ->sum();
+    }
+
+    public function getCountFast(array|int $siteIds = []): int
     {
         if (!is_array($siteIds)) {
             $siteIds = [$siteIds];
@@ -48,6 +56,14 @@ class RelationsModel
 
     public function getSites()
     {
+        $sites = Craft::$app->getSites()->getAllSites();
+        return collect($sites)
+            ->filter(fn(Site $site) => $this->getCount($site->id) > 0)
+            ->all();
+    }
+
+    public function getSitesFast()
+    {
         $fastCountQueryResult = $this->getFastCountQueryResult();
         $siteIds = collect($fastCountQueryResult)
             ->pluck('siteId')
@@ -63,6 +79,11 @@ class RelationsModel
     public function getIsInUse(array|int $siteIds = []): bool
     {
         return $this->getCount($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
+    }
+
+    public function getIsInUseFast(array|int $siteIds = []): bool
+    {
+        return $this->getCountFast($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
     }
 
     public function getIsUsedInSeomaticGlobalSettings(): bool
@@ -235,9 +256,7 @@ class RelationsModel
             ->andWhere([
                 '[[elements.dateDeleted]]' => null,
             ])
-            ->andWhere(['[[elements.enabled]]' => 1])
             ->andWhere(['[[elements.archived]]' => 0])
-            ->andWhere(['[[elements.revisionId]]' => null])
             ->andWhere(['[[elements.revisionId]]' => null])
 
             ->andWhere([

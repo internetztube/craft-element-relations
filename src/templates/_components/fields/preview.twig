@@ -1,8 +1,8 @@
-{% if value.isInUse %}
+{% if value.isInUseFast %}
     {% set currentSiteElements = value.getElements(currentSite.id, 2) %}
 
     {% if not currentSiteElements %}
-        {% if value.sites %}
+        {% if value.sitesFast %}
             <div>
                 Used in different sites
             </div>
@@ -10,7 +10,7 @@
     {% else %}
         <div>
             {% set cpEditUrl = element.cpEditUrl ~ "#" ~ tabHash %}
-            {{ elementRelationsElementPreviewHtml(currentSiteElements, value.count(currentSite.id), cpEditUrl) | raw }}
+            {{ elementRelationsElementPreviewHtml(currentSiteElements, value.countFast(currentSite.id), cpEditUrl) | raw }}
         </div>
     {% endif %}
 

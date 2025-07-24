@@ -14656,7 +14656,7 @@ const Pagination = ({ endpoint }) => {
     queryKey: [endpoint],
     queryFn() {
       return __async(this, null, function* () {
-        const url = `${endpoint}&page=${currentPage - 1}`;
+        const url = `${endpoint}&page=${currentPage}`;
         const response = yield fetch(url);
         const data = yield response.json();
         setHtml(data.html);

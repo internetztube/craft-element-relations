@@ -17,7 +17,7 @@ class ElementRelationsController extends Controller
         $elementId = (int)$request->getParam('elementId');
         $siteId = (int)$request->getParam('siteId');
         $limit = max(1, (int)$request->getParam('limit', 10));  // at least 1
-        $pageParam = max(0, (int)$request->getParam('page', 0));    // zero‑indexed input
+        $pageParam = max(1, (int)$request->getParam('page', 1));
 
         // element must exist
         if (!Craft::$app->elements->getElementById($elementId, null, $siteId)) {
@@ -39,7 +39,7 @@ class ElementRelationsController extends Controller
         ]);
 
         // set user’s requested page (will be clamped by validatePage)
-        $pagination->page = $pageParam;
+        $pagination->page = $pageParam - 1;
 
         // now pull exactly the slice we need
         $elements = $relationsModel->getElements(
@@ -57,20 +57,19 @@ class ElementRelationsController extends Controller
             ]
         ) : "";
 
-        // respond using *only* the paginator’s own values
+        $currentPage = $pagination->getPage() + 1;
+        $totalPages  = $pagination->getPageCount();
+
         return $this->asJson([
-            'html' => $template,
-            'page' => $pagination->getPage(),        // clamped, zero‐indexed
-            'perPage' => $pagination->getPageSize(),
-            'offset' => $pagination->getOffset(),
-            'totalCount' => $pagination->totalCount,
-            'totalPages' => $pagination->getPageCount(),
-            'prevPage' => $pagination->getPage() > 0
-                ? $pagination->getPage() - 1
-                : null,
-            'nextPage' => $pagination->getPage() + 1 < $pagination->getPageCount()
-                ? $pagination->getPage() + 1
-                : null,
+            '_totalCount' => $totalCount,
+            'html'        => $template,
+            'page'        => $currentPage,
+            'perPage'     => $pagination->getPageSize(),
+            'offset'      => $pagination->getOffset(),
+            'totalCount'  => $pagination->totalCount,
+            'totalPages'  => $totalPages,
+            'prevPage'    => $currentPage > 1 ? $currentPage - 1 : null,
+            'nextPage'    => $currentPage < $totalPages ? $currentPage + 1 : null,
         ]);
     }
 }

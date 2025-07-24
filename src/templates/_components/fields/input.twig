@@ -9,7 +9,7 @@
         {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
         #}
         {% if value.isInUse %}
-            {% set currentSiteCount = value.count() %}
+            {% set currentSiteCount = value.count(currentSite.id) %}
             {% if currentSiteCount %}
                 <h3>Relations of this site:</h3>
                 <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"
