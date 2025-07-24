@@ -25,8 +25,8 @@ class ElementRelationsController extends Controller
         }
 
         // model + count
-        $relationsModel = new RelationsModel($elementId);
-        $totalCount = $relationsModel->getCount($siteId);
+        $relationsModel = new RelationsModel($elementId, $siteId);
+        $totalCount = $relationsModel->getCount();
 
         // build the paginator
         $paginationClass = \yii\data\Pagination::class;

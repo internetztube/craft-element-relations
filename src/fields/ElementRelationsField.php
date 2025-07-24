@@ -12,7 +12,6 @@ use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use craft\models\FieldLayoutTab;
 use internetztube\elementRelations\assetbundles\ElementRelationsAsset;
-use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\models\RelationsModel;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
@@ -36,7 +35,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
          * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
          * to the canonical.
          */
-        return new RelationsModel($element->id);
+        return new RelationsModel($element->id, $element->siteId);
     }
 
     /**

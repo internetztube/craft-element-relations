@@ -7,7 +7,7 @@
         {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
         #}
         {% if value.isInUse %}
-            {% set currentSiteCount = value.count(currentSite.id) %}
+            {% set currentSiteCount = value.count() %}
             {% if currentSiteCount %}
                 <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"
                      style="overflow: scroll;"></div>

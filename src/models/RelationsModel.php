@@ -4,9 +4,6 @@ namespace internetztube\elementRelations\models;
 
 use Craft;
 use craft\base\Element;
-use craft\base\ElementInterface;
-use craft\base\Model;
-use craft\db\ActiveQuery;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
@@ -18,38 +15,38 @@ use yii\db\Expression;
 class RelationsModel
 {
     private int $elementId;
+    private int $siteId;
 
     private ?bool $_isUsedInSeomaticGlobalSettings = null;
     private ?array $_fastCountQueryResult = null;
 
-    public function __construct(int $elementId)
+    public function __construct(int $elementId, int $siteId)
     {
         $this->elementId = $elementId;
+        $this->siteId = $siteId;
     }
 
-    public function getCount(array|int $siteIds = [])
+    public function getCount(array|int $siteIds = null)
     {
-        if (!is_array($siteIds)) {
-            $siteIds = [$siteIds];
-        }
+        if (is_null($siteIds)) $siteIds = [$this->siteId];
+        if (is_int($siteIds)) $siteIds = [$siteIds];
 
         $elementQueries = $this->getElementQueries($siteIds);
         return collect($elementQueries)
-            ->map(fn (ElementQueryInterface $query) => $query->count())
+            ->map(fn(ElementQueryInterface $query) => $query->count())
             ->sum();
     }
 
-    public function getCountFast(array|int $siteIds = []): int
+    public function getCountFast(array|int $siteIds = null): int
     {
-        if (!is_array($siteIds)) {
-            $siteIds = [$siteIds];
-        }
+        if (is_null($siteIds)) $siteIds = [$this->siteId];
+        if (is_int($siteIds)) $siteIds = [$siteIds];
 
         $fastCountQueryResult = $this->getFastCountQueryResult();
         $collection = collect($fastCountQueryResult);
 
         if (!empty($siteIds)) {
-            $collection = $collection->filter(fn ($row) => in_array($row['siteId'], $siteIds));
+            $collection = $collection->filter(fn($row) => in_array($row['siteId'], $siteIds));
         }
         return $collection->sum('count');
     }
@@ -76,12 +73,12 @@ class RelationsModel
             ->all();
     }
 
-    public function getIsInUse(array|int $siteIds = []): bool
+    public function getIsInUse(array|int $siteIds = null): bool
     {
         return $this->getCount($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
     }
 
-    public function getIsInUseFast(array|int $siteIds = []): bool
+    public function getIsInUseFast(array|int $siteIds = null): bool
     {
         return $this->getCountFast($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
     }
@@ -110,8 +107,11 @@ class RelationsModel
      * @param array $siteIds
      * @return ElementQueryInterface[]
      */
-    public function getElementQueries(array $siteIds = []): array
+    public function getElementQueries(array|int $siteIds = null): array
     {
+        if (is_null($siteIds)) $siteIds = [$this->siteId];
+        if (is_int($siteIds)) $siteIds = [$siteIds];
+
         $fastCountQueryResult = $this->getFastCountQueryResult();
 
         return collect($fastCountQueryResult)
@@ -157,7 +157,7 @@ class RelationsModel
      * @param int $offset
      * @return Element[]
      */
-    public function getElements(array|int $siteIds = [], ?int $limit = null, int $offset = 0): array
+    public function getElements(array|int $siteIds = null, ?int $limit = null, int $offset = 0): array
     {
         return iterator_to_array(
             $this->getElementsIterator($siteIds, $limit, $offset),
@@ -165,8 +165,11 @@ class RelationsModel
         );
     }
 
-    public function getElementsIterator(array|int $siteIds = [], ?int $limit = null, int $offset = 0, int $batchSize = 100): \Generator
+    public function getElementsIterator(array|int $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100): \Generator
     {
+        if (is_null($siteIds)) $siteIds = [$this->siteId];
+        if (is_int($siteIds)) $siteIds = [$siteIds];
+
         $siteIds = (array)$siteIds;
         $remaining = $limit;
 
@@ -231,7 +234,7 @@ class RelationsModel
         $subQuery = (new Query())
             ->select([
                 'siteId' => '[[elementrelations_cache.sourceSiteId]]',
-                'type'   => '[[elements.type]]',
+                'type' => '[[elements.type]]',
             ])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
 
@@ -258,13 +261,11 @@ class RelationsModel
             ])
             ->andWhere(['[[elements.archived]]' => 0])
             ->andWhere(['[[elements.revisionId]]' => null])
-
             ->andWhere([
                 'or',
-                ['[[drafts.id]]'          => null],               // no draft
+                ['[[drafts.id]]' => null],               // no draft
                 ['<>', '[[drafts.provisional]]', 1],              // or not provisional
             ])
-
             ->groupBy([
                 '[[elementrelations_cache.sourcePrimaryOwnerId]]',
                 '[[elementrelations_cache.sourceSiteId]]',
@@ -273,8 +274,8 @@ class RelationsModel
         $query = (new Query())
             ->select([
                 'siteId' => '[[siteId]]',
-                'type'   => '[[type]]',
-                'count'  => 'COUNT(*)',
+                'type' => '[[type]]',
+                'count' => 'COUNT(*)',
             ])
             ->from(['sub' => $subQuery])
             ->groupBy(['[[siteId]]', '[[type]]']);
