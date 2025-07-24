@@ -1,9 +1,7 @@
 <div style="
-        border: 1px solid #e3e5e8;
-        border-radius: 3px;
         margin-bottom: 10px;
-        padding: var(--l);
     ">
+
     {% if value %}
         {#
         {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
@@ -11,18 +9,18 @@
         {% if value.isInUse %}
             {% set currentSiteCount = value.count(currentSite.id) %}
             {% if currentSiteCount %}
-                <h3>Relations of this site:</h3>
                 <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"
                      style="overflow: scroll;"></div>
             {% endif %}
             {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
             {% if otherSites %}
                 {% if currentSiteCount %}
-                    <br><br>
+                    <br>
                 {% endif %}
                 <div>
-                    <h3>Used in these other sites:</h3>
-
+                    <h3>
+                        {{ 'field-headline-other-sites' | t('element-relations') }}
+                    </h3>
                     <ul>
                         {% for site in otherSites %}
                             <li>
@@ -44,13 +42,15 @@
             {% endif %}
         {% else %}
             {% if element.isDraft %}
-                Drafts cannot be used in relations
+                {{ 'field-hint-draft' | t('element-relations') }}
             {% else %}
-                <span style="color: #ff0000">{{ 'field-value-unused' | t('element-relations') }}</span>
+                <span style="color: #ff0000">
+                    {{ 'field-value-unused' | t('element-relations') }}
+                </span>
             {% endif %}
         {% endif %}
 
     {% else %}
-        Element not saved yet
+        {{ 'field-hint-not-saved' | t('element-relations') }}
     {% endif %}
 </div>

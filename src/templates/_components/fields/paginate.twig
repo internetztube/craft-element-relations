@@ -1,6 +1,10 @@
+{% set isMultiSite = craft.app.sites.getAllSites() | length > 1 %}
+
 <table class="table" style="width: 100%;">
     {% for element in elements %}
-        <tr style="border-block: 1px solid #e5e7eb;">
+        <tr style="
+            border-block: 1px solid #e5e7eb;
+        ">
             <td>
                 {{ elementRelationsElementPreviewHtml([element], 1, "") | raw }}
             </td>
@@ -10,21 +14,23 @@
                        data-icon="world" aria-label="View"></a>
                 {% endif %}
             </td>
-            <td title="{{ className(element) }} (Class Name)">
+            <td title="{{ className(element) }} (elementType)">
                 {{ element.displayName }}
             </td>
-            <td title="{{ element.site.handle }} (Site)">
-                {{ element.site.name }}
-            </td>
+            {% if isMultiSite %}
+                <td title="{{ element.site.handle }} (site)">
+                    {{ element.site.name }}
+                </td>
+            {% endif %}
             {% if className(element) == 'craft\\elements\\Entry' and element.section %}
-                <td title="{{ element.section.handle }} (Section)">
+                <td title="{{ element.section.handle }} (section)">
                     {{ element.section.name }}
                 </td>
             {% else %}
                 <td></td>
             {% endif %}
             {% if className(element) == 'craft\\elements\\Entry' and element.type %}
-                <td title="{{ element.type.handle }} (Entry Type)">
+                <td title="{{ element.type.handle }} (entryType)">
                     {{ element.type.name }}
                 </td>
             {% else %}

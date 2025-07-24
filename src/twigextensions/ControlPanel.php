@@ -15,7 +15,11 @@ class ControlPanel extends AbstractExtension
     {
         return [
             new TwigFunction('elementRelationsElementPreviewHtml', function (...$args) {
-                return $this->elementPreviewHtml(...$args);
+                $content = $this->elementPreviewHtml(...$args);
+                // strip out all inputs in order to not trigger a new provisional draft
+                return strip_tags($content, [
+                    'div', 'span', 'a'
+                ]);
             }),
         ];
     }
