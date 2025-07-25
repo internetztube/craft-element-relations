@@ -37,10 +37,6 @@ As a basis the relations table is used. This means that any field that stores re
 * Formie  
 ... and many more.
 
-## GraphQL
-The Element Relations field exposes its data in GraphQL. Query the field by its handle to
-access counts, usage flags, and related elements.
-
 ## Usage
 
 ### GraphQL
