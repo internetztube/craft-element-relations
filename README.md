@@ -34,8 +34,12 @@ As a basis the relations table is used. This means that any field that stores re
 * Hyper
 * LinkIt
 * TypedLinkField
-* Formie  
+* Formie
 ... and many more.
+
+## GraphQL
+The Element Relations field exposes its data in GraphQL. Query the field by its handle to
+access counts, usage flags, and related elements.
 
 ## Usage
 Obtain a `RelationsModel` instance from any element’s relations field, then use its methods to inspect usage.
