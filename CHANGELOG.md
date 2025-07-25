@@ -10,14 +10,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Table view directly renders first two elements without lazy loading
 
 ### Added
-- Added `RelationsModel`
-- Added Pagination to Field Input
 - Added other sites hint [#40](https://github.com/internetztube/craft-element-relations/issues/40)
+- Added Pagination to Field Input
+- Added `internetztube\elementRelations\RelationsModel`
 
 ### Removed
-- Removed `RelationsService`
-- Removed Twig helper `elementRelationsGetRelations`
-- Removed Twig helper `elementRelationsIsUsedInSeomaticGlobalSettings`
+- Removed `internetztube\elementRelations\RelationsService`
+- Removed Twig function `elementRelationsGetRelations`
+- Removed Twig function `elementRelationsIsUsedInSeomaticGlobalSettings`
 
 ## 3.0.11.1 - 2025-06-26
 ### Fixed
