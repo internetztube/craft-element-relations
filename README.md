@@ -42,6 +42,31 @@ The Element Relations field exposes its data in GraphQL. Query the field by its 
 access counts, usage flags, and related elements.
 
 ## Usage
+
+### GraphQL
+The Element Relations field exposes its data in GraphQL. Query the field by its handle to
+access counts, usage flags, and related elements. Below is a minimal example fetching usage
+information for a field named `relationsField` on an entry:
+
+```graphql
+{
+  entry(slug: "my-entry") {
+    ... on entry_default_Entry {
+      title
+      relationsField {
+        count
+        isInUse
+        elements(limit: 2) {
+          id
+          title
+        }
+      }
+    }
+  }
+}
+```
+
+### Twig
 Obtain a `RelationsModel` instance from any element’s relations field, then use its methods to inspect usage.
 ```twig
 {# Fetch the RelationsModel from a field named `relationsField` #}
@@ -50,7 +75,7 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set relationsModel = element.relationsField %}
 ```
 
-### Is in use?
+#### Is in use?
 ```twig
 {# Check if the element is used in the current site #}
 {% if relationsModel.isInUse %}
@@ -63,7 +88,7 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% endif %}
 ```
 
-### Elements
+#### Elements
 ```twig
 {# All related elements in elements site #}
 {% set elements = relationsModel.elements %}
@@ -81,20 +106,20 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set elements = relationsModel.getElements(siteIds = [], limit = null, offset = 0) %}
 ```
 
-### Elements Iterator
+#### Elements Iterator
 ```twig
 {% for element in relationsModel.getElementsIterator(siteIds = [], limit = null, offset = 0, batchSize = 100) %}
     {{ dump(element) }}
 {% endfor %}
 ```
 
-### Sites
+#### Sites
 ```twig
 {# List of sites where the element is in use #}
 {% set sites = relationsModel.sites %}
 ```
 
-### Special / SEOmatic
+#### Special / SEOmatic
 ```twig
 {# Detect usage in SEOmatic global settings #}
 {% if relationsModel.isUsedInSeomaticGlobalSettings %}
