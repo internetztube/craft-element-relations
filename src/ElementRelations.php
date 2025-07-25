@@ -84,7 +84,6 @@ class ElementRelations extends Plugin
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
 
         Craft::$app->view->registerTwigExtension(new ControlPanel());
-        Craft::$app->view->registerTwigExtension(new Main());
     }
 
     protected function settingsHtml(): ?string

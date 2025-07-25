@@ -1,0 +1,28 @@
+{% if value.isInUseFast %}
+    {% set currentSiteElements = value.getElements(currentSite.id, 2) %}
+
+    {% if not currentSiteElements %}
+        {% if value.sitesFast %}
+            <div>
+                {{ 'preview-other-sites' | t('element-relations') }}
+            </div>
+        {% endif %}
+    {% else %}
+        <div>
+            {% set cpEditUrl = element.cpEditUrl ~ "#" ~ tabHash %}
+            {{ elementRelationsElementPreviewHtml(currentSiteElements, value.countFast(currentSite.id), cpEditUrl) | raw }}
+        </div>
+    {% endif %}
+
+    {% if value.isUsedInSeomaticGlobalSettings %}
+        <div>
+            {{ 'field-value-seomatic-global' | t('element-relations') }}
+        </div>
+    {% endif %}
+{% else %}
+    {% if element.isDraft %}
+        {{ 'field-hint-draft' | t('element-relations') }}
+    {% else %}
+        <span style="color: #ff0000">{{ 'field-value-unused' | t('element-relations') }}</span>
+    {% endif %}
+{% endif %}

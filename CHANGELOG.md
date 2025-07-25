@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.1.0 - 2025-07-27
+### Changed
+- Field value now contains model which allows using information in templates
+- Table view directly renders first two elements without lazy loading
+
+### Added
+- Added other sites hint [#40](https://github.com/internetztube/craft-element-relations/issues/40)
+- Added Pagination to Field Input
+- Added `internetztube\elementRelations\RelationsModel`
+
+### Removed
+- Removed `internetztube\elementRelations\RelationsService`
+- Removed Twig function `elementRelationsGetRelations`
+- Removed Twig function `elementRelationsIsUsedInSeomaticGlobalSettings`
+
 ## 3.0.11.1 - 2025-06-26
 ### Fixed
 - Fix rendering of non-entry relations. [#46](https://github.com/internetztube/craft-element-relations/issues/46)

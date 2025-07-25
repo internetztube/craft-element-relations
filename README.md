@@ -33,32 +33,69 @@ As a basis the relations table is used. This means that any field that stores re
 * CkEditor
 * Hyper
 * LinkIt
-* TypedLinkField  
+* TypedLinkField   
+* Formie
 ... and many more.
 
-
-## Usage in Templates
-You would like to use the relation information in your templates, no problemo! There are two methods available for use 
-in Twig Templates and Element API.
-
-`elementRelationsGetRelations` and `RelationsService::getRelations` return both an array of Elements. 
-
-### Twig
+### Usage
+Obtain a `RelationsModel` instance from any element’s relations field, then use its methods to inspect usage.
 ```twig
-{# Expects an Element; Returns an array of Elements. #}
-{% set relations = elementRelationsGetRelations(element) %}
+{# Fetch the RelationsModel from a field named `relationsField` #}
 
-{# Expects an Element; Returns a boolean. #}
-{% set seomaticGlobal = elementRelationsIsUsedInSeomaticGlobalSettings(element) %}
+{# @var relationsModel \internetztube\elementRelations\models\RelationsModel #}
+{% set relationsModel = element.relationsField %}
 ```
 
-### Element API / PHP
-```php
-// Expects Element; Returns an array of Elements
-$relations = \internetztube\elementRelations\services\RelationsService::getRelations($element)
+#### Is in use?
+```twig
+{# Check if the element is used in the current site #}
+{% if relationsModel.isInUse %}
+    {# ... #}
+{% endif %}
 
-// Expects an Element; Returns a boolean.
-$seomaticGlobal = \internetztube\elementRelations\services\RelationsService::isUsedInSeomaticGlobalSettings($element);
+{# Check usage across all sites #}
+{% if relationsModel.getIsInUse([]) %}
+    {# ... #}
+{% endif %}
+```
+
+#### Elements
+```twig
+{# All related elements in elements site #}
+{% set elements = relationsModel.elements %}
+
+{# All related elements across all sites #}
+{% set allElements = relationsModel.getElements([]) %}
+
+{# Filter by specific site id(s) #}
+{% set site1Elements = relationsModel.getElements([1]) %}
+
+{# Limit number of results (e.g., first 2 items) #}
+{% set firstTwo = relationsModel.getElements([], 2) %}
+
+{# All options #}
+{% set elements = relationsModel.getElements(siteIds = [], limit = null, offset = 0) %}
+```
+
+#### Elements Iterator
+```twig
+{% for element in relationsModel.getElementsIterator(siteIds = [], limit = null, offset = 0, batchSize = 100) %}
+    {{ dump(element) }}
+{% endfor %}
+```
+
+#### Sites
+```twig
+{# List of sites where the element is in use #}
+{% set sites = relationsModel.sites %}
+```
+
+#### Special / SEOmatic
+```twig
+{# Detect usage in SEOmatic global settings #}
+{% if relationsModel.isUsedInSeomaticGlobalSettings %}
+    {# ... #}
+{% endif %}
 ```
 
 ## Screenshots

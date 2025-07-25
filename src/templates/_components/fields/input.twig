@@ -1,0 +1,56 @@
+<div style="
+        margin-bottom: 10px;
+    ">
+
+    {% if value %}
+        {#
+        {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
+        #}
+        {% if value.isInUse %}
+            {% set currentSiteCount = value.count() %}
+            {% if currentSiteCount %}
+                <div class="element-relations-input" data-endpoint="{{ paginationEndpoint }}"
+                     style="overflow: scroll;"></div>
+            {% endif %}
+            {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
+            {% if otherSites %}
+                {% if currentSiteCount %}
+                    <br>
+                {% endif %}
+                <div>
+                    <h3>
+                        {{ 'field-headline-other-sites' | t('element-relations') }}
+                    </h3>
+                    <ul>
+                        {% for site in otherSites %}
+                            <li>
+                                <a href="{{ element.cpEditUrl | replace("?site=" ~ element.site.handle, "?site=" ~ site.handle) }}#{{ tabHash }}"
+                                   title="{{ site.handle }}">
+                                    {{ site.name }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if value.isUsedInSeomaticGlobalSettings %}
+                {% if otherSites or currentSiteCount %}
+                    <hr>
+                {% endif %}
+                {{ 'field-value-seomatic-global' | t('element-relations') }}
+            {% endif %}
+        {% else %}
+            {% if element.isDraft %}
+                {{ 'field-hint-draft' | t('element-relations') }}
+            {% else %}
+                <span style="color: #ff0000">
+                    {{ 'field-value-unused' | t('element-relations') }}
+                </span>
+            {% endif %}
+        {% endif %}
+
+    {% else %}
+        {{ 'field-hint-not-saved' | t('element-relations') }}
+    {% endif %}
+</div>
