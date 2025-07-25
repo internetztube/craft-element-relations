@@ -14,6 +14,7 @@ use craft\services\Elements;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
+use internetztube\elementRelations\assetbundles\ElementRelationsAsset;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
 use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
@@ -83,6 +84,7 @@ class ElementRelations extends Plugin
         Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
 
+        Craft::$app->getView()->registerAssetBundle(ElementRelationsAsset::class);
         Craft::$app->view->registerTwigExtension(new ControlPanel());
     }
 
