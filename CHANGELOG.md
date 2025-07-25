@@ -4,11 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 3.1.1 - 2025-07-27
+## 3.1.2 - 2025-07-26
+### Added
+- Added support for GraphQl
+
+### Fixed
+- Fixed field input loading
+
+## 3.1.1 - 2025-07-25
 ### Fixed
 - Fixed fields in slideouts
 
-## 3.1.0 - 2025-07-27
+## 3.1.0 - 2025-07-25
 ### Changed
 - Field value now contains model which allows using information in templates
 - Table view directly renders first two elements without lazy loading

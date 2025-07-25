@@ -13,6 +13,9 @@ use craft\helpers\UrlHelper;
 use craft\models\FieldLayoutTab;
 use internetztube\elementRelations\assetbundles\ElementRelationsAsset;
 use internetztube\elementRelations\models\RelationsModel;
+use internetztube\elementRelations\gql\types\Relations as RelationsType;
+use craft\models\GqlSchema;
+use GraphQL\Type\Definition\Type;
 
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
@@ -36,6 +39,20 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
          * to the canonical.
          */
         return new RelationsModel($element->id, $element->siteId);
+    }
+
+    public function includeInGqlSchema(GqlSchema $schema): bool
+    {
+        return true;
+    }
+
+    public function getContentGqlType(): Type|array
+    {
+        return [
+            'name' => $this->handle,
+            'type' => RelationsType::getType(),
+            'resolve' => fn($source) => $source->{$this->handle},
+        ];
     }
 
     /**
