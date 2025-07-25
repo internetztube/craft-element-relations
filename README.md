@@ -33,8 +33,8 @@ As a basis the relations table is used. This means that any field that stores re
 * CkEditor
 * Hyper
 * LinkIt
-* TypedLinkField   
-* Formie
+* TypedLinkField
+* Formie  
 ... and many more.
 
 ### Usage
