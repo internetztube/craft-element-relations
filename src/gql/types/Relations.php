@@ -5,7 +5,7 @@ use Craft;
 use craft\gql\base\ObjectType;
 use craft\gql\base\SingularTypeInterface;
 use craft\gql\GqlEntityRegistry;
-use craft\gql\interfaces\elements\Element as ElementInterface;
+use craft\gql\interfaces\Element as ElementInterface;
 use craft\helpers\Gql as GqlHelper;
 use craft\services\Gql as GqlService;
 use GraphQL\Type\Definition\Type;
