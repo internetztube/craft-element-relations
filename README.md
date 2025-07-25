@@ -34,7 +34,7 @@ As a basis the relations table is used. This means that any field that stores re
 * Hyper
 * LinkIt
 * TypedLinkField
-* Formie
+* Formie  
 ... and many more.
 
 ## GraphQL
@@ -57,6 +57,13 @@ information for a field named `relationsField` on an entry:
         count
         isInUse
         elements(limit: 2) {
+          id
+          title
+        }
+        
+        globalCount: count(siteIds: []),
+        globalIsInUse: isInUse(siteIds: []),
+        globalElements: elements(siteIds: [], limit:2) {
           id
           title
         }
