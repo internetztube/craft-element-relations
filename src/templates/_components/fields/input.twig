@@ -14,11 +14,17 @@
                  style="overflow: scroll;"
             ></div>
             <script>
-              (() => {
+              (async () => {
+                const sleep = ms => new Promise(r => setTimeout(r, ms));
                 const endpoint = '{{ paginationEndpoint | raw }}'
-                const $element = document.querySelector('[data-element-relations-id={{ containerId }}]')
-                if (window.elementRelationsInputInit && $element) {
-                  window.elementRelationsInputInit($element, endpoint)
+
+                for (let i = 0; i < 10; i++) {
+                    const $element = document.querySelector('[data-element-relations-id={{ containerId }}]')
+                    if (window.elementRelationsInputInit && $element) {
+                      window.elementRelationsInputInit($element, endpoint)
+                      break;
+                    }
+                    await sleep(100)
                 }
               })()
             </script>
