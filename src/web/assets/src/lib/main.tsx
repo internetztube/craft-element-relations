@@ -6,18 +6,16 @@ import {
     QueryClientProvider,
 } from '@tanstack/react-query';
 
-
-const inputs = [...document.querySelectorAll('.element-relations-input')]
-
-inputs.forEach((input) => {
-    const endpoint = input.getAttribute('data-endpoint') || ''
+const init = (element: HTMLElement, endpoint: string) => {
     const queryClient = new QueryClient();
-    createRoot(input).render(
+    createRoot(element).render(
         <StrictMode>
             <QueryClientProvider client={queryClient}>
                 <Pagination endpoint={endpoint} />
             </QueryClientProvider>
         </StrictMode>,
     )
-})
+}
+
+export default init
 

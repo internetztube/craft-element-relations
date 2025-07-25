@@ -535,8 +535,8 @@ function requireReact_production() {
   react_production.useOptimistic = function(passthrough, reducer) {
     return ReactSharedInternals.H.useOptimistic(passthrough, reducer);
   };
-  react_production.useReducer = function(reducer, initialArg, init) {
-    return ReactSharedInternals.H.useReducer(reducer, initialArg, init);
+  react_production.useReducer = function(reducer, initialArg, init2) {
+    return ReactSharedInternals.H.useReducer(reducer, initialArg, init2);
   };
   react_production.useRef = function(initialValue) {
     return ReactSharedInternals.H.useRef(initialValue);
@@ -4466,14 +4466,14 @@ function requireReactDomClient_production() {
       hook.memoizedState = [nextValue, deps];
       return nextValue;
     },
-    useReducer: function(reducer, initialArg, init) {
+    useReducer: function(reducer, initialArg, init2) {
       var hook = mountWorkInProgressHook();
-      if (void 0 !== init) {
-        var initialState = init(initialArg);
+      if (void 0 !== init2) {
+        var initialState = init2(initialArg);
         if (shouldDoubleInvokeUserFnsInHooksDEV) {
           setIsStrictModeForDevtools(true);
           try {
-            init(initialArg);
+            init2(initialArg);
           } finally {
             setIsStrictModeForDevtools(false);
           }
@@ -4712,8 +4712,8 @@ function requireReactDomClient_production() {
     );
   }
   function resolveLazy(lazyType) {
-    var init = lazyType._init;
-    return init(lazyType._payload);
+    var init2 = lazyType._init;
+    return init2(lazyType._payload);
   }
   function createChildReconciler(shouldTrackSideEffects) {
     function deleteChild(returnFiber, childToDelete) {
@@ -4828,8 +4828,8 @@ function requireReactDomClient_production() {
               lanes
             ), newChild.return = returnFiber, newChild;
           case REACT_LAZY_TYPE:
-            var init = newChild._init;
-            newChild = init(newChild._payload);
+            var init2 = newChild._init;
+            newChild = init2(newChild._payload);
             return createChild(returnFiber, newChild, lanes);
         }
         if (isArrayImpl(newChild) || getIteratorFn(newChild))
@@ -4898,8 +4898,8 @@ function requireReactDomClient_production() {
               null === newChild.key ? newIdx : newChild.key
             ) || null, updatePortal(returnFiber, existingChildren, newChild, lanes);
           case REACT_LAZY_TYPE:
-            var init = newChild._init;
-            newChild = init(newChild._payload);
+            var init2 = newChild._init;
+            newChild = init2(newChild._payload);
             return updateFromMap(
               existingChildren,
               returnFiber,
@@ -6131,8 +6131,8 @@ function requireReactDomClient_production() {
       case 16:
         a: {
           current = workInProgress2.pendingProps;
-          var lazyComponent = workInProgress2.elementType, init = lazyComponent._init;
-          lazyComponent = init(lazyComponent._payload);
+          var lazyComponent = workInProgress2.elementType, init2 = lazyComponent._init;
+          lazyComponent = init2(lazyComponent._payload);
           workInProgress2.type = lazyComponent;
           if ("function" === typeof lazyComponent)
             shouldConstruct(lazyComponent) ? (current = resolveClassComponentProps(lazyComponent, current), workInProgress2.tag = 1, workInProgress2 = updateClassComponent(
@@ -6150,7 +6150,7 @@ function requireReactDomClient_production() {
             ));
           else {
             if (void 0 !== lazyComponent && null !== lazyComponent) {
-              if (init = lazyComponent.$$typeof, init === REACT_FORWARD_REF_TYPE) {
+              if (init2 = lazyComponent.$$typeof, init2 === REACT_FORWARD_REF_TYPE) {
                 workInProgress2.tag = 11;
                 workInProgress2 = updateForwardRef(
                   null,
@@ -6160,7 +6160,7 @@ function requireReactDomClient_production() {
                   renderLanes2
                 );
                 break a;
-              } else if (init === REACT_MEMO_TYPE) {
+              } else if (init2 === REACT_MEMO_TYPE) {
                 workInProgress2.tag = 14;
                 workInProgress2 = updateMemoComponent(
                   null,
@@ -6186,14 +6186,14 @@ function requireReactDomClient_production() {
           renderLanes2
         );
       case 1:
-        return lazyComponent = workInProgress2.type, init = resolveClassComponentProps(
+        return lazyComponent = workInProgress2.type, init2 = resolveClassComponentProps(
           lazyComponent,
           workInProgress2.pendingProps
         ), updateClassComponent(
           current,
           workInProgress2,
           lazyComponent,
-          init,
+          init2,
           renderLanes2
         );
       case 3:
@@ -6205,7 +6205,7 @@ function requireReactDomClient_production() {
           if (null === current) throw Error(formatProdErrorMessage(387));
           lazyComponent = workInProgress2.pendingProps;
           var prevState = workInProgress2.memoizedState;
-          init = prevState.element;
+          init2 = prevState.element;
           cloneUpdateQueue(current, workInProgress2);
           processUpdateQueue(workInProgress2, lazyComponent, null, renderLanes2);
           var nextState = workInProgress2.memoizedState;
@@ -6232,12 +6232,12 @@ function requireReactDomClient_production() {
                 renderLanes2
               );
               break a;
-            } else if (lazyComponent !== init) {
-              init = createCapturedValueAtFiber(
+            } else if (lazyComponent !== init2) {
+              init2 = createCapturedValueAtFiber(
                 Error(formatProdErrorMessage(424)),
                 workInProgress2
               );
-              queueHydrationError(init);
+              queueHydrationError(init2);
               workInProgress2 = mountHostRootWithoutHydrating(
                 current,
                 workInProgress2,
@@ -6270,7 +6270,7 @@ function requireReactDomClient_production() {
             }
           else {
             resetHydrationState();
-            if (lazyComponent === init) {
+            if (lazyComponent === init2) {
               workInProgress2 = bailoutOnAlreadyFinishedWork(
                 current,
                 workInProgress2,
@@ -6307,9 +6307,9 @@ function requireReactDomClient_production() {
           workInProgress2.type,
           workInProgress2.pendingProps,
           rootInstanceStackCursor.current
-        ), hydrationParentFiber = workInProgress2, rootOrSingletonContext = true, init = nextHydratableInstance, isSingletonScope(workInProgress2.type) ? (previousHydratableOnEnteringScopedSingleton = init, nextHydratableInstance = getNextHydratable(
+        ), hydrationParentFiber = workInProgress2, rootOrSingletonContext = true, init2 = nextHydratableInstance, isSingletonScope(workInProgress2.type) ? (previousHydratableOnEnteringScopedSingleton = init2, nextHydratableInstance = getNextHydratable(
           lazyComponent.firstChild
-        )) : nextHydratableInstance = init), reconcileChildren(
+        )) : nextHydratableInstance = init2), reconcileChildren(
           current,
           workInProgress2,
           workInProgress2.pendingProps.children,
@@ -6317,7 +6317,7 @@ function requireReactDomClient_production() {
         ), markRef(current, workInProgress2), null === current && (workInProgress2.flags |= 4194304), workInProgress2.child;
       case 5:
         if (null === current && isHydrating) {
-          if (init = lazyComponent = nextHydratableInstance)
+          if (init2 = lazyComponent = nextHydratableInstance)
             lazyComponent = canHydrateInstance(
               lazyComponent,
               workInProgress2.type,
@@ -6325,23 +6325,23 @@ function requireReactDomClient_production() {
               rootOrSingletonContext
             ), null !== lazyComponent ? (workInProgress2.stateNode = lazyComponent, hydrationParentFiber = workInProgress2, nextHydratableInstance = getNextHydratable(
               lazyComponent.firstChild
-            ), rootOrSingletonContext = false, init = true) : init = false;
-          init || throwOnHydrationMismatch(workInProgress2);
+            ), rootOrSingletonContext = false, init2 = true) : init2 = false;
+          init2 || throwOnHydrationMismatch(workInProgress2);
         }
         pushHostContext(workInProgress2);
-        init = workInProgress2.type;
+        init2 = workInProgress2.type;
         prevState = workInProgress2.pendingProps;
         nextState = null !== current ? current.memoizedProps : null;
         lazyComponent = prevState.children;
-        shouldSetTextContent(init, prevState) ? lazyComponent = null : null !== nextState && shouldSetTextContent(init, nextState) && (workInProgress2.flags |= 32);
-        null !== workInProgress2.memoizedState && (init = renderWithHooks(
+        shouldSetTextContent(init2, prevState) ? lazyComponent = null : null !== nextState && shouldSetTextContent(init2, nextState) && (workInProgress2.flags |= 32);
+        null !== workInProgress2.memoizedState && (init2 = renderWithHooks(
           current,
           workInProgress2,
           TransitionAwareHostComponent,
           null,
           null,
           renderLanes2
-        ), HostTransitionContext._currentValue = init);
+        ), HostTransitionContext._currentValue = init2);
         markRef(current, workInProgress2);
         reconcileChildren(current, workInProgress2, lazyComponent, renderLanes2);
         return workInProgress2.child;
@@ -6410,7 +6410,7 @@ function requireReactDomClient_production() {
           renderLanes2
         ), workInProgress2.child;
       case 9:
-        return init = workInProgress2.type._context, lazyComponent = workInProgress2.pendingProps.children, prepareToReadContext(workInProgress2), init = readContext(init), lazyComponent = lazyComponent(init), workInProgress2.flags |= 1, reconcileChildren(current, workInProgress2, lazyComponent, renderLanes2), workInProgress2.child;
+        return init2 = workInProgress2.type._context, lazyComponent = workInProgress2.pendingProps.children, prepareToReadContext(workInProgress2), init2 = readContext(init2), lazyComponent = lazyComponent(init2), workInProgress2.flags |= 1, reconcileChildren(current, workInProgress2, lazyComponent, renderLanes2), workInProgress2.child;
       case 14:
         return updateMemoComponent(
           current,
@@ -6440,10 +6440,10 @@ function requireReactDomClient_production() {
       case 22:
         return updateOffscreenComponent(current, workInProgress2, renderLanes2);
       case 24:
-        return prepareToReadContext(workInProgress2), lazyComponent = readContext(CacheContext), null === current ? (init = peekCacheFromPool(), null === init && (init = workInProgressRoot, prevState = createCache(), init.pooledCache = prevState, prevState.refCount++, null !== prevState && (init.pooledCacheLanes |= renderLanes2), init = prevState), workInProgress2.memoizedState = {
+        return prepareToReadContext(workInProgress2), lazyComponent = readContext(CacheContext), null === current ? (init2 = peekCacheFromPool(), null === init2 && (init2 = workInProgressRoot, prevState = createCache(), init2.pooledCache = prevState, prevState.refCount++, null !== prevState && (init2.pooledCacheLanes |= renderLanes2), init2 = prevState), workInProgress2.memoizedState = {
           parent: lazyComponent,
-          cache: init
-        }, initializeUpdateQueue(workInProgress2), pushProvider(workInProgress2, CacheContext, init)) : (0 !== (current.lanes & renderLanes2) && (cloneUpdateQueue(current, workInProgress2), processUpdateQueue(workInProgress2, null, null, renderLanes2), suspendIfUpdateReadFromEntangledAsyncAction()), init = current.memoizedState, prevState = workInProgress2.memoizedState, init.parent !== lazyComponent ? (init = { parent: lazyComponent, cache: lazyComponent }, workInProgress2.memoizedState = init, 0 === workInProgress2.lanes && (workInProgress2.memoizedState = workInProgress2.updateQueue.baseState = init), pushProvider(workInProgress2, CacheContext, lazyComponent)) : (lazyComponent = prevState.cache, pushProvider(workInProgress2, CacheContext, lazyComponent), lazyComponent !== init.cache && propagateContextChanges(
+          cache: init2
+        }, initializeUpdateQueue(workInProgress2), pushProvider(workInProgress2, CacheContext, init2)) : (0 !== (current.lanes & renderLanes2) && (cloneUpdateQueue(current, workInProgress2), processUpdateQueue(workInProgress2, null, null, renderLanes2), suspendIfUpdateReadFromEntangledAsyncAction()), init2 = current.memoizedState, prevState = workInProgress2.memoizedState, init2.parent !== lazyComponent ? (init2 = { parent: lazyComponent, cache: lazyComponent }, workInProgress2.memoizedState = init2, 0 === workInProgress2.lanes && (workInProgress2.memoizedState = workInProgress2.updateQueue.baseState = init2), pushProvider(workInProgress2, CacheContext, lazyComponent)) : (lazyComponent = prevState.cache, pushProvider(workInProgress2, CacheContext, lazyComponent), lazyComponent !== init2.cache && propagateContextChanges(
           workInProgress2,
           [CacheContext],
           renderLanes2,
@@ -14744,11 +14744,10 @@ const Pagination = ({ endpoint }) => {
     ] }) : ""
   ] });
 };
-const inputs = [...document.querySelectorAll(".element-relations-input")];
-inputs.forEach((input) => {
-  const endpoint = input.getAttribute("data-endpoint") || "";
+const init = (element, endpoint) => {
   const queryClient = new QueryClient();
-  clientExports.createRoot(input).render(
+  clientExports.createRoot(element).render(
     /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(QueryClientProvider, { client: queryClient, children: /* @__PURE__ */ jsxRuntimeExports.jsx(Pagination, { endpoint }) }) })
   );
-});
+};
+window.elementRelationsInputInit = init;

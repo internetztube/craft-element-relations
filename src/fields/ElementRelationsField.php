@@ -74,8 +74,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     public function getInputHtml(mixed $value, ElementInterface $element = null): string
     {
-        Craft::$app->getView()->registerAssetBundle(ElementRelationsAsset::class);
-
         $paginationEndpoint = UrlHelper::actionUrl("element-relations/element-relations/paginate", [
             "elementId" => $element->id,
             "siteId" => $element->siteId,
