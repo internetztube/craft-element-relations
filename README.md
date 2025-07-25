@@ -37,7 +37,7 @@ As a basis the relations table is used. This means that any field that stores re
 * Formie  
 ... and many more.
 
-### Usage
+## Usage
 Obtain a `RelationsModel` instance from any element’s relations field, then use its methods to inspect usage.
 ```twig
 {# Fetch the RelationsModel from a field named `relationsField` #}
@@ -46,7 +46,7 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set relationsModel = element.relationsField %}
 ```
 
-#### Is in use?
+### Is in use?
 ```twig
 {# Check if the element is used in the current site #}
 {% if relationsModel.isInUse %}
@@ -59,7 +59,7 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% endif %}
 ```
 
-#### Elements
+### Elements
 ```twig
 {# All related elements in elements site #}
 {% set elements = relationsModel.elements %}
@@ -77,20 +77,20 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set elements = relationsModel.getElements(siteIds = [], limit = null, offset = 0) %}
 ```
 
-#### Elements Iterator
+### Elements Iterator
 ```twig
 {% for element in relationsModel.getElementsIterator(siteIds = [], limit = null, offset = 0, batchSize = 100) %}
     {{ dump(element) }}
 {% endfor %}
 ```
 
-#### Sites
+### Sites
 ```twig
 {# List of sites where the element is in use #}
 {% set sites = relationsModel.sites %}
 ```
 
-#### Special / SEOmatic
+### Special / SEOmatic
 ```twig
 {# Detect usage in SEOmatic global settings #}
 {% if relationsModel.isUsedInSeomaticGlobalSettings %}
