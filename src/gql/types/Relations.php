@@ -42,19 +42,6 @@ class Relations extends ObjectType implements SingularTypeInterface
                     return $source->getCount($arguments['siteIds'] ?? null);
                 },
             ],
-            'countFast' => [
-                'name' => 'countFast',
-                'type' => Type::int(),
-                'args' => [
-                    'siteIds' => [
-                        'name' => 'siteIds',
-                        'type' => Type::listOf(Type::int()),
-                    ],
-                ],
-                'resolve' => function(RelationsModel $source, array $arguments) {
-                    return $source->getCountFast($arguments['siteIds'] ?? null);
-                },
-            ],
             'isInUse' => [
                 'name' => 'isInUse',
                 'type' => Type::boolean(),
@@ -66,19 +53,6 @@ class Relations extends ObjectType implements SingularTypeInterface
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
                     return $source->getIsInUse($arguments['siteIds'] ?? null);
-                },
-            ],
-            'isInUseFast' => [
-                'name' => 'isInUseFast',
-                'type' => Type::boolean(),
-                'args' => [
-                    'siteIds' => [
-                        'name' => 'siteIds',
-                        'type' => Type::listOf(Type::int()),
-                    ],
-                ],
-                'resolve' => function(RelationsModel $source, array $arguments) {
-                    return $source->getIsInUseFast($arguments['siteIds'] ?? null);
                 },
             ],
             'isUsedInSeomaticGlobalSettings' => [
