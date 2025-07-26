@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+### Changed
+- Changed field from multi to single instance
+
+### Fixed
+- Fixed field icon
+
 ## 3.1.3 - 2025-07-26
 ### Fixed
 - Fixed User Photo relations when users have no custom fields
