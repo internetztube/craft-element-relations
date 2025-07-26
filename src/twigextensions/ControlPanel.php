@@ -32,7 +32,7 @@ class ControlPanel extends AbstractExtension
     ): string
     {
         $showStatus = true;
-        $showThumb = true;
+        $showThumb = false;
         $showLabel = true;
         $showDraftName = true;
 

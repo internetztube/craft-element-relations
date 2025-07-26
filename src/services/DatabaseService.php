@@ -11,10 +11,7 @@ class DatabaseService
     public static function jsonExtract(string $column, array $path): string
     {
         $db = Craft::$app->getDb();
-        $queryBuilder = $db->getQueryBuilder();
-        if (method_exists($queryBuilder, 'jsonExtract')) {
-            return $queryBuilder->jsonExtract($column, $path);
-        }
+
 
         // Craft 4 Fallback
         $column = $db->quoteColumnName($column);

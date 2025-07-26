@@ -269,6 +269,7 @@ class RelationsModel
             ->groupBy([
                 '[[elementrelations_cache.sourcePrimaryOwnerId]]',
                 '[[elementrelations_cache.sourceSiteId]]',
+                '[[elements.type]]',
             ]);
 
         $query = (new Query())
