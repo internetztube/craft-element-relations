@@ -10,16 +10,10 @@ class ElementRelationsAsset extends AssetBundle
     public function init()
     {
         $this->sourcePath = '@internetztube/elementRelations/web/assets/dist';
-
-        $this->js = [
-            'input.js'
-        ];
-
-        $this->css = [
-            'input.css'
-        ];
-
+        $this->js = ['input.js'];
+        $this->css = [];
         $this->depends = [];
+
         parent::init();
     }
 }
