@@ -19,9 +19,7 @@ class ElementRelationsAsset extends AssetBundle
             'input.css'
         ];
 
-        $this->depends = [
-            CpAsset::class,
-        ];
+        $this->depends = [];
         parent::init();
     }
 }
