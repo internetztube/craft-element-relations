@@ -23,14 +23,7 @@ class ExtractorService
      */
     public static function refreshRelationsForElement(ElementInterface $element): bool
     {
-        $fieldLayout = $element->getFieldLayout();
-        if (!$fieldLayout) {
-            return false;
-        }
-        $fields = $fieldLayout->getCustomFields();
-        if (!$fields) {
-            return false;
-        }
+        $fields = $element->getFieldLayout()?->getCustomFields() ?? [];
         $sourcePrimaryOwner = self::getPrimaryOwner($element);
 
         $baseRecord = new ElementRelationsCacheRecord([
