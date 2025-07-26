@@ -1,4 +1,4 @@
-{% if value.isInUseFast %}
+{% if value.isInUseFast([]) %}
     {% set currentSiteElements = value.getElements(currentSite.id, 2) %}
 
     {% if not currentSiteElements %}

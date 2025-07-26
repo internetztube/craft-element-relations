@@ -86,7 +86,7 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% endif %}
 
 {# Check usage across all sites #}
-{% if relationsModel.getIsInUse([]) %}
+{% if relationsModel.isInUse([]) %}
     {# ... #}
 {% endif %}
 ```
@@ -97,21 +97,21 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set elements = relationsModel.elements %}
 
 {# All related elements across all sites #}
-{% set allElements = relationsModel.getElements([]) %}
+{% set allElements = relationsModel.elements([]) %}
 
 {# Filter by specific site id(s) #}
-{% set site1Elements = relationsModel.getElements([1]) %}
+{% set site1Elements = relationsModel.elements([1]) %}
 
 {# Limit number of results (e.g., first 2 items) #}
-{% set firstTwo = relationsModel.getElements([], 2) %}
+{% set firstTwo = relationsModel.elements([], 2) %}
 
 {# All options #}
-{% set elements = relationsModel.getElements(siteIds = [], limit = null, offset = 0) %}
+{% set elements = relationsModel.elements(siteIds = [], limit = null, offset = 0) %}
 ```
 
 #### Elements Iterator
 ```twig
-{% for element in relationsModel.getElementsIterator(siteIds = [], limit = null, offset = 0, batchSize = 100) %}
+{% for element in relationsModel.elementsIterator(siteIds = [], limit = null, offset = 0, batchSize = 100) %}
     {{ dump(element) }}
 {% endfor %}
 ```

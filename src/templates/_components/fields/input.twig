@@ -1,48 +1,48 @@
-<div style="
-        margin-bottom: 10px;
-    ">
-
+<div style="margin-bottom: 10px;">
     {% if value %}
         {#
         {{ value.count(currentSite.id) }}/{{ value.getElements(currentSite.id, 20) | length }}
         #}
-        {% if value.isInUse %}
+        {% if value.isInUse([]) %}
             {% set currentSiteCount = value.count() %}
         {% if currentSiteCount %}
-            <div data-element-relations-id="{{ containerId }}"
-                 class="element-relations-input"
-                 style="overflow: scroll;"
+            <div
+                    data-element-relations-id="{{ containerId }}"
+                    class="element-relations-input"
+                    style="overflow: scroll;"
             ></div>
             <script>
-              (async () => {
-                const sleep = ms => new Promise(r => setTimeout(r, ms));
-                const endpoint = '{{ paginationEndpoint | raw }}'
+                (async () => {
+                    const sleep = ms => new Promise(r => setTimeout(r, ms));
+                    const endpoint = '{{ paginationEndpoint | raw }}';
 
-                for (let i = 0; i < 10; i++) {
-                    const $element = document.querySelector('[data-element-relations-id={{ containerId }}]')
-                    if (window.elementRelationsInputInit && $element) {
-                      window.elementRelationsInputInit($element, endpoint)
-                      break;
+                    for (let i = 0; i < 10; i++) {
+                        const $el = document.querySelector(
+                            '[data-element-relations-id={{ containerId }}]'
+                        );
+                        if (window.elementRelationsInputInit && $el) {
+                            window.elementRelationsInputInit($el, endpoint);
+                            break;
+                        }
+                        await sleep(100);
                     }
-                    await sleep(100)
-                }
-              })()
+                })();
             </script>
         {% endif %}
             {% set otherSites = value.sites | filter(site => site.id != currentSite.id) %}
         {% if otherSites %}
         {% if currentSiteCount %}
-        <br>
+            <br/>
         {% endif %}
             <div>
-                <h3>
-                    {{ 'field-headline-other-sites' | t('element-relations') }}
-                </h3>
+                <h3>{{ 'field-headline-other-sites' | t('element-relations') }}</h3>
                 <ul>
                     {% for site in otherSites %}
                         <li>
-                            <a href="{{ element.cpEditUrl | replace("?site=" ~ element.site.handle, "?site=" ~ site.handle) }}#{{ tabHash }}"
-                               title="{{ site.handle }}">
+                            <a
+                                    href="{{ element.cpEditUrl | replace('?site=' ~ element.site.handle, '?site=' ~ site.handle) }}#{{ tabHash }}"
+                                    title="{{ site.handle }}"
+                            >
                                 {{ site.name }}
                             </a>
                         </li>
@@ -53,15 +53,16 @@
 
         {% if value.isUsedInSeomaticGlobalSettings %}
         {% if otherSites or currentSiteCount %}
-        <hr>
+        <hr/>
         {% endif %}
             {{ 'field-value-seomatic-global' | t('element-relations') }}
         {% endif %}
+
         {% else %}
         {% if element.isDraft %}
             {{ 'field-hint-draft' | t('element-relations') }}
         {% else %}
-            <span style="color: #ff0000">
+            <span style="color: #ff0000;">
                     {{ 'field-value-unused' | t('element-relations') }}
                 </span>
         {% endif %}
