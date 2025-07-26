@@ -4,21 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 3.1.2.4 - 2025-07-26
-### Fix
-- Fix User Photo Extractor
-
-## 3.1.2.3 - 2025-07-26
-### Fix
-- Fix multi site hints
-
-## 3.1.2.2 - 2025-07-26
-### Fix
-- Fix Postgres SEOmatic exception
-
-## 3.1.2.1 - 2025-07-26
-### Fix
-- Only register AssetBundle on Control Panel request
+## 3.1.3 - 2025-07-26
+### Fixed
+- Fixed User Photo relations when users have no custom fields
+- Fixed multi-site hints
+- Fixed Postgres SEOmatic exception
+- Fixed AssetBundle register so its only render on cp requests
 
 ## 3.1.2 - 2025-07-25
 ### Added
