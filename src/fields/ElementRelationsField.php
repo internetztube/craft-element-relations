@@ -29,6 +29,16 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         return Craft::t("element-relations", "Element Relations");
     }
 
+  public static function icon(): string
+  {
+      return '@internetztube/elementRelations/icon-mask.svg';
+  }
+
+    public static function isMultiInstance(): bool
+    {
+        return false;
+    }
+
     public function normalizeValue(mixed $value, ?ElementInterface $element = null): ?RelationsModel
     {
         if (!$element || !$element->id) {
