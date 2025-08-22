@@ -13,7 +13,7 @@ export default defineConfig({
     outDir: '../dist',
     minify: false,
     lib: {
-      formats: ['es'],
+      formats: ['iife'],
       entry: resolve(__dirname, 'lib/input.ts'),
       name: 'input',
       fileName: () => 'input.js',
