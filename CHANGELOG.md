@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.1.6 - 2025-10-11
+### Updated
+- Refresh Queue Jobs now get combined into batches.
+
 ## 3.1.5 - 2025-10-11
 ### Added
 - Add support for `section` and `entryType` in Twig/GraphQl. [#56](https://github.com/internetztube/craft-element-relations/issues/56) 

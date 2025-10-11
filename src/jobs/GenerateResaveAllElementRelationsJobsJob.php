@@ -20,7 +20,6 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
             ->select([
                 'elements_sites.elementId',
                 'elements_sites.siteId',
-                'elements.type'
             ])
             ->from(['elements_sites' => Table::ELEMENTS_SITES])
             ->innerJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elements_sites.elementId]]")
@@ -33,11 +32,11 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
         $totalBatches = ceil($totalCount / $batchSize);
         $index = 0;
 
-        foreach (Db::batch($query, $batchSize) as $batch) {
+        foreach (Db::batch($query, $batchSize) as $items) {
             $index += 1;
-            $job = new ResaveAllElementRelationsJob([
-                'batch' => $batch,
-                'description' => "Resave All Element Relations ($index/$totalBatches)"
+            $job = new ResaveElementRelationsJob([
+                'items' => $items,
+                'description' => "Resave Element Relations ($index/$totalBatches)"
             ]);
             Craft::$app->getQueue()->push($job);
             $this->setProgress($queue, $index / $totalBatches, "$index/$totalBatches");

@@ -17,7 +17,6 @@ use craft\services\Utilities;
 use internetztube\elementRelations\assetbundles\ElementRelationsAsset;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
-use internetztube\elementRelations\jobs\ResaveSingleElementRelations;
 use internetztube\elementRelations\models\Settings;
 use internetztube\elementRelations\models\SettingsModel;
 use internetztube\elementRelations\services\CacheService;
@@ -28,6 +27,7 @@ use internetztube\elementRelations\services\UserPhotoService;
 use internetztube\elementRelations\twigextensions\ControlPanel;
 use internetztube\elementRelations\twigextensions\Main;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
+use internetztube\elementRelations\services\QueueElementsForRefreshService;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
@@ -62,11 +62,7 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {
             /** @var Element $element */
             $element = $event->sender;
-            $job = new ResaveSingleElementRelations([
-                'elementId' => $element->id,
-                'siteId' => $element->siteId,
-            ]);
-            Craft::$app->getQueue()->priority(1022)->push($job);
+            QueueElementsForRefreshService::registerForRefresh($element->id, $element->siteId);
         });
 
         Event::on(Element::class, Element::EVENT_BEFORE_DELETE, function(ModelEvent $event) {
