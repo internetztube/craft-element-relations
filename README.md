@@ -5,6 +5,7 @@ This plugin shows all relations of an element. For example, where an asset, entr
 __Feature Requests are welcome!__
 
 ![Share](screenshots/share.png)
+![Asset Detail](screenshots/asset-detail-en.png)
 
 ## Requirements
 
