@@ -37,9 +37,21 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'name' => 'siteIds',
                         'type' => Type::listOf(Type::int()),
                     ],
+                    'sections' => [
+                        'name' => 'sections',
+                        'type' => Type::listOf(Type::string()),
+                    ],
+                    'entryTypes' => [
+                        'name' => 'entryTypes',
+                        'type' => Type::listOf(Type::string()),
+                    ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
-                    return $source->getCount($arguments['siteIds'] ?? null);
+                    return $source->getCount(
+                        siteIds: $arguments['siteIds'] ?? null,
+                        sections: $arguments['sections'] ?? null,
+                        entryTypes: $arguments['entryTypes'] ?? null
+                    );
                 },
             ],
             'isInUse' => [
@@ -50,9 +62,21 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'name' => 'siteIds',
                         'type' => Type::listOf(Type::int()),
                     ],
+                    'sections' => [
+                        'name' => 'sections',
+                        'type' => Type::listOf(Type::string()),
+                    ],
+                    'entryTypes' => [
+                        'name' => 'entryTypes',
+                        'type' => Type::listOf(Type::string()),
+                    ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
-                    return $source->getIsInUse($arguments['siteIds'] ?? null);
+                    return $source->getIsInUse(
+                        siteIds: $arguments['siteIds'] ?? null,
+                        sections: $arguments['sections'] ?? null,
+                        entryTypes: $arguments['entryTypes'] ?? null
+                    );
                 },
             ],
             'isUsedInSeomaticGlobalSettings' => [
@@ -68,6 +92,14 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'name' => 'siteIds',
                         'type' => Type::listOf(Type::int()),
                     ],
+                    'sections' => [
+                        'name' => 'sections',
+                        'type' => Type::listOf(Type::string()),
+                    ],
+                    'entryTypes' => [
+                        'name' => 'entryTypes',
+                        'type' => Type::listOf(Type::string()),
+                    ],
                     'limit' => [
                         'name' => 'limit',
                         'type' => Type::int(),
@@ -79,9 +111,17 @@ class Relations extends ObjectType implements SingularTypeInterface
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
                     $siteIds = $arguments['siteIds'] ?? null;
+                    $sections = $arguments['sections'] ?? null;
+                    $entryTypes = $arguments['entryTypes'] ?? null;
                     $limit = $arguments['limit'] ?? null;
                     $offset = $arguments['offset'] ?? 0;
-                    return $source->getElements($siteIds, $limit, $offset);
+                    return $source->getElements(
+                        siteIds: $siteIds,
+                        limit: $limit,
+                        offset: $offset,
+                        sections: $sections,
+                        entryTypes: $entryTypes
+                    );
                 },
                 'complexity' => GqlHelper::relatedArgumentComplexity(GqlService::GRAPHQL_COMPLEXITY_EAGER_LOAD),
             ],

@@ -26,18 +26,18 @@ class RelationsModel
         $this->siteId = $siteId;
     }
 
-    public function getCount(array|int $siteIds = null)
+    public function getCount(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null)
     {
         if (is_null($siteIds)) $siteIds = [$this->siteId];
         if (is_int($siteIds)) $siteIds = [$siteIds];
 
-        $elementQueries = $this->getElementQueries($siteIds);
+        $elementQueries = $this->getElementQueries($siteIds, $sections, $entryTypes);
         return collect($elementQueries)
             ->map(fn(ElementQueryInterface $query) => $query->count())
             ->sum();
     }
 
-    public function getCountFast(array|int $siteIds = null): int
+    public function getCountFast(array|int|null $siteIds = null): int
     {
         if (is_null($siteIds)) $siteIds = [$this->siteId];
         if (is_int($siteIds)) $siteIds = [$siteIds];
@@ -73,12 +73,16 @@ class RelationsModel
             ->all();
     }
 
-    public function getIsInUse(array|int $siteIds = null): bool
+    public function getIsInUse(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null): bool
     {
-        return $this->getCount($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
+        return $this->getCount(
+                siteIds: $siteIds,
+                sections: $sections,
+                entryTypes: $entryTypes
+            ) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
     }
 
-    public function getIsInUseFast(array|int $siteIds = null): bool
+    public function getIsInUseFast(array|int|null $siteIds = null): bool
     {
         return $this->getCountFast($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
     }
@@ -105,19 +109,23 @@ class RelationsModel
 
     /**
      * @param array $siteIds
+     * @param array|string|null $sections
+     * @param array|string|null $entryTypes
      * @return ElementQueryInterface[]
      */
-    public function getElementQueries(array|int $siteIds = null): array
+    public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null): array
     {
         if (is_null($siteIds)) $siteIds = [$this->siteId];
         if (is_int($siteIds)) $siteIds = [$siteIds];
+        if (is_string($sections)) $sections = [$sections];
+        if (is_string($entryTypes)) $entryTypes = [$entryTypes];
 
         $fastCountQueryResult = $this->getFastCountQueryResult();
 
         return collect($fastCountQueryResult)
             ->pluck('type')
             ->unique()
-            ->map(function (string $elementType) use ($siteIds) {
+            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes) {
 
                 $subQuery = (new Query())
                     ->select(new Expression('1'))
@@ -139,6 +147,16 @@ class RelationsModel
                     ->andWhere(['exists', $subQuery])
                     ->drafts(false);
 
+                // Apply section filter if element type is Entry and sections are specified
+                if ($elementType === \craft\elements\Entry::class && !empty($sections)) {
+                    $query->section($sections);
+                }
+
+                // Apply type filter if element type is Entry and types are specified
+                if ($elementType === \craft\elements\Entry::class && !empty($entryTypes)) {
+                    $query->type($entryTypes);
+                }
+
                 // echo "<pre>{$query->getRawSql()}</pre>";
                 // die();
 
@@ -155,17 +173,25 @@ class RelationsModel
      * @param array|int $siteIds
      * @param int|null $limit
      * @param int $offset
+     * @param array|string|null $sections
+     * @param array|string|null $entryTypes
      * @return Element[]
      */
-    public function getElements(array|int $siteIds = null, ?int $limit = null, int $offset = 0): array
+    public function getElements(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, array|string|null $sections = null, array|string|null $entryTypes = null): array
     {
         return iterator_to_array(
-            $this->getElementsIterator($siteIds, $limit, $offset),
+            $this->getElementsIterator(
+                siteIds: $siteIds,
+                limit: $limit,
+                offset: $offset,
+                sections: $sections,
+                entryTypes: $entryTypes
+            ),
             false
         );
     }
 
-    public function getElementsIterator(array|int $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100): \Generator
+    public function getElementsIterator(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100, array|string|null $sections = null, array|string|null $entryTypes = null): \Generator
     {
         if (is_null($siteIds)) $siteIds = [$this->siteId];
         if (is_int($siteIds)) $siteIds = [$siteIds];
@@ -173,7 +199,7 @@ class RelationsModel
         $siteIds = (array)$siteIds;
         $remaining = $limit;
 
-        foreach ($this->getElementQueries($siteIds) as $query) {
+        foreach ($this->getElementQueries($siteIds, $sections, $entryTypes) as $query) {
             // How many total in this site
             $total = $query->count();
 

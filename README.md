@@ -59,7 +59,12 @@ information for a field named `relationsField` on an entry:
         
         globalCount: count(siteIds: []),
         globalIsInUse: isInUse(siteIds: []),
-        globalElements: elements(siteIds: [], limit:2) {
+        globalElements: elements(
+            siteIds: [],
+            limit: 2,
+            sections: ['sectionHandle'],
+            entryTypes: ['entryTypeHandle']
+        ) {
           id
           title
         }
@@ -89,6 +94,11 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% if relationsModel.isInUse([]) %}
     {# ... #}
 {% endif %}
+
+{# Check usage in specific sections/entry types #}
+{% if relationsModel.isInUse(sections: ['sectionHandle'], entryTypes: ['entryTypeHandle']) %}
+    {# ... #}
+{% endif %}
 ```
 
 #### Elements
@@ -97,22 +107,39 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set elements = relationsModel.elements %}
 
 {# All related elements across all sites #}
-{% set allElements = relationsModel.elements([]) %}
+{% set allElements = relationsModel.elements(siteIds: []) %}
 
 {# Filter by specific site id(s) #}
-{% set site1Elements = relationsModel.elements([1]) %}
+{% set site1Elements = relationsModel.elements(siteIds: [1]) %}
 
 {# Limit number of results (e.g., first 2 items) #}
-{% set firstTwo = relationsModel.elements([], 2) %}
+{% set firstTwo = relationsModel.elements(siteIds: [], limit: 2) %}
+
+{# Filter by sections and entry types #}
+{% set filteredElements = relationsModel.elements(sections: ['sectionHandle'], entryTypes: ['entryTypeHandle']) %}
+
+{# Combine filters with limit #}
+{% set limitedFiltered = relationsModel.elements(limit: 5, sections: ['news', 'blog']) %}
 
 {# All options #}
-{% set elements = relationsModel.elements(siteIds = [], limit = null, offset = 0) %}
+{% set elements = relationsModel.elements(
+    siteIds: [],
+    limit: null,
+    offset: 0,
+    sections: [],
+    entryTypes: []
+) %}
 ```
 
 #### Elements Iterator
 ```twig
-{% for element in relationsModel.elementsIterator(siteIds = [], limit = null, offset = 0, batchSize = 100) %}
+{% for element in relationsModel.elementsIterator(siteIds: [], limit: null, offset: 0, batchSize: 100) %}
     {{ dump(element) }}
+{% endfor %}
+
+{# Filter by sections/entry types while iterating #}
+{% for element in relationsModel.elementsIterator(sections: ['news'], entryTypes: ['article'], limit: 50) %}
+    {{ element.title }}
 {% endfor %}
 ```
 
