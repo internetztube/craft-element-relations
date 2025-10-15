@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 3.1.7 - 2025-10-15
+### Fixed
+- Use `EVENT_AFTER_REQUEST` in favor of `__destruct`. Thank you, [@alexkuzmin](https://github.com/alexkuzmin)! [#57](https://github.com/internetztube/craft-element-relations/issues/57)
+- Fixed FieldNotFoundException after reinstall. Thank you, [@denisyilmaz](https://github.com/denisyilmaz)! [#58](https://github.com/internetztube/craft-element-relations/issues/58)
+
 ## 3.1.6 - 2025-10-11
 ### Updated
 - Refresh Queue Jobs now get combined into batches.
