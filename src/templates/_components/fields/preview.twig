@@ -9,7 +9,7 @@
         {% endif %}
     {% else %}
         <div>
-            {% set cpEditUrl = element.cpEditUrl ~ "#" ~ tabHash %}
+            {% set cpEditUrl = element.cpEditUrl ~ (tabHash ? "#" ~ tabHash : "") %}
             {{ elementRelationsElementPreviewHtml(currentSiteElements, value.countFast(currentSite.id), cpEditUrl) | raw }}
         </div>
     {% endif %}

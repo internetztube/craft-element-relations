@@ -40,7 +40,7 @@
                     {% for site in otherSites %}
                         <li>
                             <a
-                                    href="{{ element.cpEditUrl | replace('?site=' ~ element.site.handle, '?site=' ~ site.handle) }}#{{ tabHash }}"
+                                    href="{{ element.cpEditUrl | replace('?site=' ~ element.site.handle, '?site=' ~ site.handle) }}{% if tabHash %}#{{ tabHash }}{% endif %}"
                                     title="{{ site.handle }}"
                             >
                                 {{ site.name }}

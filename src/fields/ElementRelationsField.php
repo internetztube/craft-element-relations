@@ -7,6 +7,8 @@ use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\FieldInterface;
 use craft\base\PreviewableFieldInterface;
+use craft\errors\FieldNotFoundException;
+use craft\errors\InvalidConfigException;
 use craft\fieldlayoutelements\CustomField;
 use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
@@ -118,18 +120,24 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
             ]);
     }
 
-    public function getTabHash(ElementInterface $element): string
+    public function getTabHash(ElementInterface $element): ?string
     {
-        /** @var FieldLayoutTab $tab */
         return collect($element->getFieldLayout()->getTabs())
             ->filter(function (FieldLayoutTab $tab) {
                 return collect($tab->getElements())
                     ->filter(fn($layoutElement) => $layoutElement instanceof CustomField)
-                    ->map(fn (CustomField $layoutElement) => $layoutElement->getField())
-                    ->filter(fn (FieldInterface $field) => $field->id === $this->id)
+                    ->map(function (CustomField $layoutElement) {
+                        try {
+                            return $layoutElement->getField();
+                        } catch (FieldNotFoundException | InvalidConfigException $e) {
+                            // Field was deleted but still referenced in layout, or has invalid configuration
+                            return null;
+                        }
+                    })
+                    ->filter(fn(?FieldInterface $field) => $field?->id === $this->id)
                     ->isNotEmpty();
             })
             ->first()
-            ->getHtmlId();
+            ?->getHtmlId();
     }
 }
