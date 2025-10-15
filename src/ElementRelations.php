@@ -28,6 +28,7 @@ use internetztube\elementRelations\twigextensions\ControlPanel;
 use internetztube\elementRelations\twigextensions\Main;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
 use internetztube\elementRelations\services\QueueElementsForRefreshService;
+use yii\base\Application;
 use yii\base\Event;
 
 class ElementRelations extends Plugin
@@ -80,6 +81,10 @@ class ElementRelations extends Plugin
         Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
 
+        Event::on(Application::class, Application::EVENT_AFTER_REQUEST, function() {
+            QueueElementsForRefreshService::destruct();
+        });
+        
         if (Craft::$app->getRequest()->getIsCpRequest()) {
             Craft::$app->getView()->registerAssetBundle(ElementRelationsAsset::class);
             Craft::$app->view->registerTwigExtension(new ControlPanel());

@@ -35,6 +35,14 @@ class QueueElementsForRefreshService extends Component
         }
     }
 
+    public static function destruct()
+    {
+        $instance = self::getInstance();
+        if (!empty($instance->items)) {
+            self::pushToQueue();
+        }
+    }
+
     private static function pushToQueue()
     {
         $instance = self::getInstance();
@@ -43,12 +51,5 @@ class QueueElementsForRefreshService extends Component
         ]);
         $instance->items = [];
         Craft::$app->getQueue()->priority(1022)->push($job);
-    }
-
-    public function __destruct()
-    {
-        if (!empty($this->items)) {
-            self::pushToQueue();
-        }
     }
 }
