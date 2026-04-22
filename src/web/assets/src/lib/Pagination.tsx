@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import usePagination from '@mui/material/usePagination';
 import {useQuery} from '@tanstack/react-query'
 
@@ -6,6 +6,7 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
     const [currentPage, setCurrentPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [html, setHtml] = useState("")
+    const containerRef = useRef<HTMLDivElement>(null)
     const {isFetching, isError, refetch} = useQuery({
         queryKey: [endpoint], async queryFn() {
             const url = `${endpoint}&page=${currentPage}`
@@ -31,6 +32,12 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
         refetch()
     }, [currentPage]);
 
+    useEffect(() => {
+        if (containerRef.current) {
+            (window as any).Craft?.initUiElements?.(containerRef.current)
+        }
+    }, [html]);
+
     if (isError) {
         return <p>An unexpected error occured! :(</p>;
     }
@@ -41,7 +48,7 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
 
     return (
         <>
-            <div dangerouslySetInnerHTML={{__html: html}}/>
+            <div ref={containerRef} dangerouslySetInnerHTML={{__html: html}}/>
             {totalPages > 1 ? (
                 <>
                     <br/>
