@@ -14654,7 +14654,6 @@ var __async = (__this, __arguments, generator) => {
     const [currentPage, setCurrentPage] = reactExports.useState(1);
     const [totalPages, setTotalPages] = reactExports.useState(1);
     const [html, setHtml] = reactExports.useState("");
-    const containerRef = reactExports.useRef(null);
     const { isFetching, isError, refetch } = useQuery({
       queryKey: [endpoint],
       queryFn() {
@@ -14679,12 +14678,6 @@ var __async = (__this, __arguments, generator) => {
     reactExports.useEffect(() => {
       refetch();
     }, [currentPage]);
-    reactExports.useEffect(() => {
-      var _a3, _b2;
-      if (containerRef.current) {
-        (_b2 = (_a3 = window.Craft) == null ? void 0 : _a3.initUiElements) == null ? void 0 : _b2.call(_a3, containerRef.current);
-      }
-    }, [html]);
     if (isError) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "An unexpected error occured! :(" });
     }
@@ -14692,7 +14685,7 @@ var __async = (__this, __arguments, generator) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "spinner" });
     }
     return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: containerRef, dangerouslySetInnerHTML: { __html: html } }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { dangerouslySetInnerHTML: { __html: html } }),
       totalPages > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { className: "pagination flex", style: {
