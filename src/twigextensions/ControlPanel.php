@@ -15,11 +15,7 @@ class ControlPanel extends AbstractExtension
     {
         return [
             new TwigFunction('elementRelationsElementPreviewHtml', function (...$args) {
-                $content = $this->elementPreviewHtml(...$args);
-                // strip out all inputs in order to not trigger a new provisional draft
-                return strip_tags($content, [
-                    'div', 'span', 'a', 'craft-element-label',
-                ]);
+                return $this->elementPreviewHtml(...$args);
             }),
         ];
     }
@@ -41,10 +37,7 @@ class ControlPanel extends AbstractExtension
         }
 
         $html = collect($elements)
-            ->map(
-                fn(ElementInterface $element) =>
-                    Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName)
-            )
+            ->map(fn(ElementInterface $element) => $this->elementChipHtml($element, $size, $showStatus, $showThumb, $showLabel, $showDraftName))
             ->join(' ');
 
         $totalCount = is_null($totalCount) ? count($elements) : $totalCount;
@@ -58,6 +51,31 @@ class ControlPanel extends AbstractExtension
             ]);
         }
         return '<div class="flex gap-xs">' . $html . '</div>';
+    }
+
+    private function elementChipHtml(
+        ElementInterface $element,
+        string $size,
+        bool $showStatus,
+        bool $showThumb,
+        bool $showLabel,
+        bool $showDraftName,
+    ): string
+    {
+        $chip = Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName);
+        // Strip form inputs to avoid triggering a provisional draft
+        $chip = strip_tags($chip, ['div', 'span', 'a', 'craft-element-label']);
+        // Craft 5 renders label-link as a <span> inside <craft-element-label>; convert to <a>
+        $cpUrl = $element->getCpEditUrl();
+        if ($cpUrl) {
+            $chip = preg_replace(
+                '/<span class="label-link">(.*?)<\/span>/s',
+                '<a class="label-link" href="' . htmlspecialchars($cpUrl, ENT_QUOTES) . '">$1</a>',
+                $chip,
+                1
+            );
+        }
+        return $chip;
     }
 
 }
