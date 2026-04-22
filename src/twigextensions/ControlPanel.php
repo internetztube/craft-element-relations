@@ -15,7 +15,11 @@ class ControlPanel extends AbstractExtension
     {
         return [
             new TwigFunction('elementRelationsElementPreviewHtml', function (...$args) {
-                return $this->elementPreviewHtml(...$args);
+                $content = $this->elementPreviewHtml(...$args);
+                // strip out all inputs in order to not trigger a new provisional draft
+                return strip_tags($content, [
+                    'div', 'span', 'a'
+                ]);
             }),
         ];
     }
@@ -37,7 +41,7 @@ class ControlPanel extends AbstractExtension
         }
 
         $html = collect($elements)
-            ->map(fn(ElementInterface $element) => $this->elementChipHtml($element, $size, $showStatus, $showThumb, $showLabel, $showDraftName))
+            ->map(fn(ElementInterface $element) => $this->chipHtml($element, $size, $showStatus, $showThumb, $showLabel, $showDraftName))
             ->join(' ');
 
         $totalCount = is_null($totalCount) ? count($elements) : $totalCount;
@@ -53,7 +57,7 @@ class ControlPanel extends AbstractExtension
         return '<div class="flex gap-xs">' . $html . '</div>';
     }
 
-    private function elementChipHtml(
+    private function chipHtml(
         ElementInterface $element,
         string $size,
         bool $showStatus,
@@ -62,20 +66,21 @@ class ControlPanel extends AbstractExtension
         bool $showDraftName,
     ): string
     {
-        $chip = Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName);
-        // Strip form inputs to avoid triggering a provisional draft
-        $chip = strip_tags($chip, ['div', 'span', 'a']);
-        // Craft 5 renders label-link as a <span> inside <craft-element-label>; convert to <a>
-        $cpUrl = $element->getCpEditUrl();
-        if ($cpUrl) {
-            $chip = preg_replace(
-                '/<span class="label-link">(.*?)<\/span>/s',
-                '<a class="label-link" href="' . htmlspecialchars($cpUrl, ENT_QUOTES) . '">$1</a>',
-                $chip,
-                1
-            );
+        // Craft 5: elementChipHtml() supports hyperlink:true which renders label-link as <a>.
+        // Craft 4: fall back to elementHtml() which already generates <a> for label-link.
+        if (method_exists(Cp::class, 'elementChipHtml')) {
+            return Cp::elementChipHtml($element, [
+                'context' => 'index',
+                'size' => $size,
+                'showStatus' => $showStatus,
+                'showThumb' => $showThumb,
+                'showLabel' => $showLabel,
+                'showDraftName' => $showDraftName,
+                'hyperlink' => true,
+            ]);
         }
-        return $chip;
+
+        return Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName);
     }
 
 }
