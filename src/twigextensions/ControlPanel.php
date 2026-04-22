@@ -64,7 +64,7 @@ class ControlPanel extends AbstractExtension
     {
         $chip = Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName);
         // Strip form inputs to avoid triggering a provisional draft
-        $chip = strip_tags($chip, ['div', 'span', 'a', 'craft-element-label']);
+        $chip = strip_tags($chip, ['div', 'span', 'a']);
         // Craft 5 renders label-link as a <span> inside <craft-element-label>; convert to <a>
         $cpUrl = $element->getCpEditUrl();
         if ($cpUrl) {
