@@ -18,7 +18,7 @@ class ControlPanel extends AbstractExtension
                 $content = $this->elementPreviewHtml(...$args);
                 // strip out all inputs in order to not trigger a new provisional draft
                 return strip_tags($content, [
-                    'div', 'span', 'a', 'craft-element-label',
+                    'div', 'span', 'a'
                 ]);
             }),
         ];
@@ -40,10 +40,11 @@ class ControlPanel extends AbstractExtension
             return '';
         }
 
-        // Use Craft's native method per element so chips get the inline-chips
-        // no-truncate wrapper, matching the 3.0.x chip structure.
         $html = collect($elements)
-            ->map(fn(ElementInterface $element) => Cp::elementPreviewHtml([$element], $size, $showStatus, $showThumb, $showLabel, $showDraftName))
+            ->map(
+                fn(ElementInterface $element) =>
+                    Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName)
+            )
             ->join(' ');
 
         $totalCount = is_null($totalCount) ? count($elements) : $totalCount;
@@ -56,7 +57,7 @@ class ControlPanel extends AbstractExtension
                 'href' => $buttonHref,
             ]);
         }
-        return $html;
+        return '<div class="flex gap-xs">' . $html . '</div>';
     }
 
 }

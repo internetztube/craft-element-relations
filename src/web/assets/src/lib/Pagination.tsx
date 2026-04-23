@@ -32,8 +32,6 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
         refetch()
     }, [currentPage]);
 
-    // After each HTML injection, replace span.label-link with <a> using the chip's
-    // data-cp-url so the CP edit link works in Craft 5 (which renders label-link as span).
     useEffect(() => {
         containerRef.current?.querySelectorAll<HTMLElement>('[data-cp-url] .label-link').forEach(label => {
             if (label.tagName.toLowerCase() !== 'span') return
