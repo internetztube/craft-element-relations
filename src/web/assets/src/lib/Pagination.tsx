@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import usePagination from '@mui/material/usePagination';
 import {useQuery} from '@tanstack/react-query'
 
@@ -6,6 +6,7 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
     const [currentPage, setCurrentPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
     const [html, setHtml] = useState("")
+    const containerRef = useRef<HTMLDivElement>(null)
     const {isFetching, isError, refetch} = useQuery({
         queryKey: [endpoint], async queryFn() {
             const url = `${endpoint}&page=${currentPage}`
@@ -31,6 +32,22 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
         refetch()
     }, [currentPage]);
 
+    // After each HTML injection, replace span.label-link with <a> using the chip's
+    // data-cp-url so the CP edit link works in Craft 5 (which renders label-link as span).
+    useEffect(() => {
+        containerRef.current?.querySelectorAll<HTMLElement>('[data-cp-url] .label-link').forEach(label => {
+            if (label.tagName.toLowerCase() !== 'span') return
+            const chip = label.closest<HTMLElement>('[data-cp-url]')
+            const cpUrl = chip?.dataset.cpUrl
+            if (!cpUrl) return
+            const a = document.createElement('a')
+            a.className = label.className
+            a.href = cpUrl
+            a.innerHTML = label.innerHTML
+            label.replaceWith(a)
+        })
+    }, [html])
+
     if (isError) {
         return <p>An unexpected error occured! :(</p>;
     }
@@ -41,7 +58,7 @@ const Pagination = ({endpoint}: { endpoint: string }) => {
 
     return (
         <>
-            <div dangerouslySetInnerHTML={{__html: html}}/>
+            <div ref={containerRef} dangerouslySetInnerHTML={{__html: html}}/>
             {totalPages > 1 ? (
                 <>
                     <br/>
