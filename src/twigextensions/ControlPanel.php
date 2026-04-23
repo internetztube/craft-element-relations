@@ -17,8 +17,9 @@ class ControlPanel extends AbstractExtension
             new TwigFunction('elementRelationsElementPreviewHtml', function (...$args) {
                 $content = $this->elementPreviewHtml(...$args);
                 // strip out all inputs in order to not trigger a new provisional draft
+                // craft-element-label is kept so Craft's JS can initialise chips
                 return strip_tags($content, [
-                    'div', 'span', 'a'
+                    'div', 'span', 'a', 'craft-element-label',
                 ]);
             }),
         ];
@@ -40,12 +41,9 @@ class ControlPanel extends AbstractExtension
             return '';
         }
 
-        $html = collect($elements)
-            ->map(
-                fn(ElementInterface $element) =>
-                    Cp::elementHtml($element, 'index', $size, null, $showStatus, $showThumb, $showLabel, $showDraftName)
-            )
-            ->join(' ');
+        // Use Craft's native elementPreviewHtml which generates the inline-chips
+        // no-truncate wrapper that Craft's JS targets for chip initialisation.
+        $html = Cp::elementPreviewHtml($elements, $size, $showStatus, $showThumb, $showLabel, $showDraftName);
 
         $totalCount = is_null($totalCount) ? count($elements) : $totalCount;
         $missingCount = $totalCount - count($elements);
@@ -57,7 +55,7 @@ class ControlPanel extends AbstractExtension
                 'href' => $buttonHref,
             ]);
         }
-        return '<div class="flex gap-xs">' . $html . '</div>';
+        return $html;
     }
 
 }

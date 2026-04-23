@@ -6,13 +6,7 @@
             border-block: 1px solid #e5e7eb;
         ">
             <td>
-                {% if element.cpEditUrl %}
-                    <a href="{{ element.cpEditUrl }}" style="text-decoration:none;color:inherit;">
-                {% endif %}
                 {{ elementRelationsElementPreviewHtml([element], 1, "") | raw }}
-                {% if element.cpEditUrl %}
-                    </a>
-                {% endif %}
             </td>
             <td>
                 {% if element.url %}
