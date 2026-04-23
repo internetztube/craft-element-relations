@@ -2,16 +2,11 @@
 
 <table class="table" style="width: 100%;">
     {% for element in elements %}
-        <tr style="
-            border-block: 1px solid #e5e7eb;
-        ">
-            <td>
-                {{ elementRelationsElementPreviewHtml([element], 1, "") | raw }}
-            </td>
-            <td>
-                {% if element.url %}
-                    <a href="{{ element.url }}" title="Visit webpage" rel="noopener" target="_blank"
-                       data-icon="world" aria-label="View"></a>
+        <tr style="border-block: 1px solid #e5e7eb;">
+            <td style="white-space: nowrap;">
+                <span style="display: inline-block;">{{ elementRelationsElementPreviewHtml([element], 1, "") | raw }}</span>
+                {% if className(element) == 'craft\\elements\\Entry' and element.section %}
+                    <span style="color: #666; font-weight: normal; margin-left: 4px;">({{ element.section.name }})</span>
                 {% endif %}
             </td>
             <td title="{{ className(element) }} (elementType)">
@@ -22,20 +17,12 @@
                     {{ element.site.name }}
                 </td>
             {% endif %}
-            {% if className(element) == 'craft\\elements\\Entry' and element.section %}
-                <td title="{{ element.section.handle }} (section)">
-                    {{ element.section.name }}
-                </td>
-            {% else %}
-                <td></td>
-            {% endif %}
-            {% if className(element) == 'craft\\elements\\Entry' and element.type %}
-                <td title="{{ element.type.handle }} (entryType)">
-                    {{ element.type.name }}
-                </td>
-            {% else %}
-                <td></td>
-            {% endif %}
+            <td>
+                {% if element.url %}
+                    <a href="{{ element.url }}" title="Visit webpage" rel="noopener" target="_blank"
+                       data-icon="world" aria-label="View"></a>
+                {% endif %}
+            </td>
         </tr>
     {% endfor %}
 </table>
