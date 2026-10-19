@@ -9,11 +9,13 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\elements\User;
 use internetztube\elementRelations\ElementRelations;
+use internetztube\elementRelations\events\ReplaceEvent;
 use internetztube\elementRelations\jobs\ReplaceElementJob;
 use internetztube\elementRelations\models\RelationsModel;
 use internetztube\elementRelations\records\ReplacementRecord;
 use internetztube\elementRelations\services\extractors\InterfaceElementReplacer;
 use internetztube\elementRelations\services\extractors\InterfaceFieldReplacer;
+use yii\base\Event;
 
 /**
  * Pro: replaces usages of one element by another of the same type, going through the relating elements' field values
@@ -28,6 +30,13 @@ use internetztube\elementRelations\services\extractors\InterfaceFieldReplacer;
  */
 class ReplaceService
 {
+    /** Before a replacement runs; set `$event->isValid = false` to stop it (ReplaceEvent). */
+    public const EVENT_BEFORE_REPLACE = 'beforeReplace';
+    /** After a replacement ran (or was queued); `$event->result` and `$event->operation` are set. */
+    public const EVENT_AFTER_REPLACE = 'afterReplace';
+    /** After an operation was rolled back. */
+    public const EVENT_AFTER_ROLLBACK = 'afterRollback';
+
     /**
      * @param int[]|null $onlySourceIds restrict to these relating elements as listed in the field (top-level owners;
      * nested entries, navigation nodes etc. are matched through their owner); null = everywhere
@@ -46,6 +55,13 @@ class ReplaceService
     ): array {
         if ($from::class !== $to::class || $from->id === $to->id) {
             throw new \InvalidArgumentException('Replacement must be a different element of the same type.');
+        }
+        if (!$operation && Event::hasHandlers(self::class, self::EVENT_BEFORE_REPLACE)) {
+            $event = new ReplaceEvent(['from' => $from, 'to' => $to, 'sourceIds' => $onlySourceIds]);
+            Event::trigger(self::class, self::EVENT_BEFORE_REPLACE, $event);
+            if (!$event->isValid) {
+                return ['replaced' => 0, 'skipped' => [], 'operationId' => null, 'queued' => false];
+            }
         }
 
         $rows = (new Query())
@@ -67,6 +83,7 @@ class ReplaceService
         if (!$operation && $allowQueue && count($types) > ElementRelations::getInstance()->getSettings()->replaceSyncLimit) {
             $operation = self::newOperation($from, $to, $onlySourceIds, $userId, ReplacementRecord::STATUS_QUEUED);
             Craft::$app->getQueue()->push(new ReplaceElementJob(['operationId' => $operation->id]));
+            Craft::info(sprintf('Replacement #%d of #%d by #%d queued (%d elements)', $operation->id, $from->id, $to->id, count($types)), 'element-relations');
             return ['replaced' => 0, 'skipped' => [], 'operationId' => $operation->id, 'queued' => true];
         }
 
@@ -158,8 +175,12 @@ class ReplaceService
         if ($progress) {
             $progress(1);
         }
-
-        return ['replaced' => $replaced, 'skipped' => $skipped, 'operationId' => $operation?->id, 'queued' => false];
+        $result = ['replaced' => $replaced, 'skipped' => $skipped, 'operationId' => $operation?->id, 'queued' => false];
+        Craft::info(sprintf('Replaced #%d by #%d in %d elements%s', $from->id, $to->id, $replaced, $skipped ? '; skipped: ' . implode(', ', $skipped) : ''), 'element-relations');
+        if (Event::hasHandlers(self::class, self::EVENT_AFTER_REPLACE)) {
+            Event::trigger(self::class, self::EVENT_AFTER_REPLACE, new ReplaceEvent(['from' => $from, 'to' => $to, 'sourceIds' => $onlySourceIds, 'result' => $result, 'operation' => $operation]));
+        }
+        return $result;
     }
 
     /**
@@ -240,6 +261,10 @@ class ReplaceService
         $operation->status = ReplacementRecord::STATUS_ROLLED_BACK;
         $operation->result = json_encode([...$operation->getResult(), 'restored' => $restored, 'rollbackSkipped' => $skipped]);
         $operation->save(false);
+        Craft::info(sprintf('Rolled back replacement #%d in %d elements%s', $operation->id, $restored, $skipped ? '; skipped: ' . implode(', ', $skipped) : ''), 'element-relations');
+        if ($from && $to && Event::hasHandlers(self::class, self::EVENT_AFTER_ROLLBACK)) {
+            Event::trigger(self::class, self::EVENT_AFTER_ROLLBACK, new ReplaceEvent(['from' => $from, 'to' => $to, 'result' => ['restored' => $restored, 'skipped' => $skipped], 'operation' => $operation]));
+        }
         return ['restored' => $restored, 'skipped' => $skipped];
     }
 
@@ -249,7 +274,7 @@ class ReplaceService
      */
     public static function replaceInField(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): bool
     {
-        foreach (array_filter(ExtractorService::FIELD_EXTRACTORS, 'class_exists') as $extractor) {
+        foreach (ExtractorService::fieldExtractors() as $extractor) {
             if (!is_subclass_of($extractor, InterfaceFieldReplacer::class)) {
                 continue;
             }
@@ -264,7 +289,7 @@ class ReplaceService
     /** Same for usages stored outside custom fields (user photo, navigation node, …), see InterfaceElementReplacer. */
     public static function replaceInElement(ElementInterface $element, ElementInterface $from, ElementInterface $to): bool
     {
-        foreach (array_filter(ExtractorService::ELEMENT_EXTRACTORS, 'class_exists') as $extractor) {
+        foreach (ExtractorService::elementExtractors() as $extractor) {
             if (!is_subclass_of($extractor, InterfaceElementReplacer::class)) {
                 continue;
             }

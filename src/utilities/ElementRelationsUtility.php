@@ -76,7 +76,7 @@ class ElementRelationsUtility extends Utility
                     'color' => $colors[$operation->status] ?? Color::Gray,
                     'label' => Craft::t('element-relations', 'history-status-' . $operation->status),
                 ]),
-                'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->getChanges(),
+                'canRollBack' => ElementRelations::canRollBack() && $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->getChanges(),
             ];
         }
         return $rows;

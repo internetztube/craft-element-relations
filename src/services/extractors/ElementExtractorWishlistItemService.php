@@ -13,6 +13,11 @@ use verbb\wishlist\elements\Item;
  */
 class ElementExtractorWishlistItemService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
+    public static function elementTypes(): array
+    {
+        return ['verbb\\wishlist\\elements\\Item'];
+    }
+
     /**
      * @return ElementRelationsCacheRecord|false
      */

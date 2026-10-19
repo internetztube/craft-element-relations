@@ -186,6 +186,67 @@ return function (array $ctx): void {
     $settings->replaceSyncLimit = $limitBefore;
     $elements->deleteElement($queued, true);
 
+    // developer events
+    $probe = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (events)']);
+    $probe->setFieldValue('relatedEntries', [$c->id]);
+    $elements->saveElement($probe) or throw new RuntimeException(json_encode($probe->getErrors()));
+    $flush();
+    $relatedField = Craft::$app->getFields()->getFieldByHandle('relatedEntries');
+    $removeRelationExtractors = function (craft\events\RegisterComponentTypesEvent $e) {
+        $e->types = array_values(array_diff($e->types, [
+            internetztube\elementRelations\services\extractors\FieldExtractorBaseRelationService::class,
+            internetztube\elementRelations\services\extractors\FieldExtractorRelationalFieldService::class,
+        ]));
+    };
+    yii\base\Event::on(internetztube\elementRelations\services\ExtractorService::class, internetztube\elementRelations\services\ExtractorService::EVENT_REGISTER_FIELD_EXTRACTORS, $removeRelationExtractors);
+    internetztube\elementRelations\services\ExtractorService::reset();
+    check(internetztube\elementRelations\services\ExtractorService::targetIds($probe, $relatedField) === [], 'EVENT_REGISTER_FIELD_EXTRACTORS can remove extractors');
+    yii\base\Event::off(internetztube\elementRelations\services\ExtractorService::class, internetztube\elementRelations\services\ExtractorService::EVENT_REGISTER_FIELD_EXTRACTORS, $removeRelationExtractors);
+    internetztube\elementRelations\services\ExtractorService::reset();
+    check(internetztube\elementRelations\services\ExtractorService::targetIds($probe, $relatedField) === [$c->id], '…and without the handler they are back');
+
+    $cancel = fn(internetztube\elementRelations\events\ReplaceEvent $e) => $e->isValid = false;
+    yii\base\Event::on(ReplaceService::class, ReplaceService::EVENT_BEFORE_REPLACE, $cancel);
+    $r = ReplaceService::replace($c, $target, [$probe->id]);
+    yii\base\Event::off(ReplaceService::class, ReplaceService::EVENT_BEFORE_REPLACE, $cancel);
+    $flush();
+    check($r['replaced'] === 0 && $r['operationId'] === null && in_array('Page via replace (events)', relatingTitles($c), true), 'EVENT_BEFORE_REPLACE can stop a replacement');
+    $seen = [];
+    $after = function (internetztube\elementRelations\events\ReplaceEvent $e) use (&$seen) { $seen[] = $e->name . ':' . ($e->result['replaced'] ?? $e->result['restored'] ?? '?'); };
+    yii\base\Event::on(ReplaceService::class, ReplaceService::EVENT_AFTER_REPLACE, $after);
+    yii\base\Event::on(ReplaceService::class, ReplaceService::EVENT_AFTER_ROLLBACK, $after);
+    $r = ReplaceService::replace($c, $target, [$probe->id]);
+    $flush();
+    ReplaceService::rollback(internetztube\elementRelations\records\ReplacementRecord::findOne($r['operationId']));
+    $flush();
+    yii\base\Event::off(ReplaceService::class, ReplaceService::EVENT_AFTER_REPLACE, $after);
+    yii\base\Event::off(ReplaceService::class, ReplaceService::EVENT_AFTER_ROLLBACK, $after);
+    check($seen === ['afterReplace:1', 'afterRollback:1'], 'EVENT_AFTER_REPLACE and EVENT_AFTER_ROLLBACK fire with the result (' . implode(', ', $seen) . ')');
+
+    // own log file
+    Craft::getLogger()->flush(true);
+    $logs = glob(Craft::getAlias('@storage/logs') . '/element-relations-*.log') ?: [];
+    $logText = $logs ? file_get_contents(end($logs)) : '';
+    check(str_contains($logText, 'Replaced #' . $c->id . ' by #' . $target->id) && str_contains($logText, 'Rolled back replacement #' . $r['operationId']), 'replacements and rollbacks are logged to storage/logs/element-relations-*.log');
+    $elements->deleteElement($probe, true);
+
+    // permissions: a non-admin needs them (Craft Solo has a single user, so lift the edition in memory for this check)
+    $editionBeforePermissions = Craft::$app->edition;
+    Craft::$app->edition = craft\enums\CmsEdition::Pro;
+    foreach (craft\elements\User::find()->username('er-permissions')->status(null)->all() as $old) {
+        $elements->deleteElement($old, true);
+    }
+    $editor = new craft\elements\User(['username' => 'er-permissions', 'email' => 'er-permissions@example.com']);
+    $elements->saveElement($editor) or throw new RuntimeException(json_encode($editor->getErrors()));
+    check(!ElementRelations::canReplace($editor) && !ElementRelations::canRollBack($editor), 'a non-admin without permissions can neither replace nor roll back');
+    Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, [ElementRelations::PERMISSION_REPLACE]);
+    $editor = craft\elements\User::find()->id($editor->id)->status(null)->one();
+    check(ElementRelations::canReplace($editor) && !ElementRelations::canRollBack($editor), 'the replace permission allows replacing, not rolling back');
+    $groups = array_column(Craft::$app->getUserPermissions()->getAllPermissions(), 'permissions', 'heading');
+    check(isset($groups['Element Relations'][ElementRelations::PERMISSION_REPLACE], $groups['Element Relations'][ElementRelations::PERMISSION_ROLLBACK]), 'both permissions are registered under “Element Relations”');
+    $elements->deleteElement($editor, true);
+    Craft::$app->edition = $editionBeforePermissions;
+
     $elements->deleteElement($source, true);
     $elements->deleteElement($other, true);
     if ($nested) {

@@ -28,6 +28,26 @@ class RelationsModel
         GlobalUsageSeomaticService::class,
     ];
 
+    /** Lets plugins add providers of non-element usages (InterfaceGlobalUsage) via `$event->types`. */
+    public const EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS = 'registerGlobalUsageProviders';
+
+    private static ?array $providers = null;
+
+    /** @return class-string<InterfaceGlobalUsage>[] */
+    public static function globalUsageProviders(): array
+    {
+        if (self::$providers === null) {
+            $types = self::GLOBAL_USAGE_PROVIDERS;
+            if (\yii\base\Event::hasHandlers(self::class, self::EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS)) {
+                $event = new \craft\events\RegisterComponentTypesEvent(['types' => $types]);
+                \yii\base\Event::trigger(self::class, self::EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS, $event);
+                $types = $event->types;
+            }
+            self::$providers = array_values(array_filter($types, 'class_exists'));
+        }
+        return self::$providers;
+    }
+
     private int $elementId;
     private int $siteId;
 
@@ -91,7 +111,7 @@ class RelationsModel
     /** Rewrites the cache rows of every non-element usage provider (full rebuilds, migrations). */
     public static function refreshGlobalUsages(): void
     {
-        foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
+        foreach (self::globalUsageProviders() as $provider) {
             $provider::refresh();
         }
     }
@@ -113,7 +133,7 @@ class RelationsModel
                 $byType[$row['type']][] = $row;
             }
             $this->_globalUsages = [];
-            foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
+            foreach (self::globalUsageProviders() as $provider) {
                 $this->_globalUsages = [...$this->_globalUsages, ...$provider::usages($byType[$provider::type()] ?? [])];
             }
         }

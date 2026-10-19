@@ -26,6 +26,9 @@ class ReplaceController extends Controller
     public function actionReplace(): Response
     {
         $this->requireAcceptsJson();
+        if (!ElementRelations::canReplace()) {
+            throw new ForbiddenHttpException('User is not permitted to replace element references.');
+        }
         $request = Craft::$app->getRequest();
         $siteId = (int)$request->getRequiredBodyParam('siteId');
         $from = Craft::$app->getElements()->getElementById((int)$request->getRequiredBodyParam('fromId'), null, $siteId);
@@ -50,6 +53,9 @@ class ReplaceController extends Controller
 
     public function actionRollback(): ?Response
     {
+        if (!ElementRelations::canRollBack()) {
+            throw new ForbiddenHttpException('User is not permitted to roll back replacements.');
+        }
         $operation = ReplacementRecord::findOne((int)Craft::$app->getRequest()->getRequiredBodyParam('operationId'));
         if (!$operation || $operation->status !== ReplacementRecord::STATUS_APPLIED) {
             return $this->asFailure(Craft::t('element-relations', 'rollback-not-possible'));

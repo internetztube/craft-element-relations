@@ -1,71 +1,89 @@
 {# Pro: "Replace…" wizard in the field's toolbar, built from Craft's element selector modals:
    1. pick the replacement (same element type), 2. pick the usages to replace (the field's own Usage index with
-   checkboxes), then the controller runs ReplaceService and the field's index reloads. #}
+   checkboxes), then the controller runs ReplaceService, the field's index reloads and the notice offers Undo. #}
 <div class="element-relations-replace" data-element-relations-replace="{{ id }}">
     <button type="button" class="btn">{{ 'replace-button'|t('element-relations') }}</button>
 </div>
 {% js %}
 window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wrap, settings) {
     var $index = $wrap.closest('.element-index');
-    var tries = 0;
-    var attach = function () {
+    var refresh = function () {
         var index = $index.data('elementIndex');
-        if (!index && tries++ < 40) { return setTimeout(attach, 50); }
-        var $toolbar = $index.find('.statusmenubtn').parent();
-        if ($toolbar.length) { $wrap.insertAfter($index.find('[data-element-relations-type-menu]').length ? $index.find('[data-element-relations-type-menu]') : $toolbar); }
-        // Craft's selector modal has a title; a one-line hint below it says what the step does
-        var withHint = function (modal, hint) {
-            modal.$container.find('.header').append($('<p class="light"/>').text(hint));
-            return modal;
-        };
-        $wrap.find('.btn').on('click', function () {
-            withHint(Craft.createElementSelectorModal(settings.elementType, {
-                multiSelect: false,
-                showTitle: true,
-                modalTitle: settings.step1Title,
-                selectBtnLabel: settings.step1Button,
-                disabledElementIds: [settings.fromId],
-                onSelect: function (replacement) {
-                    withHint(Craft.createElementSelectorModal(settings.usageType, {
-                        multiSelect: true,
-                        showSiteMenu: false,
-                        showTitle: true,
-                        modalTitle: settings.step2Title.replace('{to}', replacement[0].label),
-                        selectBtnLabel: settings.step2Button,
-                        criteria: {usesElement: settings.fromId, allSites: true},
-                        onSelect: function (usages) {
-                            Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
-                                fromId: settings.fromId,
-                                toId: replacement[0].id,
-                                siteId: settings.siteId,
-                                sourceIds: usages.map(function (u) { return u.id; }),
-                            }}).then(function (response) {
-                                var data = response.data;
-                                var notice = null;
-                                var settingsNotice = {};
-                                if (data.operationId && !data.queued) {
-                                    // Undo right in the notice, which stays until closed; Utilities → Element Relations has the same
-                                    var $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(settings.undoLabel).on('click', function () {
-                                        $undo.addClass('loading').prop('disabled', true);
-                                        Craft.sendActionRequest('POST', 'element-relations/replace/rollback', {data: {operationId: data.operationId}})
-                                            .then(function (r) { Craft.cp.displaySuccess(r.data.message); index.updateElements(); })
-                                            .catch(function (e) { Craft.cp.displayError(e.response && e.response.data && e.response.data.message || Craft.t('app', 'A server error occurred.')); })
-                                            .finally(function () { notice && notice.close(); });
-                                    });
-                                    settingsNotice = {details: $undo, persist: true};
-                                }
-                                notice = Craft.cp.displaySuccess(data.message, settingsNotice);
-                                index.updateElements();
-                            }).catch(function (error) {
-                                Craft.cp.displayError(error.response && error.response.data && error.response.data.message || Craft.t('app', 'A server error occurred.'));
-                            });
-                        },
-                    }), settings.step2Hint.replace('{to}', replacement[0].label));
-                },
-            }), settings.step1Hint);
-        });
+        if (index) {
+            index.updateElements();
+        }
     };
-    attach();
+    var error = function (e) {
+        Craft.cp.displayError(e.response && e.response.data && e.response.data.message || Craft.t('app', 'A server error occurred.'));
+    };
+    // Craft's selector modal has a title; a one-line hint below it says what the step does
+    var withHint = function (modal, hint) {
+        modal.$container.find('.header').append($('<p class="light"/>').text(hint));
+        return modal;
+    };
+
+    // Placement waits for the index (it renders its toolbar asynchronously); the button works right away.
+    var tries = 0;
+    var place = function () {
+        if (!$index.data('elementIndex') && tries++ < 40) {
+            return setTimeout(place, 50);
+        }
+        var $after = $index.find('[data-element-relations-type-menu]');
+        if (!$after.length) {
+            $after = $index.find('.statusmenubtn').parent();
+        }
+        if ($after.length) {
+            $wrap.insertAfter($after);
+        }
+    };
+    place();
+
+    var replace = function (replacement, usages) {
+        Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
+            fromId: settings.fromId,
+            toId: replacement.id,
+            siteId: settings.siteId,
+            sourceIds: usages.map(function (u) { return u.id; }),
+        }}).then(function (response) {
+            var data = response.data;
+            var notice = null;
+            var noticeSettings = {};
+            if (data.operationId && !data.queued) {
+                // Undo right in the notice, which stays until closed; Utilities → Element Relations has the same
+                var $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(settings.undoLabel).on('click', function () {
+                    $undo.addClass('loading').prop('disabled', true);
+                    Craft.sendActionRequest('POST', 'element-relations/replace/rollback', {data: {operationId: data.operationId}})
+                        .then(function (r) { Craft.cp.displaySuccess(r.data.message); refresh(); })
+                        .catch(error)
+                        .finally(function () { if (notice) { notice.close(); } });
+                });
+                noticeSettings = {details: $undo, persist: true};
+            }
+            notice = Craft.cp.displaySuccess(data.message, noticeSettings);
+            refresh();
+        }).catch(error);
+    };
+
+    $wrap.find('.btn').on('click', function () {
+        withHint(Craft.createElementSelectorModal(settings.elementType, {
+            multiSelect: false,
+            showTitle: true,
+            modalTitle: settings.step1Title,
+            selectBtnLabel: settings.step1Button,
+            disabledElementIds: [settings.fromId],
+            onSelect: function (replacement) {
+                withHint(Craft.createElementSelectorModal(settings.usageType, {
+                    multiSelect: true,
+                    showSiteMenu: false,
+                    showTitle: true,
+                    modalTitle: settings.step2Title.replace('{to}', replacement[0].label),
+                    selectBtnLabel: settings.step2Button,
+                    criteria: {usesElement: settings.fromId, allSites: true},
+                    onSelect: function (usages) { replace(replacement[0], usages); },
+                }), settings.step2Hint.replace('{to}', replacement[0].label));
+            },
+        }), settings.step1Hint);
+    });
 };
 {% endjs %}
 {% js %}

@@ -9,6 +9,11 @@ use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class ElementExtractorUserPhotoService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
+    public static function elementTypes(): array
+    {
+        return [\craft\elements\User::class];
+    }
+
     /**
      * @param ElementInterface $element
      * @param ElementRelationsCacheRecord $baseRecord

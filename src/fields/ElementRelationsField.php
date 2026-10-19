@@ -243,7 +243,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                     self::$toolbarTypes[$type] = ['label' => $label, 'count' => $count];
                 }
             }
-            self::$replaceSettings = ElementRelations::isPro() && $element->canSave(Craft::$app->getUser()->getIdentity() ?? new \craft\elements\User()) ? [
+            $currentUser = Craft::$app->getUser()->getIdentity();
+            self::$replaceSettings = $currentUser && ElementRelations::canReplace($currentUser) && $element->canSave($currentUser) ? [
                 'elementType' => $element::class,
                 'usageType' => Usage::class,
                 'fromId' => $value->getElementId(),

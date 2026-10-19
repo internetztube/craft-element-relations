@@ -23,6 +23,11 @@ use verbb\formie\elements\Submission;
  */
 class ElementExtractorFormieFormService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
+    public static function elementTypes(): array
+    {
+        return ['verbb\\formie\\elements\\Form', 'verbb\\formie\\elements\\Submission'];
+    }
+
     /**
      * @return ElementRelationsCacheRecord[]|false
      */

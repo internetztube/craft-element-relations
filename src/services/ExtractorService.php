@@ -7,12 +7,61 @@ use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\FieldInterface;
 use craft\db\Query;
+use craft\events\RegisterComponentTypesEvent;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use internetztube\elementRelations\services\extractors\InterfaceElementExtractor;
 use internetztube\elementRelations\services\extractors\InterfaceFieldExtractor;
+use yii\base\Event;
 
 class ExtractorService
 {
+    /**
+     * Lets plugins add (or remove) field extractors. Handlers modify `$event->types` (class names implementing
+     * InterfaceFieldExtractor, ideally InterfaceFieldReplacer as well). Order matters: the first extractor that
+     * returns records for a field wins, so add specific ones before the generic BaseRelation/RelationalField ones.
+     *
+     * ```php
+     * Event::on(ExtractorService::class, ExtractorService::EVENT_REGISTER_FIELD_EXTRACTORS, function (RegisterComponentTypesEvent $e) {
+     *     array_unshift($e->types, MyFieldExtractor::class);
+     * });
+     * ```
+     */
+    public const EVENT_REGISTER_FIELD_EXTRACTORS = 'registerFieldExtractors';
+
+    /** Same for element extractors (InterfaceElementExtractor, ideally InterfaceElementReplacer as well). */
+    public const EVENT_REGISTER_ELEMENT_EXTRACTORS = 'registerElementExtractors';
+
+    private static ?array $fieldExtractors = null;
+    private static ?array $elementExtractors = null;
+
+    /** @return class-string<InterfaceFieldExtractor>[] the built-in field extractors plus registered ones (installed classes only) */
+    public static function fieldExtractors(): array
+    {
+        return self::$fieldExtractors ??= self::registered(self::EVENT_REGISTER_FIELD_EXTRACTORS, self::FIELD_EXTRACTORS);
+    }
+
+    /** @return class-string<InterfaceElementExtractor>[] */
+    public static function elementExtractors(): array
+    {
+        return self::$elementExtractors ??= self::registered(self::EVENT_REGISTER_ELEMENT_EXTRACTORS, self::ELEMENT_EXTRACTORS);
+    }
+
+    /** Forgets the registered extractors (tests, or plugins registering late). */
+    public static function reset(): void
+    {
+        self::$fieldExtractors = self::$elementExtractors = null;
+    }
+
+    private static function registered(string $eventName, array $types): array
+    {
+        if (Event::hasHandlers(self::class, $eventName)) {
+            $event = new RegisterComponentTypesEvent(['types' => $types]);
+            Event::trigger(self::class, $eventName, $event);
+            $types = $event->types;
+        }
+        return array_values(array_filter($types, 'class_exists'));
+    }
+
     /**
      * Field extractors, tried in order; the first one that returns records for a field wins.
      * Each checks itself whether its plugin is installed, so listing one for a missing plugin is harmless.
@@ -43,14 +92,6 @@ class ExtractorService
     /** The columns that identify a relation (everything but id/uid/dates). */
     private const ROW_COLUMNS = ['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'customFieldUid', 'type'];
 
-    /** Element classes the ELEMENT_EXTRACTORS read attributes from (not custom fields), see hasElementExtractor(). */
-    private const ELEMENT_EXTRACTOR_ELEMENT_TYPES = [
-        \craft\elements\User::class,
-        'verbb\\navigation\\elements\\Node',
-        'verbb\\wishlist\\elements\\Item',
-        'verbb\\formie\\elements\\Form',
-        'verbb\\formie\\elements\\Submission',
-    ];
 
     public const ELEMENT_EXTRACTORS = [
         extractors\ElementExtractorUserPhotoService::class,
@@ -75,7 +116,7 @@ class ExtractorService
         $records = collect($fields)
             ->map(fn(FieldInterface $field) => $field instanceof Field ? self::fieldRelations($field, $element, $baseRecord) : [])
             ->flatten()
-            ->merge(collect(array_filter(self::ELEMENT_EXTRACTORS, 'class_exists'))
+            ->merge(collect(self::elementExtractors())
                 ->map(fn(string $extractor) => self::safely($extractor, $element, fn() => $extractor::getRelations($element, clone $baseRecord)))
                 ->flatten())
             ->filter();
@@ -111,7 +152,7 @@ class ExtractorService
         $base = new ElementRelationsCacheRecord(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId]);
         $records = $field
             ? self::fieldRelations($field, $element, $base)
-            : collect(array_filter(self::ELEMENT_EXTRACTORS, 'class_exists'))
+            : collect(self::elementExtractors())
                 ->map(fn(string $extractor) => self::safely($extractor, $element, fn() => $extractor::getRelations($element, clone $base)))
                 ->flatten()
                 ->filter()
@@ -122,9 +163,11 @@ class ExtractorService
     /** Whether an element-level extractor (user photo, navigation node, ...) applies to this element. */
     public static function hasElementExtractor(ElementInterface $element): bool
     {
-        foreach (self::ELEMENT_EXTRACTOR_ELEMENT_TYPES as $type) {
-            if (is_a($element, $type)) {
-                return true;
+        foreach (self::elementExtractors() as $extractor) {
+            foreach ($extractor::elementTypes() as $type) {
+                if (is_a($element, $type)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -137,7 +180,7 @@ class ExtractorService
      */
     public static function fieldRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array
     {
-        foreach (array_filter(self::FIELD_EXTRACTORS, 'class_exists') as $extractor) {
+        foreach (self::fieldExtractors() as $extractor) {
             $records = self::safely($extractor, $element, fn() => $extractor::getRelations($field, $element, clone $baseRecord));
             if ($records) {
                 return $records;

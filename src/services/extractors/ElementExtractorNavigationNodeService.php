@@ -14,6 +14,11 @@ use verbb\navigation\elements\Node;
  */
 class ElementExtractorNavigationNodeService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
+    public static function elementTypes(): array
+    {
+        return ['verbb\\navigation\\elements\\Node'];
+    }
+
     /**
      * @return ElementRelationsCacheRecord|false
      */

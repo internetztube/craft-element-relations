@@ -16,6 +16,10 @@ use craft\events\PluginEvent;
 use craft\base\conditions\BaseCondition;
 use craft\elements\conditions\ElementCondition;
 use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterUserPermissionsEvent;
+use craft\log\MonologTarget;
+use craft\services\UserPermissions;
+use Psr\Log\LogLevel;
 use craft\events\RegisterConditionRulesEvent;
 use craft\events\RegisterElementActionsEvent;
 use craft\events\RegisterElementSourcesEvent;
@@ -86,6 +90,31 @@ class ElementRelations extends Plugin
     }
 
     /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
+    /** Pro user permissions (admins have them implicitly). */
+    public const PERMISSION_REPLACE = 'element-relations-replace';
+    public const PERMISSION_ROLLBACK = 'element-relations-rollback';
+
+    /** Pro and allowed to replace references (console runs without a user are trusted). */
+    public static function canReplace(?\craft\elements\User $user = null): bool
+    {
+        return self::isPro() && self::allowed(self::PERMISSION_REPLACE, $user);
+    }
+
+    /** Pro and allowed to roll back replacements. */
+    public static function canRollBack(?\craft\elements\User $user = null): bool
+    {
+        return self::isPro() && self::allowed(self::PERMISSION_ROLLBACK, $user);
+    }
+
+    private static function allowed(string $permission, ?\craft\elements\User $user): bool
+    {
+        $user ??= Craft::$app->getUser()->getIdentity();
+        if (!$user) {
+            return Craft::$app->getRequest()->getIsConsoleRequest();
+        }
+        return $user->admin || $user->can($permission);
+    }
+
     public static function isPro(): bool
     {
         return in_array(self::EDITION_PRO, self::editions(), true) && self::getInstance()->is(self::EDITION_PRO);
@@ -97,6 +126,15 @@ class ElementRelations extends Plugin
     {
         parent::init();
         self::$plugin = $this;
+
+        // own log file: storage/logs/element-relations-<date>.log (extractor errors, replacements, rollbacks)
+        Craft::getLogger()->dispatcher->targets['element-relations'] = new MonologTarget([
+            'name' => 'element-relations',
+            'categories' => ['element-relations'],
+            'level' => LogLevel::INFO,
+            'logContext' => false,
+            'allowLineBreaks' => false,
+        ]);
 
         if (Craft::$app instanceof ConsoleApplication) {
             $this->controllerNamespace = 'internetztube\elementRelations\console\controllers';
@@ -158,12 +196,23 @@ class ElementRelations extends Plugin
         // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
         // indexes and a "Replace everywhere…" action on indexes.
         // Registered unconditionally and decided per call, so switching the edition needs no restart.
+        Event::on(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, function (RegisterUserPermissionsEvent $event) {
+            if (self::isPro()) {
+                $event->permissions[] = [
+                    'heading' => $this->name,
+                    'permissions' => [
+                        self::PERMISSION_REPLACE => ['label' => Craft::t('element-relations', 'permission-replace')],
+                        self::PERMISSION_ROLLBACK => ['label' => Craft::t('element-relations', 'permission-rollback')],
+                    ],
+                ];
+            }
+        });
         foreach (self::PRO_ELEMENT_TYPES as $class) {
             if (!class_exists($class)) {
                 continue;
             }
             Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event) {
-                if (self::isPro()) {
+                if (self::canReplace()) {
                     $event->actions[] = ReplaceRelations::class;
                 }
             });

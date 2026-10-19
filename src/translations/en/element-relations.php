@@ -32,6 +32,8 @@ return [
     'replace-modal-title' => 'Replace with',
     'replace-invalid' => 'Pick a different element of the same type as the replacement.',
     'replace-done' => '{from} replaced by {to} in {count, plural, =1{one element} other{# elements}}.',
+    'permission-replace' => 'Replace element references (wizard and “Replace everywhere…”)',
+    'permission-rollback' => 'Roll back replacements',
     'replace-button' => 'Replace…',
     'replace-undo' => 'Undo',
     'replace-undo-hint' => 'It can be rolled back under Utilities → Element Relations.',
@@ -71,6 +73,7 @@ return [
     'settings-view-mode-instructions' => 'How the list of relating elements looks initially. Authors can switch it in the field’s View menu.',
     'settings-show-status-menu' => 'Show the status menu',
     'settings-page-size' => 'Elements per page',
+    'settings-overridden' => 'This is being overridden by the `{name}` setting in config/element-relations.php.',
     'settings-batch-size-label' => 'Bulk-refresh batch size',
     'settings-batch-size-instructions' => 'Maximum number of elements handled per queue job during a bulk relation refresh.',
 ];
