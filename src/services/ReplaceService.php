@@ -24,7 +24,8 @@ class ReplaceService
     public const MAX_SOURCES = 500;
 
     /**
-     * @param int[]|null $onlySourceIds restrict to these relating elements (the field's wizard); null = everywhere
+     * @param int[]|null $onlySourceIds restrict to these relating elements as listed in the field (top-level owners;
+     * nested entries, navigation nodes etc. are matched through their owner); null = everywhere
      * @return array{replaced: int, skipped: string[]}
      */
     public static function replace(ElementInterface $from, ElementInterface $to, ?array $onlySourceIds = null): array
@@ -39,7 +40,7 @@ class ReplaceService
             ->from('{{%elementrelations_cache}}')
             ->where(['targetElementId' => $from->id])
             ->andWhere(['not', ['sourceElementId' => null]]) // non-element usages are reported below
-            ->andFilterWhere(['sourceElementId' => $onlySourceIds])
+            ->andFilterWhere(['sourcePrimaryOwnerId' => $onlySourceIds])
             ->limit(self::MAX_SOURCES)
             ->all();
         $types = (new Query())->select(['id', 'type'])->from(Table::ELEMENTS)->where(['id' => array_column($rows, 'sourceElementId')])->pairs();

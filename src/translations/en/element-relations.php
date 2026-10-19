@@ -40,6 +40,7 @@ return [
     'replace-step2-hint' => 'Tick the usages to rewrite, then click Replace. Each ticked element is saved with “{to}” instead of “{from}” (Craft keeps a revision of the previous state). Usages that cannot be rewritten automatically are listed afterwards.',
     'replace-step2-button' => 'Replace',
     'replace-nothing-selected' => 'Select at least one usage.',
+    'replace-nothing-done' => 'None of the selected elements uses “{from}” anymore. Reload the page to see the current usages.',
     'replace-no-permission' => 'no permission',
     'replace-skipped' => '{count, plural, =1{One usage needs} other{# usages need}} a manual change: {list}',
     'condition-used' => 'Used anywhere',

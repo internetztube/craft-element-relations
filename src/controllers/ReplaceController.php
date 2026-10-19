@@ -34,6 +34,9 @@ class ReplaceController extends Controller
         }
 
         $result = ReplaceService::replace($from, $to, $sourceIds);
+        if ($result['replaced'] === 0 && !$result['skipped']) {
+            return $this->asFailure(Craft::t('element-relations', 'replace-nothing-done', ['from' => (string)$from]));
+        }
         $message = Craft::t('element-relations', 'replace-done', ['count' => $result['replaced'], 'from' => (string)$from, 'to' => (string)$to]);
         if ($result['skipped']) {
             $message .= ' ' . Craft::t('element-relations', 'replace-skipped', ['count' => count($result['skipped']), 'list' => implode(', ', $result['skipped'])]);

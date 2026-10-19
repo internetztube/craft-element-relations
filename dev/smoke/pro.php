@@ -79,7 +79,20 @@ return function (array $ctx): void {
     $flush();
     check(in_array('Page via replace', relatingTitles($c), true) && in_array('Page via replace (other)', relatingTitles($c), true), 'before: both sources relate to the "from" entry');
 
-    // wizard: only the ticked usages
+    // wizard: only the ticked usages; the ticked ids are owners (what the field lists), nested sources match through them
+    $matrixField = Craft::$app->getFields()->getFieldByHandle('teasers');
+    $nested = null;
+    if ($matrixField instanceof \craft\fields\Matrix) {
+        $blockType = $matrixField->getEntryTypes()[0];
+        $nested = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (nested)']);
+        $nested->setFieldValue('teasers', ['new1' => ['type' => $blockType->handle, 'fields' => ['relatedEntries' => [$c->id]]]]);
+        $elements->saveElement($nested) or throw new RuntimeException(json_encode($nested->getErrors()));
+        $flush();
+        check(in_array('Page via replace (nested)', relatingTitles($c), true), 'nested: a Matrix block of the nested entry relates to the "from" entry');
+        $viaOwner = ReplaceService::replace($c, $target, [$nested->id]);
+        $flush();
+        check($viaOwner['replaced'] === 1 && in_array('Page via replace (nested)', relatingTitles($target), true) && !in_array('Page via replace (nested)', relatingTitles($c), true), 'nested: selecting the owner replaces inside its Matrix block');
+    }
     $subset = ReplaceService::replace($c, $target, [$other->id]);
     check(in_array('Page via replace (other)', relatingTitles($target), true), 'the cache is updated synchronously (before the queue runs)');
     $flush();
@@ -109,6 +122,9 @@ return function (array $ctx): void {
 
     $elements->deleteElement($source, true);
     $elements->deleteElement($other, true);
+    if ($nested) {
+        $elements->deleteElement($nested, true);
+    }
     $elements->deleteElement($target, true);
     $elements->deleteElement($c, true);
     $elements->deleteElement($fresh, true);
