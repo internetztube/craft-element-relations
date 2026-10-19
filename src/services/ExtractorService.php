@@ -139,6 +139,7 @@ class ExtractorService
 
         self::deleteRelationsForElement($element);
         $records->each(fn(ElementRelationsCacheRecord $record) => $record->save());
+        \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         return true;
     }
 
@@ -191,6 +192,7 @@ class ExtractorService
 
     public static function deleteRelationsForElement(ElementInterface $element): void
     {
+        \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         ElementRelationsCacheRecord::deleteAll([
             'sourceElementId' => $element->id,
             'sourceSiteId' => $element->siteId,

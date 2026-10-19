@@ -4,6 +4,7 @@ namespace internetztube\elementRelations;
 
 use Craft;
 use craft\base\Element;
+use craft\base\ElementInterface;
 use craft\base\Model;
 use craft\base\Plugin;
 use craft\console\Application as ConsoleApplication;
@@ -28,6 +29,7 @@ use craft\services\Plugins;
 use craft\services\Utilities;
 use craft\helpers\Html;
 use internetztube\elementRelations\behaviors\ElementQueryBehavior;
+use internetztube\elementRelations\elements\RestrictedUsage;
 use internetztube\elementRelations\elements\Usage;
 use internetztube\elementRelations\elements\actions\ReplaceRelations;
 use internetztube\elementRelations\elements\conditions\UsedConditionRule;
@@ -49,7 +51,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.9";
+    public string $schemaVersion = "1.0.10";
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
@@ -106,6 +108,16 @@ class ElementRelations extends Plugin
         return self::isPro() && self::allowed(self::PERMISSION_ROLLBACK, $user);
     }
 
+    /** Roll back this operation: own replacements, admins all of them. */
+    public static function canRollBackOperation(\internetztube\elementRelations\records\ReplacementRecord $operation, ?\craft\elements\User $user = null): bool
+    {
+        $user ??= Craft::$app->getUser()->getIdentity();
+        if (!self::canRollBack($user)) {
+            return false;
+        }
+        return !$user || $user->admin || (int)$operation->userId === (int)$user->id;
+    }
+
     private static function allowed(string $permission, ?\craft\elements\User $user): bool
     {
         $user ??= Craft::$app->getUser()->getIdentity();
@@ -157,6 +169,14 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_DEFINE_ATTRIBUTE_HTML, function (DefineAttributeHtmlEvent $event) {
             /** @var Element $element */
             $element = $event->sender;
+            if ($element instanceof RestrictedUsage) {
+                $event->html = match ($event->attribute) {
+                    Usage::ATTR_TYPE => is_subclass_of($element->realType, ElementInterface::class) ? Html::encode($element->realType::displayName()) : '',
+                    Usage::ATTR_SITE => Html::encode(Craft::t('site', $element->getSite()->name)),
+                    default => '',
+                };
+                return;
+            }
             $event->html = match ($event->attribute) {
                 Usage::ATTR_TYPE => Html::encode($element::displayName()),
                 Usage::ATTR_WHERE => Html::encode(ElementSummary::where($element)),

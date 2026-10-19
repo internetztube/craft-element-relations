@@ -379,6 +379,23 @@ check(in_array('E2E history source', $relating($historyFrom), true) && !in_array
 [, $html] = $http->page('/admin/utilities/element-relations');
 preg_match('#<tr data-operation-id="' . $operationId . '">(.*?)</tr>#s', $html, $row);
 check(!str_contains($row[1] ?? '', 'element-relations/replace/rollback') && str_contains($row[1] ?? '', 'Rolled back'), 'afterwards the row says Rolled back and offers no button');
+// revert to revisions through the endpoint (the history's second button posts mode=revisions after a confirm);
+// no pauses on purpose: everything may happen within one second, revisions must still be right
+[$status, , $json] = $http->action('element-relations/replace/replace', ['fromId' => $historyFrom->id, 'toId' => $historyTo->id, 'siteId' => $historyFrom->siteId, 'sourceIds' => [$historySource->id]]);
+check($status === 200 && !empty($json['operationId']), 'a second replacement for the revert');
+$revertId = $json['operationId'];
+[, $html] = $http->page('/admin/utilities/element-relations');
+preg_match('#<tr data-operation-id="' . $revertId . '">(.*?)</tr>#s', $html, $row);
+check(str_contains($row[1] ?? '', 'name="mode" value="revisions"') && str_contains($row[1] ?? '', 'confirm('), 'the history offers "Revert to revisions" (with a confirmation) for a versioned entry');
+$later = Entry::find()->id($historySource->id)->one();
+$later->title = 'E2E history source (edited later)';
+$elements->saveElement($later) or throw new RuntimeException(json_encode($later->getErrors()));
+$flush();
+[$status, $body, $json] = $http->action('element-relations/replace/rollback', ['operationId' => $revertId, 'mode' => 'revisions']);
+check($status === 200 && ($json['reverted'] ?? 0) === 1, "revert to revisions answers with one reverted entry (HTTP $status: " . substr($body, 0, 200) . ')');
+$flush();
+$back = Entry::find()->id($historySource->id)->one();
+check((string)$back === 'E2E history source' && in_array('E2E history source', $relating($historyFrom), true), 'the entry is back at its revision: original relation, later title edit discarded');
 foreach ([$historySource, $historyTo, $historyFrom] as $entry) {
     $elements->deleteElement($entry, true);
 }

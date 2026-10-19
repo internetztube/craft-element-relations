@@ -42,6 +42,9 @@ class ReplaceController extends Controller
         }
 
         $result = ReplaceService::replace($from, $to, $sourceIds, allowQueue: true);
+        if ($result['denied']) {
+            throw new ForbiddenHttpException('User is not permitted to view one of the elements.');
+        }
         if ($result['queued']) {
             return $this->asSuccess(Craft::t('element-relations', 'replace-queued', ['from' => (string)$from, 'to' => (string)$to]), $result);
         }
@@ -56,22 +59,32 @@ class ReplaceController extends Controller
         if (!ElementRelations::canRollBack()) {
             throw new ForbiddenHttpException('User is not permitted to roll back replacements.');
         }
-        $operation = ReplacementRecord::findOne((int)Craft::$app->getRequest()->getRequiredBodyParam('operationId'));
+        $request = Craft::$app->getRequest();
+        $operation = ReplacementRecord::findOne((int)$request->getRequiredBodyParam('operationId'));
         if (!$operation || $operation->status !== ReplacementRecord::STATUS_APPLIED) {
             return $this->asFailure(Craft::t('element-relations', 'rollback-not-possible'));
         }
-        $result = ReplaceService::rollback($operation);
-        $message = Craft::t('element-relations', 'rollback-done', ['count' => $result['restored']]);
+        if (!ElementRelations::canRollBackOperation($operation)) {
+            throw new ForbiddenHttpException('Only admins can roll back replacements of other users.');
+        }
+        $mode = $request->getBodyParam('mode') === ReplaceService::ROLLBACK_REVISIONS ? ReplaceService::ROLLBACK_REVISIONS : ReplaceService::ROLLBACK_SWAP;
+        $result = ReplaceService::rollback($operation, $mode);
+        $message = $result['reverted']
+            ? Craft::t('element-relations', 'rollback-reverted', ['count' => $result['restored'], 'reverted' => $result['reverted']])
+            : Craft::t('element-relations', 'rollback-done', ['count' => $result['restored']]);
         if ($result['skipped']) {
             $message .= ' ' . Craft::t('element-relations', 'replace-skipped', ['count' => count($result['skipped']), 'list' => implode(', ', $result['skipped'])]);
         }
         return $this->asSuccess($message, $result);
     }
 
-    /** @param array{replaced: int, skipped: string[]} $result */
+    /** @param array{replaced: int, skipped: string[], withoutRevision?: int} $result */
     public static function resultMessage(array $result, string $from, string $to): string
     {
         $message = Craft::t('element-relations', 'replace-done', ['count' => $result['replaced'], 'from' => $from, 'to' => $to]);
+        if (!empty($result['withoutRevision'])) {
+            $message .= ' ' . Craft::t('element-relations', 'replace-without-revision', ['count' => $result['withoutRevision']]);
+        }
         if ($result['skipped']) {
             $message .= ' ' . Craft::t('element-relations', 'replace-skipped', ['count' => count($result['skipped']), 'list' => implode(', ', $result['skipped'])]);
         }

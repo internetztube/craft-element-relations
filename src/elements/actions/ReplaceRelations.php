@@ -54,6 +54,10 @@ JS, [static::class, Craft::t('element-relations', 'replace-modal-title')]);
         }
 
         $result = ReplaceService::replace($from, $to, allowQueue: true);
+        if ($result['denied']) {
+            $this->setMessage(Craft::t('element-relations', 'replace-denied'));
+            return false;
+        }
         $this->setMessage($result['queued']
             ? Craft::t('element-relations', 'replace-queued', ['from' => (string)$from, 'to' => (string)$to])
             : ReplaceController::resultMessage($result, (string)$from, (string)$to) . ' ' . Craft::t('element-relations', 'replace-undo-hint'));

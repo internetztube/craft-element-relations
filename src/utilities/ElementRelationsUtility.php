@@ -50,19 +50,29 @@ class ElementRelationsUtility extends Utility
     private static function history(): array
     {
         $elements = Craft::$app->getElements();
-        $chip = function (int $id, int $siteId) use ($elements): string {
+        $viewer = Craft::$app->getUser()->getIdentity();
+        $chip = function (int $id, int $siteId) use ($elements, $viewer): string {
             $element = $elements->getElementById($id, null, $siteId);
-            return $element
-                ? Cp::elementChipHtml($element)
-                : Html::tag('span', Html::encode(Craft::t('element-relations', 'history-deleted', ['id' => $id])), ['class' => 'light']);
+            if (!$element) {
+                return Html::tag('span', Html::encode(Craft::t('element-relations', 'history-deleted', ['id' => $id])), ['class' => 'light']);
+            }
+            if ($viewer && !$viewer->admin && !$elements->canView($element, $viewer)) {
+                return Html::tag('span', Html::encode(Craft::t('element-relations', 'restricted-title')), ['class' => 'light']);
+            }
+            return Cp::elementChipHtml($element);
         };
         $colors = [
             ReplacementRecord::STATUS_QUEUED => Color::Blue,
             ReplacementRecord::STATUS_APPLIED => Color::Teal,
             ReplacementRecord::STATUS_ROLLED_BACK => Color::Gray,
+            ReplacementRecord::STATUS_FAILED => Color::Red,
         ];
         $rows = [];
-        foreach (ReplacementRecord::find()->orderBy(['dateCreated' => SORT_DESC, 'id' => SORT_DESC])->limit(50)->all() as $operation) {
+        $operations = ReplacementRecord::find()->orderBy(['dateCreated' => SORT_DESC, 'id' => SORT_DESC])->limit(50);
+        if ($viewer && !$viewer->admin) {
+            $operations->where(['userId' => $viewer->id]); // admins see everyone's replacements, others their own
+        }
+        foreach ($operations->all() as $operation) {
             /** @var ReplacementRecord $operation */
             $user = $operation->userId ? User::find()->id($operation->userId)->status(null)->one() : null;
             $rows[] = [
@@ -76,7 +86,9 @@ class ElementRelationsUtility extends Utility
                     'color' => $colors[$operation->status] ?? Color::Gray,
                     'label' => Craft::t('element-relations', 'history-status-' . $operation->status),
                 ]),
-                'canRollBack' => ElementRelations::canRollBack() && $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->getChanges(),
+                'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->getChanges() && ElementRelations::canRollBackOperation($operation),
+                'canRevert' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->canRevertToRevisions() && ElementRelations::canRollBackOperation($operation),
+                'withoutRevision' => (int)($operation->getResult()['withoutRevision'] ?? 0),
             ];
         }
         return $rows;

@@ -19,8 +19,28 @@ class ReplaceElementJob extends BaseJob
         if (!$operation || $operation->status !== ReplacementRecord::STATUS_QUEUED) {
             return;
         }
-        if ($operation->userId && ($user = User::find()->id($operation->userId)->status(null)->one())) {
-            Craft::$app->getUser()->setIdentity($user); // revision creator and per-element permission checks
+        $session = Craft::$app->getUser();
+        $previousIdentity = $session->getIdentity();
+        try {
+            $this->run($operation, $queue);
+        } finally {
+            $session->setIdentity($previousIdentity); // the queue may go on with other jobs in this request
+        }
+    }
+
+    private function run(ReplacementRecord $operation, $queue): void
+    {
+        if ($operation->userId) {
+            // run as the user who started it, if they still exist and may still replace; otherwise do nothing
+            $user = User::find()->id($operation->userId)->status(null)->one();
+            if (!$user || !\internetztube\elementRelations\ElementRelations::canReplace($user)) {
+                $operation->status = ReplacementRecord::STATUS_FAILED;
+                $operation->result = json_encode(['replaced' => 0, 'skipped' => [Craft::t('element-relations', 'replace-job-user-gone')]]);
+                $operation->save(false);
+                Craft::warning(sprintf('Replacement #%d not run: user #%d is gone or may no longer replace', $operation->id, $operation->userId), 'element-relations');
+                return;
+            }
+            Craft::$app->getUser()->setIdentity($user); // revision creator, permission and field-condition checks
         }
         $elements = Craft::$app->getElements();
         $from = $elements->getElementById($operation->fromId, null, $operation->siteId);

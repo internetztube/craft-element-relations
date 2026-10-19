@@ -96,7 +96,7 @@ Get the `RelationsModel` from the element's field:
 {% endfor %}
 ```
 
-`siteIds`: omitted = the element's site, `[]` = all sites. `status`: omitted = every status.
+`siteIds`: omitted = the element's site, `[]` = all sites. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.
 
 ### Element queries
 
@@ -114,6 +114,8 @@ $everything = Usage::find()->usesElement($asset)->search('contact')->all();
 ```
 
 ### GraphQL
+
+The relations field only returns what the GraphQL schema may read: elements of sections, volumes, groups and sites outside the schema are left out, and element types without a GraphQL scope (Formie, Navigation, Wishlist, other plugin elements) are never returned. Without `status`, entries must be live and other elements enabled; `status` needs the “Query for non-enabled elements” scope.
 
 ```graphql
 {
@@ -140,14 +142,25 @@ The plugin is a single Lite edition today; everything in [Features](#features) e
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements touching more than `replaceSyncLimit` elements run as a queue job as the user who started them.
 
-### Permissions (Pro)
+### Permissions
+
+What a control panel user sees in the field follows Craft's permissions (`Elements::canView()`): elements they may not view are left out of the list, its search, sorting, counts and exports. A line below the list says how many usages are hidden, so nobody takes an element for unused.
+
+Pro adds two permissions:
 
 | Permission | Allows |
 |---|---|
 | Replace element references | the wizard and “Replace everywhere…” |
-| Roll back replacements | Undo and Roll back |
+| Roll back replacements | Undo, Roll back and Revert to revisions, for their own replacements |
 
-Admins have both. Users also need permission to save each element that gets changed.
+Admins have both, can roll back anyone's replacements and see everyone's in the history; other users see their own. Replacing also needs permission to view both elements, to save every element that gets changed and to edit the field (a field layout's “Who can edit” condition); everything else is skipped and not named. A queued replacement runs as the user who started it and is not run when they are gone or lost the permission.
+
+### Revisions (Pro)
+
+Entries changed by a replacement or rollback get a revision with a note, including entries whose Matrix (or other nested) content changed. Element types without revisions (assets, categories, global sets, plugin elements) and entries in sections with versioning off get none; the wizard, the success message and the history say how many. The history offers two ways back:
+
+- **Roll back:** swaps the replacement back for the original; changes made since are kept.
+- **Revert to revisions:** reverts the changed entries to their revision from before the replacement with Craft's revision revert (changes since are discarded); elements without revisions are swapped back.
 
 ## Events
 

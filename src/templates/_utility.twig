@@ -37,14 +37,30 @@
                         <td>{{ row.user|raw }}</td>
                         <td>{{ row.status|raw }}</td>
                         <td class="thin">
-                            {% if row.canRollBack %}
-                                <form method="post" class="element-relations-rollback">
-                                    {{ csrfInput() }}
-                                    {{ actionInput('element-relations/replace/rollback') }}
-                                    {{ redirectInput(craft.app.request.url) }}
-                                    {{ hiddenInput('operationId', row.id) }}
-                                    <button type="submit" class="btn small">{{ 'history-rollback'|t('element-relations') }}</button>
-                                </form>
+                            <div class="flex flex-nowrap">
+                                {% if row.canRollBack %}
+                                    <form method="post" class="element-relations-rollback">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('element-relations/replace/rollback') }}
+                                        {{ redirectInput(craft.app.request.url) }}
+                                        {{ hiddenInput('operationId', row.id) }}
+                                        <button type="submit" class="btn small" title="{{ 'history-rollback-instructions'|t('element-relations') }}">{{ 'history-rollback'|t('element-relations') }}</button>
+                                    </form>
+                                {% endif %}
+                                {% if row.canRevert %}
+                                    {# Craft asks for confirmation the same way (Craft.submitForm uses confirm()) #}
+                                    <form method="post" class="element-relations-revert" onsubmit="return confirm({{ 'history-revert-confirm'|t('element-relations')|json_encode }});">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('element-relations/replace/rollback') }}
+                                        {{ redirectInput(craft.app.request.url) }}
+                                        {{ hiddenInput('operationId', row.id) }}
+                                        {{ hiddenInput('mode', 'revisions') }}
+                                        <button type="submit" class="btn small" title="{{ 'history-revert-instructions'|t('element-relations') }}">{{ 'history-revert'|t('element-relations') }}</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                            {% if row.withoutRevision %}
+                                <div class="light smalltext">{{ 'history-without-revision'|t('element-relations', {count: row.withoutRevision}) }}</div>
                             {% endif %}
                         </td>
                     </tr>

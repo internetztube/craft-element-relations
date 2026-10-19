@@ -51,6 +51,9 @@ class RelationsModel
     private int $elementId;
     private int $siteId;
 
+    /** @var callable|null see withQueryFactory() */
+    private $queryFactory = null;
+
     private ?array $_globalUsages = null;
     private ?array $_fastCountQueryResult = null;
 
@@ -58,6 +61,25 @@ class RelationsModel
     {
         $this->elementId = $elementId;
         $this->siteId = $siteId;
+    }
+
+    /**
+     * A copy whose element queries come from `$factory($elementType)` instead of `$elementType::find()`; element types
+     * for which it returns anything but an ElementQuery are left out. Such queries keep their own default status (a
+     * `null` status is not applied) and never include drafts. GraphQL uses this to stay within the active schema.
+     * @param callable(class-string<ElementInterface>): mixed $factory
+     */
+    public function withQueryFactory(callable $factory): static
+    {
+        $model = clone $this;
+        $model->queryFactory = $factory;
+        return $model;
+    }
+
+    /** The site of the element (the default of the `siteIds` arguments). */
+    public function getSiteId(): int
+    {
+        return $this->siteId;
     }
 
     /** The element whose usages this model describes (always the canonical element). */
@@ -191,25 +213,43 @@ class RelationsModel
 
     /**
      * One query per element type (and per drafts/no-drafts unless `$drafts` is given), all using the `usesElement` param.
+     * With a query factory (withQueryFactory()) only the types it returns a query for, without drafts.
      * @param class-string<ElementInterface>[]|null $types restrict to these element types
      * @return ElementQueryInterface[]
      */
+    /** A site (front-end) web request, where templates render for visitors. */
+    private static function isSiteRequest(): bool
+    {
+        $request = Craft::$app->getRequest();
+        return $request instanceof \craft\web\Request && !$request->getIsCpRequest();
+    }
+
     public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): array
     {
         $siteIds = $this->normalizeSiteIds($siteIds);
         if (is_string($sections)) $sections = [$sections];
         if (is_string($entryTypes)) $entryTypes = [$entryTypes];
+        $factory = $this->queryFactory;
+        if ($factory) $drafts = false;
+        // front-end templates: unless asked for, only what a visitor may see (live entries, enabled elements, no
+        // drafts); the control panel and console keep "everything" as the default
+        $siteDefaults = !$factory && self::isSiteRequest();
+        if ($siteDefaults && $drafts === null) $drafts = false;
 
         return collect($this->getElementTypes())
             ->filter(fn(string $type) => $types === null || in_array($type, $types, true))
-            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes, $status, $drafts, $search) {
-                /** @var ElementQuery $query */
-                $query = $elementType::find();
+            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes, $status, $drafts, $search, $factory, $siteDefaults) {
+                $query = $factory ? $factory($elementType) : $elementType::find();
+                if (!$query instanceof ElementQuery) {
+                    return [];
+                }
                 Craft::configure($query, ['usesElement' => $this->elementId]); // behavior param, see ElementQueryBehavior
                 $query
                     ->revisions(false)
-                    ->provisionalDrafts(false)
-                    ->status($status);
+                    ->provisionalDrafts(false);
+                if ($status !== null || (!$factory && !$siteDefaults)) {
+                    $query->status($status);
+                }
                 // the site of the relating element; `usesElement` matches the cache rows of that site
                 empty($siteIds) ? $query->site('*') : $query->siteId($siteIds);
 

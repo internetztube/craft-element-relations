@@ -35,7 +35,7 @@ function withWebRequest(callable $fn): mixed
 {
     $request = Craft::$app->getRequest();
     $response = Craft::$app->getResponse();
-    Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true]);
+    Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true, 'cookieValidationKey' => Craft::$app->getConfig()->getGeneral()->securityKey, 'url' => '/admin']);
     Craft::$app->set('response', ['class' => craft\web\Response::class]);
     // Craft's index templates check the current user's permissions (editable sites, ...); a console request has none
     Craft::$app->getUser()->setIdentity(craft\elements\User::find()->admin()->one());
@@ -211,9 +211,12 @@ check(str_contains($unusedHtml, 'Unused') && str_contains($unusedHtml, 'status-l
 check(str_contains($unusedInput, 'status-label'), 'input shows the "Unused" status label for Page A1');
 
 echo "GraphQL\n";
-$schema = new craft\models\GqlSchema(['scope' => [
+// own uid: Craft caches GraphQL results per schema uid; site scopes: the schema must be allowed to read the sites
+$schema = new craft\models\GqlSchema(['uid' => craft\helpers\StringHelper::UUID(), 'scope' => [
     'sections.' . $b->getSection()->uid . ':read',
     'entrytypes.' . $b->getType()->uid . ':read',
+    'elements.inactive:read', // the status argument needs it, like Craft's own queries
+    ...array_map(fn($site) => "sites.$site->uid:read", Craft::$app->getSites()->getAllSites(true)),
 ]]);
 $query = '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations {
     count liveCount: count(status: ["live"]) isInUse
@@ -222,7 +225,7 @@ $query = '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations {
 $result = Craft::$app->getGql()->executeQuery($schema, $query);
 $gql = $result['data']['entry']['relations'] ?? null;
 check($gql !== null, 'query succeeded: ' . json_encode($result['errors'] ?? null));
-check($gql['count'] === 12 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count / count(status) / isInUse');
+check($gql['count'] === 11 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count (live by default in GraphQL, the disabled Page A12 is not counted) / count(status) / isInUse');
 check(count($gql['elements']) === 1 && $gql['elements'][0]['title'] === 'Page A12', 'elements(status: ["disabled"]) returns only Page A12');
 
 echo "Editions (behind the `features.editions` flag)\n";

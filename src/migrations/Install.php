@@ -44,6 +44,7 @@ class Install extends Migration
             'sourceIds' => $migration->text()->null(),
             'status' => $migration->string(20)->notNull(),
             'changes' => $migration->longText()->null(),
+            'revisions' => $migration->longText()->null(),
             'result' => $migration->text()->null(),
             'dateCreated' => $migration->dateTime()->notNull(),
             'dateUpdated' => $migration->dateTime()->notNull(),

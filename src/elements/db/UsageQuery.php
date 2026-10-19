@@ -7,9 +7,14 @@ use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
+use craft\elements\Asset;
+use craft\elements\Category;
 use craft\elements\Entry;
+use craft\elements\GlobalSet;
+use craft\elements\User;
 use craft\helpers\Db;
 use DateTime;
+use internetztube\elementRelations\elements\RestrictedUsage;
 use internetztube\elementRelations\elements\Usage;
 
 /**
@@ -37,6 +42,22 @@ class UsageQuery extends ElementQuery
      */
     public bool $allSites = false;
 
+    /**
+     * Only what this user may view. Applied automatically for non-admin users in control panel requests (the field's
+     * list, the wizard's modal, any element index request for this type); `false` switches it off (server code only).
+     *
+     * Private on purpose: element index requests apply request criteria to the query with Craft::configure(), so a
+     * public property could be switched off from the browser. Only viewableBy() sets it.
+     *
+     * Restricted queries need `usesElement` targets the user may view, and then only return relating elements that
+     * passed Craft's Elements::canView() for that user (see viewablePairs()), so search, sorting and counts never touch
+     * anything else. hiddenCount() tells how many usages were left out.
+     */
+    private User|false|null $_viewableBy = null;
+
+    /** @var array<string, array{pairs: array<int, int[]>}> per request: "<viewer>|<targets>" => viewable pairs */
+    private static array $_pairs = [];
+
     public function __construct(array $config = [])
     {
         parent::__construct(Usage::class, $config);
@@ -51,6 +72,30 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    public function viewableBy(User|false|null $user): static
+    {
+        $this->_viewableBy = $user;
+        return $this;
+    }
+
+    /**
+     * How many usages of the targets (relating element × site, drafts included) the user may not view.
+     * @param int[] $targetIds
+     */
+    public static function hiddenCount(array $targetIds, User $viewer): int
+    {
+        if ($viewer->admin || !$targetIds) {
+            return 0;
+        }
+        // the very query the list runs, once without and once with the restriction, so the numbers always add up
+        $count = function (User|false $as) use ($targetIds): int {
+            $query = Usage::find()->allSites()->status(null)->drafts(null)->viewableBy($as);
+            Craft::configure($query, ['usesElement' => $targetIds]);
+            return (int)$query->count();
+        };
+        return max(0, $count(false) - $count($viewer));
+    }
+
     public function allSites(bool $value = true): static
     {
         $this->allSites = $value;
@@ -62,6 +107,7 @@ class UsageQuery extends ElementQuery
         if ($this->allSites) {
             $this->siteId = Craft::$app->getSites()->getAllSiteIds(); // siteId is normalized before beforePrepare()
         }
+        $viewer = $this->viewer();
         if ($this->elementTypes) {
             $this->subQuery->andWhere(['elements.type' => (array)$this->elementTypes]);
         }
@@ -70,6 +116,29 @@ class UsageQuery extends ElementQuery
         $this->subQuery->leftJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]');
         if (self::hasProducts()) {
             $this->subQuery->leftJoin(['commerce_products' => '{{%commerce_products}}'], '[[commerce_products.id]] = [[elements.id]]');
+        }
+        if ($viewer) {
+            // a restricted user only ever sees usages of elements they may view, and only usages they may view
+            $targetIds = $this->targetIds();
+            if (!$targetIds) {
+                return false;
+            }
+            $elementsService = Craft::$app->getElements();
+            foreach ($targetIds as $targetId) {
+                $target = $elementsService->getElementById($targetId, null, '*');
+                if (!$target || !$elementsService->canView($target, $viewer)) {
+                    return false;
+                }
+            }
+            $pairs = self::viewablePairs($targetIds, $viewer)['pairs'];
+            if (!$pairs) {
+                return false;
+            }
+            $condition = ['or'];
+            foreach ($pairs as $siteId => $ids) {
+                $condition[] = ['and', ['elements_sites.siteId' => $siteId], ['elements.id' => $ids]];
+            }
+            $this->subQuery->andWhere($condition);
         }
         return parent::beforePrepare();
     }
@@ -104,6 +173,132 @@ class UsageQuery extends ElementQuery
             Entry::STATUS_PENDING => ['and', $enabled, ['or', ...$perTable(fn(string $t) => ['>', "$t.postDate", $nowDb])]],
             Entry::STATUS_EXPIRED => ['and', $enabled, ['or', ...$perTable(fn(string $t) => ['<=', "$t.expiryDate", $nowDb])]],
         };
+    }
+
+    /** @return int[] the `usesElement` targets (ElementQueryBehavior) */
+    private function targetIds(): array
+    {
+        $targets = $this->getBehavior('elementRelations')?->usesElement ?? null;
+        if ($targets === null) {
+            return [];
+        }
+        return array_values(array_filter(array_map(
+            fn($t) => $t instanceof ElementInterface ? (int)$t->id : (int)$t,
+            is_array($targets) ? $targets : [$targets],
+        )));
+    }
+
+    /**
+     * The usages (relating element id per site) of the targets that the user may view: candidates from the cache,
+     * narrowed by the coarse SQL permissions, then each checked with Elements::canView(). Memoized per request.
+     * @param int[] $targetIds
+     * @return array{pairs: array<int, int[]>} siteId => viewable element ids
+     */
+    private static function viewablePairs(array $targetIds, User $viewer): array
+    {
+        sort($targetIds);
+        $key = $viewer->id . '|' . implode(',', $targetIds);
+        if (isset(self::$_pairs[$key])) {
+            return self::$_pairs[$key];
+        }
+        $base = (new Query())
+            ->select(['id' => 'elements.id', 'siteId' => 'elements_sites.siteId', 'type' => 'elements.type'])
+            ->distinct()
+            ->from(['cache' => '{{%elementrelations_cache}}'])
+            ->innerJoin(['elements' => Table::ELEMENTS], '[[elements.id]] = [[cache.sourcePrimaryOwnerId]]')
+            ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements_sites.elementId]] = [[elements.id]] AND [[elements_sites.siteId]] = [[cache.sourceSiteId]]')
+            ->leftJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]')
+            ->leftJoin(['assets' => Table::ASSETS], '[[assets.id]] = [[elements.id]]')
+            ->leftJoin(['categories' => Table::CATEGORIES], '[[categories.id]] = [[elements.id]]')
+            ->where(['cache.targetElementId' => $targetIds, 'elements.dateDeleted' => null, 'elements.revisionId' => null])
+            ->andWhere(['not', ['cache.sourceElementId' => null]]);
+        $candidates = $base->andWhere(self::viewCondition($viewer))->all();
+
+        $byTypeAndSite = [];
+        foreach ($candidates as $row) {
+            $byTypeAndSite[$row['type']][(int)$row['siteId']][] = (int)$row['id'];
+        }
+        $elementsService = Craft::$app->getElements();
+        $pairs = [];
+        foreach ($byTypeAndSite as $type => $sites) {
+            if (!is_subclass_of($type, ElementInterface::class)) {
+                continue;
+            }
+            foreach ($sites as $siteId => $ids) {
+                $loaded = $type::find()->id($ids)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
+                foreach ($loaded as $element) {
+                    if ($elementsService->canView($element, $viewer)) {
+                        $pairs[$siteId][] = (int)$element->id;
+                    }
+                }
+            }
+        }
+        return self::$_pairs[$key] = ['pairs' => $pairs];
+    }
+
+    /** Forgets the memoized permission results (tests, long-running processes after permission changes). */
+    public static function resetPermissionCache(): void
+    {
+        self::$_pairs = [];
+    }
+
+    /** The user to restrict to: explicit, or the logged-in non-admin user of a control panel request. */
+    private function viewer(): ?User
+    {
+        if ($this->_viewableBy instanceof User) {
+            return $this->_viewableBy->admin ? null : $this->_viewableBy;
+        }
+        if ($this->_viewableBy === false) {
+            return null;
+        }
+        $request = Craft::$app->getRequest();
+        if (!$request instanceof \craft\web\Request || !$request->getIsCpRequest()) {
+            return null; // console, queue and site requests are not restricted
+        }
+        $user = Craft::$app->getUser()->getIdentity();
+        return $user && !$user->admin ? $user : null;
+    }
+
+    /**
+     * The coarse part of Craft's view permissions as SQL, for the core element types: only what the user could see
+     * at all (section, volume, category group, global set, other users, sites). Finer rules (other authors' entries,
+     * drafts, temporary uploads, plugin authorization events) are checked per element in viewablePairs().
+     */
+    private static function viewCondition(User $user): array
+    {
+        $uidsAllowed = fn(array $items, string $permission) => array_values(array_filter(array_map(
+            fn($item) => $user->can(sprintf($permission, $item->uid)) ? $item->id : null,
+            $items,
+        )));
+        $sectionIds = $uidsAllowed(Craft::$app->getEntries()->getAllSections(), 'viewEntries:%s');
+        $volumeIds = array_values(array_unique([
+            ...$uidsAllowed(Craft::$app->getVolumes()->getAllVolumes(), 'viewAssets:%s'),
+            ...$uidsAllowed(Craft::$app->getVolumes()->getAllVolumes(), 'viewPeerAssets:%s'),
+        ]));
+        $groupIds = $uidsAllowed(Craft::$app->getCategories()->getAllGroups(), 'viewCategories:%s');
+        $globalSetIds = $uidsAllowed(Craft::$app->getGlobals()->getAllSets(), 'editGlobalSet:%s');
+        $core = [Entry::class, Asset::class, Category::class, User::class, GlobalSet::class];
+
+        $condition = [
+            'or',
+            ['not in', 'elements.type', $core], // plugin types: checked per element in populate()
+            ['and', ['elements.type' => Entry::class], ['entries.sectionId' => $sectionIds ?: [0]]],
+            ['and', ['elements.type' => Asset::class], ['assets.volumeId' => $volumeIds ?: [0]]],
+            ['and', ['elements.type' => Category::class], ['categories.groupId' => $groupIds ?: [0]]],
+            ['and', ['elements.type' => GlobalSet::class], ['elements.id' => $globalSetIds ?: [0]]],
+            $user->can('viewUsers')
+                ? ['elements.type' => User::class]
+                : ['and', ['elements.type' => User::class], ['elements.id' => $user->id]],
+        ];
+
+        if (Craft::$app->getIsMultiSite()) {
+            $siteIds = array_values(array_filter(array_map(
+                fn($site) => $user->can("editSite:$site->uid") ? $site->id : null,
+                Craft::$app->getSites()->getAllSites(),
+            )));
+            $condition = ['and', $condition, ['elements_sites.siteId' => $siteIds ?: [0]]];
+        }
+        return $condition;
     }
 
     private static function hasProducts(): bool
@@ -171,12 +366,17 @@ class UsageQuery extends ElementQuery
             }
         }
 
-        // keep the order of this query (sorting, pagination)
+        // keep the order of this query (sorting, pagination); the stand-in is a last line of defence only, restricted
+        // queries already contain nothing but viewable elements (see beforePrepare())
+        $viewer = $this->viewer();
+        $elementsService = Craft::$app->getElements();
         $ordered = [];
         foreach ($rows as $row) {
             $key = ($types[$row['id']] ?? '') . ":{$row['siteId']}:{$row['id']}";
             if (isset($elements[$key])) {
-                $ordered[] = $elements[$key];
+                $ordered[] = $viewer && !$elementsService->canView($elements[$key], $viewer)
+                    ? RestrictedUsage::fromElement($elements[$key])
+                    : $elements[$key];
             }
         }
         return $ordered;
