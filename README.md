@@ -225,7 +225,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs PHPStan and the same `dev/dev.s
 Lite is everything above. Pro (behind a feature flag for now: `'features' => ['editions' => true]` in `config/element-relations.php`) adds:
 
 - **Unused:** a “Used anywhere” rule in Craft’s index filter and custom-source conditions, an “Unused” source on the asset, category and tag indexes (with Craft’s bulk actions), and `craft.assets().unused()`. Sorting an index by the field (relation count) works in Lite.
-- **Replace everywhere:** select an element in its index, choose “Replace everywhere…”, pick the replacement. Relational fields, nested entries, CKEditor/Redactor reference tags and SEOmatic images are rewritten through Craft’s save path; anything else is listed for a manual change.
+- **Replace:** on the element itself, the field's “Replace…” button guides you through picking the replacement and ticking the usages to replace. In an element index, “Replace everywhere…” does all of them at once. Relational fields, nested entries, CKEditor/Redactor reference tags and SEOmatic images are rewritten through Craft’s save path; anything else is listed for a manual change.
 
 ## Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-element-relations/issues) page.

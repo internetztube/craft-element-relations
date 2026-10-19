@@ -72,12 +72,25 @@ return function (array $ctx): void {
         $source->setFieldValue('ckeditor', '<p><a href="{entry:' . $c->id . ':url}">C</a> and <a href="{entry:' . $c->id . '@' . $c->siteId . ':url}">C again</a></p>');
     }
     $elements->saveElement($source) or throw new RuntimeException(json_encode($source->getErrors()));
+    $other = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (other)']);
+    $other->setFieldValue('relatedEntries', [$c->id]);
+    $elements->saveElement($other) or throw new RuntimeException(json_encode($other->getErrors()));
     $flush();
-    check(in_array('Page via replace', relatingTitles($c), true), 'before: source relates to the "from" entry');
+    check(in_array('Page via replace', relatingTitles($c), true) && in_array('Page via replace (other)', relatingTitles($c), true), 'before: both sources relate to the "from" entry');
+
+    // wizard: only the ticked usages
+    $subset = ReplaceService::replace($c, $target, [$other->id]);
+    check(in_array('Page via replace (other)', relatingTitles($target), true), 'the cache is updated synchronously (before the queue runs)');
+    $flush();
+    check($subset['replaced'] === 1 && in_array('Page via replace', relatingTitles($c), true) && in_array('Page via replace (other)', relatingTitles($target), true), 'replace() limited to selected sources touches only those');
+    $field = Craft::$app->getFields()->getFieldByHandle('relations');
+    Craft::$app->getView()->clear();
+    $input = withWebRequest(fn() => $field->getInputHtml($c->getFieldValue('relations'), $c));
+    check(str_contains($input, 'data-element-relations-replace'), 'Pro: the field offers the Replace… wizard button');
     $rawBefore = $hasCk ? Entry::find()->id($source->id)->one()->getFieldValue('ckeditor')->getRawContent() : '';
 
     $result = ReplaceService::replace($c, $target);
-    check($result['replaced'] === 1 && !$result['skipped'], 'replace(): exactly the source entry was rewritten, nothing skipped (' . json_encode($result) . ')');
+    check($result['replaced'] === 1 && !$result['skipped'], 'replace() everywhere: exactly the remaining source was rewritten, nothing skipped (' . json_encode($result) . ')');
     $flush();
     $reloaded = Entry::find()->id($source->id)->one();
     $ids = array_map('intval', $reloaded->getFieldValue('relatedEntries')->ids());
@@ -94,6 +107,7 @@ return function (array $ctx): void {
     $flush();
 
     $elements->deleteElement($source, true);
+    $elements->deleteElement($other, true);
     $elements->deleteElement($target, true);
     $elements->deleteElement($c, true);
     $elements->deleteElement($fresh, true);

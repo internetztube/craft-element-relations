@@ -18,6 +18,7 @@ use craft\helpers\StringHelper;
 use craft\models\FieldLayoutTab;
 use craft\models\GqlSchema;
 use GraphQL\Type\Definition\Type;
+use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\Usage;
 use internetztube\elementRelations\gql\types\Relations as RelationsType;
 use internetztube\elementRelations\helpers\ElementSummary;
@@ -39,6 +40,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
      * @var array<class-string<ElementInterface>, array{label: string, count: int}>|null
      */
     public static ?array $toolbarTypes = null;
+
+    /** Pro: settings of the replace wizard for the index being rendered (same hook as $toolbarTypes); null = no button. */
+    public static ?array $replaceSettings = null;
 
     public const VIEW_MODE_TABLE = 'table';
     public const VIEW_MODE_CARDS = 'cards';
@@ -239,6 +243,15 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                     self::$toolbarTypes[$type] = ['label' => $label, 'count' => $count];
                 }
             }
+            self::$replaceSettings = ElementRelations::isPro() && $element->canSave(Craft::$app->getUser()->getIdentity() ?? new \craft\elements\User()) ? [
+                'elementType' => $element::class,
+                'usageType' => Usage::class,
+                'fromId' => $value->getElementId(),
+                'fromTitle' => (string)$element,
+                'siteId' => $element->siteId,
+                'titleReplacement' => Craft::t('element-relations', 'replace-modal-title'),
+                'selectBtnLabel' => Craft::t('element-relations', 'replace-modal-run'),
+            ] : null;
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',
                 'id' => 'element-relations-' . StringHelper::randomString(8),
@@ -257,6 +270,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 ],
             ]);
             self::$toolbarTypes = null;
+            self::$replaceSettings = null;
         }
         if ($globalUsages) {
             // Craft's `flex` utility would center (and shrink) the index, so plain block layout with a spaced heading

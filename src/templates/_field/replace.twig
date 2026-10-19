@@ -1,0 +1,51 @@
+{# Pro: "Replace…" wizard in the field's toolbar, built from Craft's element selector modals:
+   1. pick the replacement (same element type), 2. pick the usages to replace (the field's own Usage index with
+   checkboxes), then the controller runs ReplaceService and the field's index reloads. #}
+<div class="element-relations-replace" data-element-relations-replace="{{ id }}">
+    <button type="button" class="btn">{{ 'replace-button'|t('element-relations') }}</button>
+</div>
+{% js %}
+window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wrap, settings) {
+    var $index = $wrap.closest('.element-index');
+    var tries = 0;
+    var attach = function () {
+        var index = $index.data('elementIndex');
+        if (!index && tries++ < 40) { return setTimeout(attach, 50); }
+        var $toolbar = $index.find('.statusmenubtn').parent();
+        if ($toolbar.length) { $wrap.insertAfter($index.find('[data-element-relations-type-menu]').length ? $index.find('[data-element-relations-type-menu]') : $toolbar); }
+        $wrap.find('.btn').on('click', function () {
+            Craft.createElementSelectorModal(settings.elementType, {
+                multiSelect: false,
+                modalTitle: settings.titleReplacement,
+                disabledElementIds: [settings.fromId],
+                onSelect: function (replacement) {
+                    Craft.createElementSelectorModal(settings.usageType, {
+                        multiSelect: true,
+                        showSiteMenu: false,
+                        modalTitle: Craft.t('element-relations', 'replace-modal-usages', {from: settings.fromTitle, to: replacement[0].label}),
+                        selectBtnLabel: settings.selectBtnLabel,
+                        criteria: {usesElement: settings.fromId, allSites: true},
+                        onSelect: function (usages) {
+                            Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
+                                fromId: settings.fromId,
+                                toId: replacement[0].id,
+                                siteId: settings.siteId,
+                                sourceIds: usages.map(function (u) { return u.id; }),
+                            }}).then(function (response) {
+                                Craft.cp.displayNotice(response.data.message);
+                                index.updateElements();
+                            }).catch(function (error) {
+                                Craft.cp.displayError(error.response && error.response.data && error.response.data.message || Craft.t('app', 'A server error occurred.'));
+                            });
+                        },
+                    });
+                },
+            });
+        });
+    };
+    attach();
+};
+{% endjs %}
+{% js %}
+ElementRelationsReplace($('[data-element-relations-replace="{{ id }}"]'), {{ settings|json_encode|raw }});
+{% endjs %}

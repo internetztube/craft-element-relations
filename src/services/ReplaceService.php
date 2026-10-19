@@ -24,9 +24,10 @@ class ReplaceService
     public const MAX_SOURCES = 500;
 
     /**
+     * @param int[]|null $onlySourceIds restrict to these relating elements (the field's wizard); null = everywhere
      * @return array{replaced: int, skipped: string[]}
      */
-    public static function replace(ElementInterface $from, ElementInterface $to): array
+    public static function replace(ElementInterface $from, ElementInterface $to, ?array $onlySourceIds = null): array
     {
         if ($from::class !== $to::class || $from->id === $to->id) {
             throw new \InvalidArgumentException('Replacement must be a different element of the same type.');
@@ -38,6 +39,7 @@ class ReplaceService
             ->from('{{%elementrelations_cache}}')
             ->where(['targetElementId' => $from->id])
             ->andWhere(['not', ['sourceElementId' => null]]) // non-element usages are reported below
+            ->andFilterWhere(['sourceElementId' => $onlySourceIds])
             ->limit(self::MAX_SOURCES)
             ->all();
         $types = (new Query())->select(['id', 'type'])->from(Table::ELEMENTS)->where(['id' => array_column($rows, 'sourceElementId')])->pairs();
@@ -58,6 +60,12 @@ class ReplaceService
             if (!$element) {
                 continue;
             }
+            // in the control panel, only what the current user may save (console runs unrestricted)
+            $user = Craft::$app->getRequest()->getIsConsoleRequest() ? null : Craft::$app->getUser()->getIdentity();
+            if ($user && !$element->canSave($user)) {
+                $skipped[] = (string)$element . ' (' . Craft::t('element-relations', 'replace-no-permission') . ')';
+                continue;
+            }
 
             $changed = false;
             foreach ($sourceRows as $row) {
@@ -70,6 +78,8 @@ class ReplaceService
             }
             if ($changed) {
                 if (Craft::$app->getElements()->saveElement($element)) {
+                    // the save event queues a refresh; do it now too, so the caller's index is consistent immediately
+                    ExtractorService::refreshRelationsForElement($element);
                     $replaced++;
                 } else {
                     $skipped[] = (string)$element . ' (' . implode(' ', $element->getFirstErrors()) . ')';
@@ -77,8 +87,10 @@ class ReplaceService
             }
         }
 
-        foreach ((new RelationsModel($from->id, $from->siteId))->getGlobalUsages() as $usage) {
-            $skipped[] = $usage->label;
+        if ($onlySourceIds === null) {
+            foreach ((new RelationsModel($from->id, $from->siteId))->getGlobalUsages() as $usage) {
+                $skipped[] = $usage->label;
+            }
         }
 
         return ['replaced' => $replaced, 'skipped' => array_values(array_unique($skipped))];

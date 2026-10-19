@@ -136,13 +136,23 @@ class ElementRelations extends Plugin
 
         // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
         Craft::$app->getView()->hook('cp.elements.toolbar', function (array &$context): string {
-            if (($context['elementType'] ?? null) !== Usage::class || !ElementRelationsField::$toolbarTypes) {
+            if (($context['elementType'] ?? null) !== Usage::class) {
                 return '';
             }
-            return Craft::$app->getView()->renderTemplate('element-relations/_field/type-menu', [
-                'types' => ElementRelationsField::$toolbarTypes,
-                'id' => 'element-relations-types-' . mt_rand(),
-            ]);
+            $html = '';
+            if (ElementRelationsField::$toolbarTypes) {
+                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/type-menu', [
+                    'types' => ElementRelationsField::$toolbarTypes,
+                    'id' => 'element-relations-types-' . mt_rand(),
+                ]);
+            }
+            if (ElementRelationsField::$replaceSettings) { // Pro: replace wizard
+                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/replace', [
+                    'settings' => ElementRelationsField::$replaceSettings,
+                    'id' => 'element-relations-replace-' . mt_rand(),
+                ]);
+            }
+            return $html;
         });
 
         // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
