@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\utilities;
 
 use Craft;
@@ -14,7 +16,7 @@ use internetztube\elementRelations\records\ReplacementRecord;
 use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
 
 /**
- * Element Relations utility
+ * Utilities → Element Relations: rebuild the relations cache; Pro: history of replacements with rollback buttons.
  */
 class ElementRelationsUtility extends Utility
 {
@@ -23,7 +25,7 @@ class ElementRelationsUtility extends Utility
         return Craft::t("element-relations", "Element Relations");
     }
 
-    static function id(): string
+    public static function id(): string
     {
         return "element-relations";
     }
@@ -33,10 +35,11 @@ class ElementRelationsUtility extends Utility
         return Craft::getAlias("@internetztube/elementRelations/icon-mask.svg");
     }
 
-    static function contentHtml(): string
+    public static function contentHtml(): string
     {
         $pushed = false;
-        if (Craft::$app->request->getIsPost()) {
+        $request = Craft::$app->getRequest();
+        if ($request instanceof \craft\web\Request && $request->getIsPost()) {
             Craft::$app->getQueue()->push(new GenerateResaveAllElementRelationsJobsJob());
             $pushed = true;
         }
@@ -46,7 +49,10 @@ class ElementRelationsUtility extends Utility
         ]);
     }
 
-    /** Pro: the latest replace operations as table rows (element chips, Craft status labels). */
+    /**
+     * Pro: the latest replace operations as table rows (element chips, Craft status labels).
+     * @return list<array{id: int, date: \DateTime|false, user: string, from: string, to: string, elements: int, status: string|null, canRollBack: bool, canRevert: bool, withoutRevision: int}>
+     */
     private static function history(): array
     {
         $elements = Craft::$app->getElements();
@@ -76,12 +82,12 @@ class ElementRelationsUtility extends Utility
             /** @var ReplacementRecord $operation */
             $user = $operation->userId ? User::find()->id($operation->userId)->status(null)->one() : null;
             $rows[] = [
-                'id' => $operation->id,
+                'id' => (int)$operation->id,
                 'date' => DateTimeHelper::toDateTime($operation->dateCreated),
-                'user' => $user ? Cp::elementChipHtml($user) : '',
-                'from' => $chip($operation->fromId, $operation->siteId),
-                'to' => $chip($operation->toId, $operation->siteId),
-                'elements' => count(array_unique(array_map(fn($c) => $c['elementId'] . ':' . $c['siteId'], $operation->getChanges()))),
+                'user' => $user instanceof User ? Cp::elementChipHtml($user) : '',
+                'from' => $chip((int)$operation->fromId, (int)$operation->siteId),
+                'to' => $chip((int)$operation->toId, (int)$operation->siteId),
+                'elements' => count(array_unique(array_map(fn(array $change): string => $change['elementId'] . ':' . $change['siteId'], $operation->getChanges()))),
                 'status' => Cp::statusLabelHtml([
                     'color' => $colors[$operation->status] ?? Color::Gray,
                     'label' => Craft::t('element-relations', 'history-status-' . $operation->status),

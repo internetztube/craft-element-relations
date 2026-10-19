@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\gql\types;
 
 use Craft;
@@ -17,6 +20,8 @@ use internetztube\elementRelations\models\RelationsModel;
  * The relations field in GraphQL. Only relating elements the active schema may read are returned and counted: each
  * type's query comes from Craft's own GraphQL resolver (see RESOLVERS), sites are limited to the schema's sites,
  * drafts and revisions are never included.
+ *
+ * @phpstan-type Arguments array{siteIds?: int[], sections?: string[], entryTypes?: string[], status?: string[], limit?: int|null, offset?: int|null}
  */
 class Relations extends ObjectType implements SingularTypeInterface
 {
@@ -39,7 +44,8 @@ class Relations extends ObjectType implements SingularTypeInterface
 
     /**
      * `$source` limited to the active schema, and the named arguments for its getters.
-     * @return array{0: RelationsModel, 1: array}
+     * @param Arguments $arguments
+     * @return array{0: RelationsModel, 1: array{siteIds: int[], sections: string[]|null, entryTypes: string[]|null, status: string[]|null}}
      */
     private static function scoped(RelationsModel $source, array $arguments): array
     {
@@ -47,11 +53,15 @@ class Relations extends ObjectType implements SingularTypeInterface
         if (isset($arguments['status']) && !GqlHelper::canQueryInactiveElements()) {
             throw new UserError('The `status` argument requires the “Query for non-enabled elements” schema scope.');
         }
-        $model = $source->withQueryFactory(function(string $elementType) {
+        $model = $source->withQueryFactory(function (string $elementType): mixed {
             [$resolver, $canQuery] = self::RESOLVERS[$elementType] ?? [null, null];
-            return $resolver && class_exists($resolver) && $canQuery() ? $resolver::prepareQuery(null, []) : null;
+            if ($resolver === null || !class_exists($resolver) || !is_callable($canQuery)) {
+                return null; // e.g. Commerce is not installed
+            }
+            /** @var callable(): bool $canQuery */
+            return $canQuery() ? $resolver::prepareQuery(null, []) : null;
         });
-        $allowed = array_map(fn(Site $site) => $site->id, GqlHelper::getAllowedSites());
+        $allowed = array_map(fn(Site $site): int => (int)$site->id, GqlHelper::getAllowedSites());
         $siteIds = $arguments['siteIds'] ?? [$source->getSiteId()];
         $siteIds = $siteIds === [] ? array_values($allowed) : array_values(array_intersect($siteIds, $allowed));
         return [$model, [
@@ -70,12 +80,15 @@ class Relations extends ObjectType implements SingularTypeInterface
 
     public static function getType(): self
     {
-        return GqlEntityRegistry::getEntity(self::getName()) ?: GqlEntityRegistry::createEntity(self::getName(), new self([
+        /** @var self $type the registry only ever holds this type under this name */
+        $type = GqlEntityRegistry::getEntity(self::getName()) ?: GqlEntityRegistry::createEntity(self::getName(), new self([
             'name' => self::getName(),
             'fields' => [self::class, 'getFieldDefinitions'],
         ]));
+        return $type;
     }
 
+    /** @return array<string, mixed> */
     public static function getFieldDefinitions(): array
     {
         return Craft::$app->getGql()->prepareFieldDefinitions([
@@ -101,7 +114,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                 ],
-                'resolve' => function(RelationsModel $source, array $arguments) {
+                'resolve' => function (RelationsModel $source, array $arguments): int {
                     [$model, $args] = self::scoped($source, $arguments);
                     return $model->getCount(...$args);
                 },
@@ -128,7 +141,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                 ],
-                'resolve' => function(RelationsModel $source, array $arguments) {
+                'resolve' => function (RelationsModel $source, array $arguments): bool {
                     // only what the schema may read, consistent with `count` and `elements`; plugin settings
                     // (SEOmatic) are not mixed in here, see `isUsedInSeomaticGlobalSettings`
                     [$model, $args] = self::scoped($source, $arguments);
@@ -138,7 +151,7 @@ class Relations extends ObjectType implements SingularTypeInterface
             'isUsedInSeomaticGlobalSettings' => [
                 'name' => 'isUsedInSeomaticGlobalSettings',
                 'type' => Type::boolean(),
-                'resolve' => fn(RelationsModel $source) => $source->getIsUsedInSeomaticGlobalSettings(),
+                'resolve' => fn(RelationsModel $source): bool => $source->getIsUsedInSeomaticGlobalSettings(),
             ],
             'elements' => [
                 'name' => 'elements',
@@ -170,7 +183,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'type' => Type::int(),
                     ],
                 ],
-                'resolve' => function(RelationsModel $source, array $arguments) {
+                'resolve' => function (RelationsModel $source, array $arguments): array {
                     [$model, $args] = self::scoped($source, $arguments);
                     // never more than Craft's maxGraphqlResults, like Craft's own queries
                     $max = Craft::$app->getConfig()->getGeneral()->maxGraphqlResults;

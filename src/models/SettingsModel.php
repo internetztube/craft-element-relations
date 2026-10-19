@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\models;
 
 use Craft;
@@ -12,9 +14,13 @@ class SettingsModel extends Model
     /** Pro: replace operations touching more elements than this run as a queue job instead of in the request. */
     public int $replaceSyncLimit = 25;
 
-    /** Feature flags; only meaningful in `config/element-relations.php`, see ElementRelations::features(). */
+    /**
+     * Feature flags; only meaningful in `config/element-relations.php`, see ElementRelations::features().
+     * @var array<string, mixed>
+     */
     public array $features = [];
 
+    /** @return list<array<int|string, mixed>> */
     protected function defineRules(): array
     {
         return [

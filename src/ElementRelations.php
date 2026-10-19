@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations;
 
 use Craft;
@@ -67,24 +69,33 @@ class ElementRelations extends Plugin
     /**
      * Feature flags from `config/element-relations.php` (`'features' => ['editions' => true]`). Read from the file, not
      * the settings model, because Craft asks for editions() before the plugin instance exists.
+     * @return array<string, mixed>
      */
     public static function features(): array
     {
-        return Craft::$app->getConfig()->getConfigFromFile('element-relations')['features'] ?? [];
+        $config = Craft::$app->getConfig()->getConfigFromFile('element-relations');
+        $features = is_array($config) ? ($config['features'] ?? []) : [];
+        return is_array($features) ? $features : [];
     }
 
-    /** Lite only until the `editions` feature flag is on; Pro has no features yet, this is the scaffolding. */
+    /**
+     * Lite only until the `editions` feature flag is on.
+     * @return list<string>
+     */
     public static function editions(): array
     {
         return self::editionsFor(self::features());
     }
 
+    /**
+     * @param array<string, mixed> $features
+     * @return list<string>
+     */
     public static function editionsFor(array $features): array
     {
         return !empty($features['editions']) ? [self::EDITION_LITE, self::EDITION_PRO] : [self::EDITION_LITE];
     }
 
-    /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
     /** Pro user permissions (admins have them implicitly). */
     public const PERMISSION_REPLACE = 'element-relations-replace';
     public const PERMISSION_ROLLBACK = 'element-relations-rollback';
@@ -120,10 +131,12 @@ class ElementRelations extends Plugin
         return $user->admin || $user->can($permission);
     }
 
+    /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
     public static function isPro(): bool
     {
-        return in_array(self::EDITION_PRO, self::editions(), true) && self::getInstance()->is(self::EDITION_PRO);
+        return in_array(self::EDITION_PRO, self::editions(), true) && self::getInstance()?->is(self::EDITION_PRO) === true;
     }
+
     public bool $hasCpSettings = true;
     public bool $hasCpSection = false;
 
@@ -145,21 +158,21 @@ class ElementRelations extends Plugin
             $this->controllerNamespace = 'internetztube\elementRelations\console\controllers';
         }
 
-        Event::on(Fields::class, Fields::EVENT_REGISTER_FIELD_TYPES, function (RegisterComponentTypesEvent $event) {
+        Event::on(Fields::class, Fields::EVENT_REGISTER_FIELD_TYPES, function (RegisterComponentTypesEvent $event): void {
             $event->types[] = ElementRelationsField::class;
         });
 
-        Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITIES, function (RegisterComponentTypesEvent $event) {
+        Event::on(Utilities::class, Utilities::EVENT_REGISTER_UTILITIES, function (RegisterComponentTypesEvent $event): void {
             $event->types[] = ElementRelationsUtility::class;
         });
 
         // `usesElement` element query param; a fixed name so Craft's ClonefixTrait keeps it on cloned queries
-        Event::on(ElementQuery::class, Query::EVENT_DEFINE_BEHAVIORS, function (DefineBehaviorsEvent $event) {
+        Event::on(ElementQuery::class, Query::EVENT_DEFINE_BEHAVIORS, function (DefineBehaviorsEvent $event): void {
             $event->behaviors['elementRelations'] = ElementQueryBehavior::class;
         });
 
         // columns of the field's Usage index (one list across all element types, see elements/Usage.php)
-        Event::on(Element::class, Element::EVENT_DEFINE_ATTRIBUTE_HTML, function (DefineAttributeHtmlEvent $event) {
+        Event::on(Element::class, Element::EVENT_DEFINE_ATTRIBUTE_HTML, function (DefineAttributeHtmlEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
             if ($element instanceof RestrictedUsage) {
@@ -209,7 +222,7 @@ class ElementRelations extends Plugin
         // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
         // indexes and a "Replace everywhere…" action on indexes.
         // Registered unconditionally and decided per call, so switching the edition needs no restart.
-        Event::on(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, function (RegisterUserPermissionsEvent $event) {
+        Event::on(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, function (RegisterUserPermissionsEvent $event): void {
             if (self::isPro()) {
                 $event->permissions[] = [
                     'heading' => $this->name,
@@ -224,13 +237,13 @@ class ElementRelations extends Plugin
             if (!class_exists($class)) {
                 continue;
             }
-            Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event) {
+            Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event): void {
                 if (self::canReplace()) {
                     $event->actions[] = ReplaceRelations::class;
                 }
             });
         }
-        Event::on(ElementCondition::class, BaseCondition::EVENT_REGISTER_CONDITION_RULES, function (RegisterConditionRulesEvent $event) {
+        Event::on(ElementCondition::class, BaseCondition::EVENT_REGISTER_CONDITION_RULES, function (RegisterConditionRulesEvent $event): void {
             if (self::isPro()) {
                 $event->conditionRules[] = UsedConditionRule::class;
             }
@@ -243,7 +256,7 @@ class ElementRelations extends Plugin
             }
         }
 
-        Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {
+        Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
             // Revisions are never shown as relation sources, so don't waste queue time and cache rows on them.
@@ -264,20 +277,20 @@ class ElementRelations extends Plugin
             if (ExtractorService::hasElementExtractor($element)) {
                 // their data is not per site (a Formie form's settings, a node's target) and Craft saves only one site
                 foreach (\craft\helpers\ElementHelper::supportedSitesForElement($element) as $site) {
-                    QueueElementsForRefreshService::registerForRefresh($element->id, (int)$site['siteId']);
+                    QueueElementsForRefreshService::registerForRefresh((int)$element->id, (int)$site['siteId']);
                 }
                 return;
             }
-            QueueElementsForRefreshService::registerForRefresh($element->id, $element->siteId);
+            QueueElementsForRefreshService::registerForRefresh((int)$element->id, (int)$element->siteId);
         });
 
-        Event::on(Element::class, Element::EVENT_BEFORE_DELETE, function (ModelEvent $event) {
+        Event::on(Element::class, Element::EVENT_BEFORE_DELETE, function (ModelEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
             ExtractorService::deleteRelationsForElement($element);
         });
 
-        $pluginEnableCallback = function (PluginEvent $event) {
+        $pluginEnableCallback = function (PluginEvent $event): void {
             if (!($event->plugin instanceof ElementRelations)) {
                 return;
             }
@@ -286,7 +299,7 @@ class ElementRelations extends Plugin
         Event::on(Plugins::class, Plugins::EVENT_AFTER_ENABLE_PLUGIN, $pluginEnableCallback);
         Event::on(Plugins::class, Plugins::EVENT_AFTER_INSTALL_PLUGIN, $pluginEnableCallback);
 
-        Event::on(Application::class, Application::EVENT_AFTER_REQUEST, function () {
+        Event::on(Application::class, Application::EVENT_AFTER_REQUEST, function (): void {
             QueueElementsForRefreshService::destruct();
         });
     }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use craft\base\ElementInterface;
@@ -9,12 +11,7 @@ use Craft;
 
 class FieldExtractorTypedLinkFieldService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!Craft::$app->plugins->isPluginEnabled('typedlinkfield') || !($field instanceof \lenz\linkfield\fields\LinkField)) {
@@ -57,7 +54,10 @@ class FieldExtractorTypedLinkFieldService implements InterfaceFieldExtractor, In
         if (!($link instanceof \lenz\linkfield\models\element\ElementLink) || $link->linkedId !== $from->id) {
             return false;
         }
-        $value = \craft\helpers\Json::decode($field->serializeValue($link, $element));
+        /** @var string $json the record attributes, see above */
+        $json = $field->serializeValue($link, $element);
+        /** @var array<string, mixed> $value */
+        $value = \craft\helpers\Json::decode($json);
         unset($value['linkedTitle'], $value['linkedUrl']);
         $element->setFieldValue($field->handle, ['linkedId' => $to->id] + $value);
         return true;

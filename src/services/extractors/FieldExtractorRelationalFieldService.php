@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use craft\base\ElementInterface;
@@ -15,9 +17,7 @@ use internetztube\elementRelations\records\ElementRelationsCacheRecord;
  */
 class FieldExtractorRelationalFieldService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!($field instanceof RelationalFieldInterface)) {
@@ -55,7 +55,7 @@ class FieldExtractorRelationalFieldService implements InterfaceFieldExtractor, I
             return false;
         }
         $value['value'] = preg_replace(
-            '/^\\{' . preg_quote($from::refHandle(), '/') . ':' . $from->id . '(@\\d+)?:url\\}$/',
+            '/^\\{' . preg_quote((string)$from::refHandle(), '/') . ':' . $from->id . '(@\\d+)?:url\\}$/',
             '{' . $to::refHandle() . ':' . $to->id . '$1:url}',
             $value['value'],
             -1,

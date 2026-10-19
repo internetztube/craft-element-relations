@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -9,12 +11,7 @@ use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!(Craft::$app->plugins->isPluginEnabled('redactor') || Craft::$app->plugins->isPluginEnabled('ckeditor'))) {
@@ -29,13 +26,14 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, 
         $fieldData = $element->{$field->handle};
         $data = $fieldData?->getRawContent() ?? '';
 
+        /** @var list<ElementRelationsCacheRecord> */
         return collect(explode("{", $data))
-            ->map(fn (string $row) => explode('}', $row))
+            ->map(fn (string $row): array => explode('}', $row))
             ->flatten()
-            ->filter(fn (string $row) => strstr($row, '||'))
-            ->map(fn (string $row) => explode('||', $row)[0])
-            ->map(fn (string $row) => explode(':', $row)[1])
-            ->map(function (string $row) use ($element, $baseRecord, $field) {
+            ->filter(fn (string $row): bool => str_contains($row, '||'))
+            ->map(fn (string $row): string => explode('||', $row)[0])
+            ->map(fn (string $row): string => explode(':', $row)[1])
+            ->map(function (string $row) use ($element, $baseRecord, $field): ?ElementRelationsCacheRecord {
                 $siteId = str_contains($row, '@') ? explode('@', $row)[1] : $element->siteId;
                 $elementId = explode('@', $row)[0];
 
@@ -68,8 +66,10 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, 
         if (!($field instanceof \craft\redactor\Field) && !($field instanceof \craft\ckeditor\Field)) {
             return null;
         }
-        $raw = $element->getFieldValue($field->handle)?->getRawContent() ?? '';
-        $refHandle = $from::refHandle();
+        /** @var \craft\redactor\FieldData|\craft\ckeditor\data\FieldData|null $fieldData */
+        $fieldData = $element->getFieldValue($field->handle);
+        $raw = $fieldData?->getRawContent() ?? '';
+        $refHandle = (string)$from::refHandle();
         $new = preg_replace_callback(
             '/\\{' . preg_quote($refHandle, '/') . ':' . $from->id . '(@\\d+)?(?::([\\w.]+))?(?:\\|\\|([^}]*))?\\}/',
             function (array $m) use ($refHandle, $to): string {

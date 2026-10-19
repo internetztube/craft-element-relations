@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\behaviors;
 
 use craft\base\ElementInterface;
@@ -18,18 +20,19 @@ use yii\db\Expression;
  * Also usable as element index criteria (`{usesElement: 123}`), which is how the field renders its native indexes.
  * `unused()` is the inverse for a single element type: `craft.assets().unused()` lists assets nothing relates to.
  *
- * @property ElementQuery $owner
+ * @property ElementQuery<array-key, ElementInterface> $owner
  */
 class ElementQueryBehavior extends Behavior
 {
-    /** int|int[]|ElementInterface|ElementInterface[]|null */
+    /** @var int|string|ElementInterface|array<int|string|ElementInterface>|null ids arrive as strings from element index criteria */
     public mixed $usesElement = null;
 
     /** Only elements nothing relates to: no cache row, which includes non-element usages such as SEOmatic settings. */
     public ?bool $unused = null;
 
     /**
-     * @param int|int[]|ElementInterface|ElementInterface[]|null $value
+     * @param int|string|ElementInterface|array<int|string|ElementInterface>|null $value
+     * @return ElementQuery<array-key, ElementInterface>
      */
     public function usesElement(mixed $value): ElementQuery
     {
@@ -37,12 +40,14 @@ class ElementQueryBehavior extends Behavior
         return $this->owner;
     }
 
+    /** @return ElementQuery<array-key, ElementInterface> */
     public function unused(?bool $value = true): ElementQuery
     {
         $this->unused = $value;
         return $this->owner;
     }
 
+    /** @return array<string, string> */
     public function events(): array
     {
         return [ElementQuery::EVENT_AFTER_PREPARE => 'applyParams'];
@@ -51,6 +56,8 @@ class ElementQueryBehavior extends Behavior
     /** Runs after Craft created the sub query, which is rebuilt on every prepare (count, all, ...). */
     public function applyParams(): void
     {
+        /** @var Query<array-key, mixed> $subQuery created by prepare() before this event */
+        $subQuery = $this->owner->subQuery;
         if ($this->usesElement !== null || $this->unused) {
             // Craft caches element index queries for an hour, invalidated by the element type's cache tags. These
             // results also change when *other* elements are saved (a relation added somewhere, a source renamed or
@@ -59,7 +66,7 @@ class ElementQueryBehavior extends Behavior
             $this->owner->queryCacheDependency = null;
         }
         if ($this->unused) {
-            $this->owner->subQuery->andWhere(['not exists', (new Query())
+            $subQuery->andWhere(['not exists', (new Query())
                 ->select(['elementrelations_cache.id'])
                 ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
                 ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')]),
@@ -74,7 +81,7 @@ class ElementQueryBehavior extends Behavior
             $targetIds[] = $target instanceof ElementInterface ? (int)$target->id : (int)$target;
         }
 
-        $this->owner->subQuery->andWhere(['exists', (new Query())
+        $subQuery->andWhere(['exists', (new Query())
             ->select(['elementrelations_cache.id'])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
             ->where([

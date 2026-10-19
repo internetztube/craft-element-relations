@@ -1,28 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\elements\db\ElementQuery;
+use craft\elements\db\ElementQueryInterface;
 use craft\fields\BaseRelationField;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class FieldExtractorBaseRelationService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!($field instanceof BaseRelationField)) {
             return false;
         }
 
-        /** @var ElementQuery $query */
+        /** @var ElementQuery<array-key, ElementInterface> $query */
         $query = $element->{$field->handle}->status(null);
 
         $elements = [
@@ -31,7 +29,7 @@ class FieldExtractorBaseRelationService implements InterfaceFieldExtractor, Inte
         ];
 
         return collect($elements)
-            ->map(function (ElementInterface $element) use ($field, $baseRecord) {
+            ->map(function (ElementInterface $element) use ($field, $baseRecord): ElementRelationsCacheRecord {
                 $record = clone $baseRecord;
                 $record->setAttributes([
                     'type' => ElementRelationsCacheRecord::TYPE_FIELD,
@@ -50,11 +48,13 @@ class FieldExtractorBaseRelationService implements InterfaceFieldExtractor, Inte
         if (!($field instanceof BaseRelationField)) {
             return null;
         }
-        $ids = array_map('intval', $element->getFieldValue($field->handle)->status(null)->ids());
+        /** @var ElementQueryInterface $query a relation field's value */
+        $query = $element->getFieldValue($field->handle);
+        $ids = array_map(intval(...), $query->status(null)->ids());
         if (!in_array($from->id, $ids, true)) {
             return false;
         }
-        $element->setFieldValue($field->handle, array_values(array_unique(array_map(fn(int $id) => $id === $from->id ? $to->id : $id, $ids))));
+        $element->setFieldValue($field->handle, array_values(array_unique(array_map(fn(int $id): ?int => $id === $from->id ? $to->id : $id, $ids))));
         return true;
     }
 }

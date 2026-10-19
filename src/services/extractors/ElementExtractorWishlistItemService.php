@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -18,10 +20,7 @@ class ElementExtractorWishlistItemService implements InterfaceElementExtractor, 
         return ['verbb\\wishlist\\elements\\Item'];
     }
 
-    /**
-     * @return ElementRelationsCacheRecord|false
-     */
-    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|array|false
+    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|false
     {
         if (
             !($element instanceof Item)
