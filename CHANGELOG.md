@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased (3.2.0)
+### Changed
+- **Craft 5.3+ only.** Craft 4 stays on the 3.1.x releases.
+- **The field is now Craft's own element index** with a type dropdown (element types with counts), the entry statuses (live, pending, expired, disabled) applied across all element types, and a "Field" column naming the field that holds the link, with a link that opens the relating element at that field, listing everything that uses the element across all element types in one place: Craft's search, sorting, status menu (with a Drafts toggle), site menu, pagination, table and card views, and element chips linking to the edit pages. Below it, non-element usages such as SEOmatic's global or per-section settings appear as chips linking to the respective settings page. All hand-built UI (tables, pagination, JavaScript) is gone.
+- The field no longer stores anything in the element content column (it is computed from the relations cache).
+- Element chips in the field and in element indexes link to the element's edit page again on Craft 5. Supersedes [#59](https://github.com/internetztube/craft-element-relations/pull/59). Thank you, [@sebastian-works](https://github.com/sebastian-works)!
+- Replaced the React/MUI pagination bundle (660 KB, loaded on every control panel page) with a few lines of inline JavaScript. No more Node toolchain in the repository.
+- Revisions no longer trigger relation refresh jobs or cache rows.
+- `siteIds` consistently means the site of the *relating* (source) element in every method. Previously `count()`/`elements()` filtered by the target site while `countFast()` filtered by the source site, so the two could disagree on multi-site installs with cross-site relations.
+- Drafts show the relations of their canonical element instead of a "Drafts cannot be used in relations" hint.
+- Requires Craft 4.3+ (or 5.x).
+
+### Added
+- `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
+- `internetztube\elementRelations\elements\Usage`: a virtual element type whose query spans all element types, e.g. `Usage::find()->usesElement($asset)->search('contact')->all()` returns entries, products, menus, ... as their real classes.
+- `relationsModel.globalUsages`: non-element usages (plugin settings) as `GlobalUsage` models (`label`, `url`, `provider`). `isUsedInSeomaticGlobalSettings` is kept.
+- `status` argument for `count`, `isInUse`, `elements` and `elementsIterator` in Twig and GraphQL, e.g. `count(status: ['live'])`. The default still includes elements of every status. [#56](https://github.com/internetztube/craft-element-relations/issues/56)
+- Element exports (CSV/JSON/XML) now include the relation count and the IDs of the relating elements instead of `{}`. [#60](https://github.com/internetztube/craft-element-relations/issues/60)
+- PHPStan configuration and a GitHub Actions workflow that installs Craft 5 on MySQL and PostgreSQL, seeds content and runs `dev/smoke.php`.
+- `dev/dev.sh`: local development environment (Craft 5 on PostgreSQL or MySQL, `DB_DRIVER=mysql`) with every supported plugin installed, plus seeds and smoke tests for every integration in `dev/seed/` and `dev/smoke/`.
+- Any field that stores its targets in Craft's relations table (Craft 5.3+ `RelationalFieldInterface`) is now picked up automatically, including Craft's core Link field and plugin fields that implement the interface.
+- New integrations: Vizy (links, images and fields inside blocks), FreeLink, SEO (by Ether) social images, LinkMate, Navigation (nodes, shown as their menu), Wishlist (items, shown as their list), Formie (form redirect entries and redirect rules, element field defaults, notification attachments, submission field values).
+- SEOmatic: Twitter and Open Graph images are covered in addition to the SEO image.
+
+### Fixed
+- The pagination endpoint now requires a control panel request and checks that the current user may view the element.
+- `getTabHash()` caught a non-existent exception class, so a field layout referencing a deleted field could still throw.
+- Settings page used the wrong translation category, and the batch size is now validated server-side (integer, at least 1).
+- Out-of-range pages in the field's pagination endpoint are clamped to the last page.
+- An exception in one extractor (e.g. after a third-party plugin update) no longer fails the whole refresh job, which left every other element of the batch without relations. Errors are logged under the `element-relations` category.
+- SEOmatic global settings were only detected when exactly one image was set.
+
 ## 3.1.7 - 2025-10-15
 ### Fixed
 - Use `EVENT_AFTER_REQUEST` in favor of `__destruct`. Thank you, [@alexkuzmin](https://github.com/alexkuzmin)! [#57](https://github.com/internetztube/craft-element-relations/issues/57)

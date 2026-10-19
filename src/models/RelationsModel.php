@@ -3,21 +3,35 @@
 namespace internetztube\elementRelations\models;
 
 use Craft;
-use craft\base\Element;
+use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use craft\elements\db\ElementQueryInterface;
+use craft\elements\db\EntryQuery;
 use craft\models\Site;
-use internetztube\elementRelations\services\DatabaseService;
-use yii\db\Expression;
+use internetztube\elementRelations\services\extractors\GlobalUsageSeomaticService;
+use internetztube\elementRelations\services\extractors\InterfaceGlobalUsage;
 
+/**
+ * Answers "where is this element used?" by querying the relations cache table.
+ *
+ * `siteIds` means the sites of the *source* elements (the ones holding the relation).
+ * `null` = the element's own site, `[]` = all sites.
+ * `status` is passed through to the element queries; `null` returns elements of every status.
+ * `drafts`: `null` = canonical elements and drafts, `false` = canonical only, `true` = drafts only.
+ */
 class RelationsModel
 {
+    /** @var class-string<InterfaceGlobalUsage>[] usages that are not elements (plugin settings) */
+    private const GLOBAL_USAGE_PROVIDERS = [
+        GlobalUsageSeomaticService::class,
+    ];
+
     private int $elementId;
     private int $siteId;
 
-    private ?bool $_isUsedInSeomaticGlobalSettings = null;
+    private ?array $_globalUsages = null;
     private ?array $_fastCountQueryResult = null;
 
     public function __construct(int $elementId, int $siteId)
@@ -26,292 +40,251 @@ class RelationsModel
         $this->siteId = $siteId;
     }
 
-    public function getCount(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null)
+    /** The element whose usages this model describes (always the canonical element). */
+    public function getElementId(): int
     {
-        if (is_null($siteIds)) $siteIds = [$this->siteId];
-        if (is_int($siteIds)) $siteIds = [$siteIds];
+        return $this->elementId;
+    }
 
-        $elementQueries = $this->getElementQueries($siteIds, $sections, $entryTypes);
-        return collect($elementQueries)
+    public function getCount(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): int
+    {
+        return (int)collect($this->getElementQueries($siteIds, $sections, $entryTypes, $status, $drafts, $types, $search))
             ->map(fn(ElementQueryInterface $query) => $query->count())
             ->sum();
     }
 
     public function getCountFast(array|int|null $siteIds = null): int
     {
-        if (is_null($siteIds)) $siteIds = [$this->siteId];
-        if (is_int($siteIds)) $siteIds = [$siteIds];
-
-        $fastCountQueryResult = $this->getFastCountQueryResult();
-        $collection = collect($fastCountQueryResult);
-
-        if (!empty($siteIds)) {
-            $collection = $collection->filter(fn($row) => in_array($row['siteId'], $siteIds));
-        }
-        return $collection->sum('count');
+        $siteIds = $this->normalizeSiteIds($siteIds);
+        return (int)collect($this->getFastCountQueryResult())
+            ->filter(fn($row) => empty($siteIds) || in_array($row['siteId'], $siteIds))
+            ->sum('count');
     }
 
-    public function getSites()
+    /** @return Site[] */
+    public function getSites(): array
     {
-        $sites = Craft::$app->getSites()->getAllSites();
-        return collect($sites)
+        return collect(Craft::$app->getSites()->getAllSites())
             ->filter(fn(Site $site) => $this->getCount($site->id) > 0)
             ->all();
     }
 
-    public function getSitesFast()
+    /** @return Site[] */
+    public function getSitesFast(): array
     {
-        $fastCountQueryResult = $this->getFastCountQueryResult();
-        $siteIds = collect($fastCountQueryResult)
-            ->pluck('siteId')
-            ->unique()
-            ->all();
-
-        $sites = Craft::$app->getSites()->getAllSites();
-        return collect($sites)
+        $siteIds = collect($this->getFastCountQueryResult())->pluck('siteId')->unique()->all();
+        return collect(Craft::$app->getSites()->getAllSites())
             ->filter(fn(Site $site) => in_array($site->id, $siteIds))
             ->all();
     }
 
-    public function getIsInUse(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null): bool
+    public function getIsInUse(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null): bool
     {
-        return $this->getCount(
-                siteIds: $siteIds,
-                sections: $sections,
-                entryTypes: $entryTypes
-            ) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
+        return $this->getCount($siteIds, $sections, $entryTypes, $status) > 0 || $this->getGlobalUsages();
     }
 
     public function getIsInUseFast(array|int|null $siteIds = null): bool
     {
-        return $this->getCountFast($siteIds) > 0 || $this->getIsUsedInSeomaticGlobalSettings();
+        return $this->getCountFast($siteIds) > 0 || $this->getGlobalUsages();
+    }
+
+    /**
+     * Usages that are not elements: plugin settings such as SEOmatic's global SEO image.
+     * @return GlobalUsage[]
+     */
+    public function getGlobalUsages(): array
+    {
+        if ($this->_globalUsages === null) {
+            $this->_globalUsages = [];
+            foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
+                $this->_globalUsages = [...$this->_globalUsages, ...$provider::usages($this->elementId)];
+            }
+        }
+        return $this->_globalUsages;
     }
 
     public function getIsUsedInSeomaticGlobalSettings(): bool
     {
-        if (!is_null($this->_isUsedInSeomaticGlobalSettings)) {
-            return $this->_isUsedInSeomaticGlobalSettings;
-        }
-
-        if (Craft::$app->plugins->isPluginEnabled('seomatic')) {
-            $columnSelector = DatabaseService::jsonExtract("metaBundleSettings", ["seoImageIds"]);
-            $this->_isUsedInSeomaticGlobalSettings = (new Query())
-                ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
-                ->where(['=', $columnSelector, "[\"{$this->elementId}\"]"])
-                ->collect()
-                ->isNotEmpty();
-        } else {
-            $this->_isUsedInSeomaticGlobalSettings = false;
-        }
-
-        return $this->_isUsedInSeomaticGlobalSettings;
+        return collect($this->getGlobalUsages())->contains(fn(GlobalUsage $usage) => $usage->provider === 'seomatic');
     }
 
     /**
-     * @param array $siteIds
-     * @param array|string|null $sections
-     * @param array|string|null $entryTypes
+     * Element types of the elements that relate to this element (in any site), most used first.
+     * @return class-string<ElementInterface>[]
+     */
+    public function getElementTypes(): array
+    {
+        return collect($this->getFastCountQueryResult())
+            ->groupBy('type')
+            ->map(fn($rows) => $rows->sum('count'))
+            ->sortDesc()
+            ->keys()
+            ->filter(fn(string $type) => class_exists($type))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Number of relating elements per element type (all sites), most used first.
+     * @return array<class-string<ElementInterface>, int>
+     */
+    public function getCountsByType(): array
+    {
+        return collect($this->getFastCountQueryResult())
+            ->filter(fn($row) => class_exists($row['type']))
+            ->groupBy('type')
+            ->map(fn($rows) => (int)$rows->sum('count'))
+            ->sortDesc()
+            ->all();
+    }
+
+    /**
+     * IDs of the (primary owner) elements that relate to this element. Cheap: one query, no element hydration.
+     * @return int[]
+     */
+    public function getSourceElementIds(array|int|null $siteIds = null): array
+    {
+        $siteIds = $this->normalizeSiteIds($siteIds);
+        $query = $this->fastSubQuery()->select(['[[elementrelations_cache.sourcePrimaryOwnerId]]'])->distinct()->groupBy(null);
+        if (!empty($siteIds)) {
+            $query->andWhere(['[[elementrelations_cache.sourceSiteId]]' => $siteIds]);
+        }
+        return array_map('intval', $query->column());
+    }
+
+    /**
+     * One query per element type (and per drafts/no-drafts unless `$drafts` is given), all using the `usesElement` param.
+     * @param class-string<ElementInterface>[]|null $types restrict to these element types
      * @return ElementQueryInterface[]
      */
-    public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null): array
+    public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): array
     {
-        if (is_null($siteIds)) $siteIds = [$this->siteId];
-        if (is_int($siteIds)) $siteIds = [$siteIds];
+        $siteIds = $this->normalizeSiteIds($siteIds);
         if (is_string($sections)) $sections = [$sections];
         if (is_string($entryTypes)) $entryTypes = [$entryTypes];
 
-        $fastCountQueryResult = $this->getFastCountQueryResult();
-
-        return collect($fastCountQueryResult)
-            ->pluck('type')
-            ->unique()
-            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes) {
-
-                $subQuery = (new Query())
-                    ->select(new Expression('1'))
-                    ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-                    ->where('[[elementrelations_cache.sourcePrimaryOwnerId]] = [[elements.id]] AND [[elementrelations_cache.sourceSiteId]] = [[elements_sites.siteId]]')
-                    ->andWhere(['elementrelations_cache.targetElementId' => $this->elementId]);
-
-                if (!empty($siteIds)) {
-                    $subQuery->andWhere(['in', 'elementrelations_cache.targetSiteId', $siteIds]);
-                }
-
+        return collect($this->getElementTypes())
+            ->filter(fn(string $type) => $types === null || in_array($type, $types, true))
+            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes, $status, $drafts, $search) {
                 /** @var ElementQuery $query */
                 $query = $elementType::find();
-                $query = $query
+                Craft::configure($query, ['usesElement' => $this->elementId]); // behavior param, see ElementQueryBehavior
+                $query
                     ->revisions(false)
                     ->provisionalDrafts(false)
-                    ->site('*')
-                    ->status(null)
-                    ->andWhere(['exists', $subQuery])
-                    ->drafts(false);
+                    ->status($status);
+                // the site of the relating element; `usesElement` matches the cache rows of that site
+                empty($siteIds) ? $query->site('*') : $query->siteId($siteIds);
 
-                // Apply section filter if element type is Entry and sections are specified
-                if ($elementType === \craft\elements\Entry::class && !empty($sections)) {
-                    $query->section($sections);
+                if ($search) {
+                    $query->search($search);
+                }
+                if ($query instanceof EntryQuery) {
+                    if (!empty($sections)) $query->section($sections);
+                    if (!empty($entryTypes)) $query->type($entryTypes);
                 }
 
-                // Apply type filter if element type is Entry and types are specified
-                if ($elementType === \craft\elements\Entry::class && !empty($entryTypes)) {
-                    $query->type($entryTypes);
-                }
-
-                // echo "<pre>{$query->getRawSql()}</pre>";
-                // die();
-
-                return [
-                    (clone $query)->drafts(true),
-                    (clone $query)->drafts(false),
-                ];
+                return $drafts === null
+                    ? [(clone $query)->drafts(true), (clone $query)->drafts(false)]
+                    : [$query->drafts($drafts)];
             })
             ->flatten()
             ->all();
     }
 
     /**
-     * @param array|int $siteIds
-     * @param int|null $limit
-     * @param int $offset
-     * @param array|string|null $sections
-     * @param array|string|null $entryTypes
-     * @return Element[]
+     * @return ElementInterface[]
      */
-    public function getElements(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, array|string|null $sections = null, array|string|null $entryTypes = null): array
+    public function getElements(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): array
     {
         return iterator_to_array(
-            $this->getElementsIterator(
-                siteIds: $siteIds,
-                limit: $limit,
-                offset: $offset,
-                sections: $sections,
-                entryTypes: $entryTypes
-            ),
+            $this->getElementsIterator($siteIds, $limit, $offset, 100, $sections, $entryTypes, $status, $drafts, $types, $search),
             false
         );
     }
 
-    public function getElementsIterator(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100, array|string|null $sections = null, array|string|null $entryTypes = null): \Generator
+    /**
+     * Streams the related elements across all underlying queries, honouring a global limit/offset.
+     * @return \Generator<int, ElementInterface>
+     */
+    public function getElementsIterator(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): \Generator
     {
-        if (is_null($siteIds)) $siteIds = [$this->siteId];
-        if (is_int($siteIds)) $siteIds = [$siteIds];
-
-        $siteIds = (array)$siteIds;
         $remaining = $limit;
 
-        foreach ($this->getElementQueries($siteIds, $sections, $entryTypes) as $query) {
-            // How many total in this site
+        foreach ($this->getElementQueries($siteIds, $sections, $entryTypes, $status, $drafts, $types, $search) as $query) {
             $total = $query->count();
-
-            // Skip entire query if offset still ahead
             if ($offset >= $total) {
                 $offset -= $total;
                 continue;
             }
 
-            // We'll page through this query in batches
             $localOffset = $offset;
             $offset = 0;
 
-            // Keep pulling batches until we exhaust this site or hit our global limit
             while (true) {
-                // Figure out how many to ask for this round
-                $take = $batchSize;
-                if ($remaining !== null) {
-                    $take = min($take, $remaining);
-                }
-
-                // Clone, apply the running offsets + batch limit
-                $q = clone $query;
-                if ($localOffset > 0) {
-                    $q->offset($localOffset);
-                }
-                $q->limit($take);
-
-                $batch = $q->all();
+                $take = $remaining === null ? $batchSize : min($batchSize, $remaining);
+                /** @var ElementInterface[] $batch */
+                $batch = (clone $query)->offset($localOffset)->limit($take)->all();
                 if (empty($batch)) {
-                    break; // no more here
+                    break;
                 }
-
                 foreach ($batch as $element) {
                     yield $element;
                     if ($remaining !== null && --$remaining <= 0) {
-                        return; // global limit reached
+                        return;
                     }
                 }
-
-                // If fewer than we asked, we’re done with this site
-                $count = count($batch);
-                if ($count < $take) {
+                if (count($batch) < $take) {
                     break;
                 }
-
-                // Advance local offset for next batch
-                $localOffset += $count;
+                $localOffset += count($batch);
             }
         }
     }
 
-    private function getFastCountQueryResult(): array
+    private function normalizeSiteIds(array|int|null $siteIds): array
     {
-        if (!is_null($this->_fastCountQueryResult)) {
-            return $this->_fastCountQueryResult;
-        }
-        $subQuery = (new Query())
-            ->select([
-                'siteId' => '[[elementrelations_cache.sourceSiteId]]',
-                'type' => '[[elements.type]]',
-            ])
+        if ($siteIds === null) return [$this->siteId];
+        if (is_int($siteIds)) return [$siteIds];
+        return $siteIds;
+    }
+
+    /**
+     * Cache rows pointing at this element, joined to their (live, non-revision, non-provisional) source elements.
+     */
+    private function fastSubQuery(): Query
+    {
+        return (new Query())
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-
-            // 1) join by primary‐owner only
-            ->innerJoin(
-                ['elements' => Table::ELEMENTS],
-                '[[elements.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]'
-            )
-
-            // 3) (optional) drafts logic
-            ->leftJoin(
-                ['drafts' => Table::DRAFTS],
-                '[[drafts.id]] = [[elements.draftId]]'
-            )
-
-            // add drafts.provisional if to make sure is not 1
-
-            // 4) restrict to our target element
+            ->innerJoin(['elements' => Table::ELEMENTS], '[[elements.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
+            ->leftJoin(['drafts' => Table::DRAFTS], '[[drafts.id]] = [[elements.draftId]]')
             ->where(['[[elementrelations_cache.targetElementId]]' => $this->elementId])
-
-            // 5) element‐level filters
-            ->andWhere([
-                '[[elements.dateDeleted]]' => null,
-            ])
+            ->andWhere(['[[elements.dateDeleted]]' => null])
             ->andWhere(['[[elements.archived]]' => 0])
             ->andWhere(['[[elements.revisionId]]' => null])
-            ->andWhere([
-                'or',
-                ['[[drafts.id]]' => null],               // no draft
-                ['<>', '[[drafts.provisional]]', 1],              // or not provisional
-            ])
-            ->groupBy([
-                '[[elementrelations_cache.sourcePrimaryOwnerId]]',
-                '[[elementrelations_cache.sourceSiteId]]',
-                '[[elements.type]]',
-            ]);
+            ->andWhere(['or', ['[[drafts.id]]' => null], ['<>', '[[drafts.provisional]]', 1]]);
+    }
 
-        $query = (new Query())
-            ->select([
-                'siteId' => '[[siteId]]',
-                'type' => '[[type]]',
-                'count' => 'COUNT(*)',
-            ])
-            ->from(['sub' => $subQuery])
-            ->groupBy(['[[siteId]]', '[[type]]']);
+    private function getFastCountQueryResult(): array
+    {
+        if ($this->_fastCountQueryResult === null) {
+            $subQuery = $this->fastSubQuery()
+                ->select([
+                    'siteId' => '[[elementrelations_cache.sourceSiteId]]',
+                    'type' => '[[elements.type]]',
+                ])
+                ->groupBy([
+                    '[[elementrelations_cache.sourcePrimaryOwnerId]]',
+                    '[[elementrelations_cache.sourceSiteId]]',
+                    '[[elements.type]]',
+                ]);
 
-        // echo "<pre>{$query->getRawSql()}</pre>";
-        // die();
-
-        $this->_fastCountQueryResult = $query->all();
-
+            $this->_fastCountQueryResult = (new Query())
+                ->select(['siteId' => '[[siteId]]', 'type' => '[[type]]', 'count' => 'COUNT(*)'])
+                ->from(['sub' => $subQuery])
+                ->groupBy(['[[siteId]]', '[[type]]'])
+                ->all();
+        }
         return $this->_fastCountQueryResult;
     }
 }

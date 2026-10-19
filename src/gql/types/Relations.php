@@ -45,12 +45,18 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'name' => 'entryTypes',
                         'type' => Type::listOf(Type::string()),
                     ],
+                    'status' => [
+                        'name' => 'status',
+                        'type' => Type::listOf(Type::string()),
+                        'description' => 'Only include source elements with these statuses (e.g. ["live"]). Defaults to all statuses.',
+                    ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
                     return $source->getCount(
                         siteIds: $arguments['siteIds'] ?? null,
                         sections: $arguments['sections'] ?? null,
-                        entryTypes: $arguments['entryTypes'] ?? null
+                        entryTypes: $arguments['entryTypes'] ?? null,
+                        status: $arguments['status'] ?? null,
                     );
                 },
             ],
@@ -70,12 +76,18 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'name' => 'entryTypes',
                         'type' => Type::listOf(Type::string()),
                     ],
+                    'status' => [
+                        'name' => 'status',
+                        'type' => Type::listOf(Type::string()),
+                        'description' => 'Only include source elements with these statuses (e.g. ["live"]). Defaults to all statuses.',
+                    ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
                     return $source->getIsInUse(
                         siteIds: $arguments['siteIds'] ?? null,
                         sections: $arguments['sections'] ?? null,
-                        entryTypes: $arguments['entryTypes'] ?? null
+                        entryTypes: $arguments['entryTypes'] ?? null,
+                        status: $arguments['status'] ?? null,
                     );
                 },
             ],
@@ -100,6 +112,11 @@ class Relations extends ObjectType implements SingularTypeInterface
                         'name' => 'entryTypes',
                         'type' => Type::listOf(Type::string()),
                     ],
+                    'status' => [
+                        'name' => 'status',
+                        'type' => Type::listOf(Type::string()),
+                        'description' => 'Only include source elements with these statuses (e.g. ["live"]). Defaults to all statuses.',
+                    ],
                     'limit' => [
                         'name' => 'limit',
                         'type' => Type::int(),
@@ -120,7 +137,8 @@ class Relations extends ObjectType implements SingularTypeInterface
                         limit: $limit,
                         offset: $offset,
                         sections: $sections,
-                        entryTypes: $entryTypes
+                        entryTypes: $entryTypes,
+                        status: $arguments['status'] ?? null,
                     );
                 },
                 'complexity' => GqlHelper::relatedArgumentComplexity(GqlService::GRAPHQL_COMPLEXITY_EAGER_LOAD),

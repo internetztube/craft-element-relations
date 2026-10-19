@@ -6,39 +6,62 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\FieldInterface;
+use craft\base\FieldLayoutElement;
 use craft\base\PreviewableFieldInterface;
+use craft\enums\Color;
 use craft\errors\FieldNotFoundException;
-use craft\errors\InvalidConfigException;
 use craft\fieldlayoutelements\CustomField;
+use craft\helpers\Cp;
+use craft\helpers\Html;
 use craft\helpers\StringHelper;
-use craft\helpers\UrlHelper;
 use craft\models\FieldLayoutTab;
-use internetztube\elementRelations\assetbundles\ElementRelationsAsset;
-use internetztube\elementRelations\models\RelationsModel;
-use internetztube\elementRelations\gql\types\Relations as RelationsType;
 use craft\models\GqlSchema;
 use GraphQL\Type\Definition\Type;
+use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\gql\types\Relations as RelationsType;
+use internetztube\elementRelations\helpers\ElementSummary;
+use internetztube\elementRelations\models\RelationsModel;
+use yii\base\InvalidConfigException;
 
+/**
+ * Read-only field that shows where the element is used. It stores nothing; the value is computed from the cache table.
+ * The control panel UI is Craft's own: element indexes for the field, element chips for index columns.
+ */
 class ElementRelationsField extends Field implements PreviewableFieldInterface
 {
-    public static function supportedTranslationMethods(): array
-    {
-        return [self::TRANSLATION_METHOD_NONE];
-    }
+    /** Chips shown in element index columns before Craft's "+N" badge takes over. */
+    private const PREVIEW_LIMIT = 10;
+
+    /**
+     * Element types (with counts) of the index being rendered right now; picked up by the `cp.elements.toolbar`
+     * hook (see ElementRelations::init()) to render the type dropdown. Craft offers no other way to add toolbar items.
+     * @var array<class-string<ElementInterface>, array{label: string, count: int}>|null
+     */
+    public static ?array $toolbarTypes = null;
 
     public static function displayName(): string
     {
         return Craft::t("element-relations", "Element Relations");
     }
 
-  public static function icon(): string
-  {
-      return '@internetztube/elementRelations/icon-mask.svg';
-  }
+    public static function icon(): string
+    {
+        return '@internetztube/elementRelations/icon-mask.svg';
+    }
 
     public static function isMultiInstance(): bool
     {
         return false;
+    }
+
+    public static function supportedTranslationMethods(): array
+    {
+        return [self::TRANSLATION_METHOD_NONE];
+    }
+
+    public static function dbType(): array|string|null
+    {
+        return null;
     }
 
     public function normalizeValue(mixed $value, ?ElementInterface $element = null): ?RelationsModel
@@ -46,11 +69,26 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         if (!$element || !$element->id) {
             return null;
         }
-        /**
-         * Since you cannot really use a Draft or a Revision inside a Relation Field, we're always defaulting
-         * to the canonical.
-         */
-        return new RelationsModel($element->id, $element->siteId);
+        // Drafts and revisions cannot be relation targets, so always look at the canonical element.
+        return new RelationsModel($element->getCanonicalId() ?? $element->id, $element->siteId);
+    }
+
+    /**
+     * Used by element exports (CSV/JSON/XML) and `getSerializedFieldValues()`.
+     * @param RelationsModel|null $value
+     */
+    public function serializeValue(mixed $value, ?ElementInterface $element = null): mixed
+    {
+        if (!$value instanceof RelationsModel) {
+            return null;
+        }
+        $ids = $value->getSourceElementIds([]);
+        return ['count' => count($ids), 'elementIds' => $ids];
+    }
+
+    public function serializeValueForDb(mixed $value, ElementInterface $element): mixed
+    {
+        return null;
     }
 
     public function includeInGqlSchema(GqlSchema $schema): bool
@@ -68,76 +106,124 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
     }
 
     /**
-     * Craft 4
-     * @param RelationsModel $value
-     * @param ElementInterface $element
-     * @return string
-     */
-    public function getTableAttributeHtml(mixed $value, ElementInterface $element): string
-    {
-        return Craft::$app->getView()
-            ->renderTemplate("element-relations/_components/fields/preview", [
-                "element" => $element,
-                "value" => $value,
-                "currentSite" => $element->site,
-                "tabHash" => $this->getTabHash($element),
-            ]);
-    }
-
-    /**
-     * Craft 5
-     * @param RelationsModel $value
-     * @param ElementInterface $element
-     * @return string
+     * Element index column: the relating elements of the element's site as Craft chips (with Craft's "+N" popover).
+     * @param RelationsModel|null $value
      */
     public function getPreviewHtml(mixed $value, ElementInterface $element): string
     {
-        return Craft::$app->getView()
-            ->renderTemplate("element-relations/_components/fields/preview", [
-                "element" => $element,
-                "value" => $value,
-                "currentSite" => $element->site,
-                "tabHash" => $this->getTabHash($element),
-            ]);
+        if (!$value instanceof RelationsModel) {
+            return '';
+        }
+        if (!$value->getIsInUseFast([])) {
+            return $element->getIsUnpublishedDraft() ? '' : $this->unusedLabelHtml();
+        }
+
+        $siteId = $element->siteId;
+        $elements = $value->getElements($siteId, self::PREVIEW_LIMIT);
+        $html = Cp::elementPreviewHtml($elements, showThumb: false);
+
+        $total = $value->getCountFast($siteId);
+        if ($total > count($elements)) {
+            $html .= Html::a(
+                Craft::t('element-relations', 'preview-total', ['count' => Craft::$app->getFormatter()->asInteger($total)]),
+                $element->getCpEditUrl() . (($tab = $this->getTabHash($element)) ? "#$tab" : ''),
+                ['class' => 'light smalltext'],
+            );
+        }
+        if (!$elements && $value->getSitesFast()) {
+            $html .= Html::tag('span', Craft::t('element-relations', 'preview-other-sites'), ['class' => 'light']);
+        }
+        if ($value->getIsUsedInSeomaticGlobalSettings()) {
+            $html .= Html::tag('div', Craft::t('element-relations', 'field-value-seomatic-global'), ['class' => 'light']);
+        }
+        return $html;
     }
 
-    public function getInputHtml(mixed $value, ElementInterface $element = null): string
+    /**
+     * The field: Craft's own element index over the virtual Usage type, i.e. one list of everything that uses the
+     * element across all element types, with Craft's search, sorting, status/drafts menu, site menu and pagination.
+     * Below it: non-element usages (plugin settings) as Craft chips.
+     * @param RelationsModel|null $value
+     */
+    public function getInputHtml(mixed $value, ?ElementInterface $element = null): string
     {
-        $paginationEndpoint = UrlHelper::actionUrl("element-relations/element-relations/paginate", [
-            "elementId" => $element->id,
-            "siteId" => $element->siteId,
-            "limit" => 10
-        ], null, false);
+        if (!$element || !$value instanceof RelationsModel) {
+            return $this->hintHtml(Craft::t('element-relations', 'field-hint-not-saved'));
+        }
+        if ($element->getIsUnpublishedDraft()) {
+            return $this->hintHtml(Craft::t('element-relations', 'field-hint-draft'));
+        }
 
-        return Craft::$app->getView()
-            ->renderTemplate("element-relations/_components/fields/input", [
-                "element" => $element,
-                "value" => $value,
-                "currentSite" => $element->site,
-                "tabHash" => $this->getTabHash($element),
-                "containerId" => "elementRelations-pagination-" . StringHelper::randomString(6),
-                "paginationEndpoint" => $paginationEndpoint,
+        $globalUsages = $value->getGlobalUsages();
+        if (!$value->getIsInUseFast([]) && !$globalUsages) {
+            return $this->unusedLabelHtml();
+        }
+
+        $html = '';
+        if ($value->getIsInUseFast([])) {
+            $counts = $value->getCountsByType();
+            self::$toolbarTypes = null;
+            if (count($counts) > 1) {
+                foreach ($counts as $type => $count) {
+                    // some plugin element types don't define a plural name and inherit "Elements"
+                    $label = $type::pluralDisplayName();
+                    if ($label === Craft::t('app', 'Elements')) {
+                        $label = $type::displayName();
+                    }
+                    self::$toolbarTypes[$type] = ['label' => $label, 'count' => $count];
+                }
+            }
+            $html .= Cp::elementIndexHtml(Usage::class, [
+                'context' => 'embedded-index',
+                'id' => 'element-relations-' . StringHelper::randomString(8),
+                'sources' => false,
+                'showSiteMenu' => 'auto',
+                'defaultViewMode' => 'table',
+                'jsSettings' => [
+                    'criteria' => ['usesElement' => $value->getElementId(), 'site' => '*'],
+                    'static' => true,
+                    'canHaveDrafts' => true, // the status menu's "Drafts" option only takes effect with this
+                    'batchSize' => 20,
+                    'storageKey' => 'elementRelations',
+                ],
             ]);
+            self::$toolbarTypes = null;
+        }
+        if ($globalUsages) {
+            // Craft's `flex` utility would center (and shrink) the index, so plain block layout with a spaced heading
+            $html .= Html::tag('h3', Html::encode(Craft::t('element-relations', 'field-headline-global')), ['class' => 'element-relations-heading', 'style' => 'margin-top: var(--m);'])
+                . ElementSummary::globalUsagesHtml($globalUsages);
+        }
+        return Html::tag('div', $html, ['class' => 'element-relations']);
     }
 
+    /**
+     * HTML id of the field layout tab containing this field, so links can deep-link to it.
+     */
     public function getTabHash(ElementInterface $element): ?string
     {
-        return collect($element->getFieldLayout()->getTabs())
-            ->filter(function (FieldLayoutTab $tab) {
+        return collect($element->getFieldLayout()?->getTabs() ?? [])
+            ->first(function (FieldLayoutTab $tab) {
                 return collect($tab->getElements())
-                    ->filter(fn($layoutElement) => $layoutElement instanceof CustomField)
-                    ->map(function (CustomField $layoutElement) {
+                    ->map(function (FieldLayoutElement $layoutElement) {
                         try {
-                            return $layoutElement->getField();
-                        } catch (FieldNotFoundException | InvalidConfigException $e) {
-                            // Field was deleted but still referenced in layout, or has invalid configuration
-                            return null;
+                            return $layoutElement instanceof CustomField ? $layoutElement->getField() : null;
+                        } catch (FieldNotFoundException|InvalidConfigException) {
+                            return null; // field deleted but still referenced in the layout
                         }
                     })
-                    ->filter(fn(?FieldInterface $field) => $field?->id === $this->id)
-                    ->isNotEmpty();
+                    ->contains(fn(?FieldInterface $field) => $field?->id === $this->id);
             })
-            ->first()
             ?->getHtmlId();
+    }
+
+    private function unusedLabelHtml(): string
+    {
+        return (string)Cp::statusLabelHtml(['color' => Color::Red, 'label' => Craft::t('element-relations', 'field-value-unused')]);
+    }
+
+    private function hintHtml(string $text): string
+    {
+        return Html::tag('p', Html::encode($text), ['class' => 'light']);
     }
 }
