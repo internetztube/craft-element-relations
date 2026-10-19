@@ -45,7 +45,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
     /** Initial view mode of the index; authors can switch it and Craft remembers their choice. */
     public string $viewMode = self::VIEW_MODE_TABLE;
     public bool $showStatusMenu = true;
-    public bool $showSiteMenu = true;
     /** Elements per page */
     public ?int $pageSize = 20;
 
@@ -106,14 +105,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
             'name' => 'showStatusMenu',
             'on' => $this->showStatusMenu,
         ]);
-        if (Craft::$app->getIsMultiSite()) {
-            $html .= Cp::lightswitchFieldHtml([
-                'label' => Craft::t('app', 'Show the site menu'),
-                'id' => 'showSiteMenu',
-                'name' => 'showSiteMenu',
-                'on' => $this->showSiteMenu,
-            ]);
-        }
         $html .= Cp::textFieldHtml([
             'label' => Craft::t('element-relations', 'settings-page-size'),
             'id' => 'pageSize',
@@ -204,7 +195,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
 
     /**
      * The field: Craft's own element index over the virtual Usage type, i.e. one list of everything that uses the
-     * element across all element types, with Craft's search, sorting, status/drafts menu, site menu and pagination.
+     * element across all element types and sites, with Craft's search, sorting, status/drafts menu and pagination.
      * Below it: non-element usages (plugin settings) as Craft chips.
      * @param RelationsModel|null $value
      */
@@ -241,10 +232,12 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                 'id' => 'element-relations-' . StringHelper::randomString(8),
                 'sources' => false,
                 'showStatusMenu' => $this->showStatusMenu,
-                'showSiteMenu' => $this->showSiteMenu ? 'auto' : false,
+                // Craft's index is per site (its JS always sends a siteId); a usage list wants every site at once, with
+                // the Site column saying which, so no site menu and `allSites` on the query (see UsageQuery).
+                'showSiteMenu' => false,
                 'defaultViewMode' => $this->viewMode,
                 'jsSettings' => [
-                    'criteria' => ['usesElement' => $value->getElementId(), 'site' => '*'],
+                    'criteria' => ['usesElement' => $value->getElementId(), 'allSites' => true],
                     'static' => true,
                     'canHaveDrafts' => true, // the status menu's "Drafts" option only takes effect with this
                     'batchSize' => $this->pageSize ?? 20,

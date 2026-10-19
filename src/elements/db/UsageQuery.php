@@ -31,6 +31,12 @@ class UsageQuery extends ElementQuery
      */
     public mixed $elementTypes = null;
 
+    /**
+     * List every site at once, overriding the `siteId` Craft's element index always sends (its site menu/current site).
+     * The field's index sets this so a "where is it used?" list covers all sites, with the Site column telling which.
+     */
+    public bool $allSites = false;
+
     public function __construct(array $config = [])
     {
         parent::__construct(Usage::class, $config);
@@ -45,8 +51,17 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    public function allSites(bool $value = true): static
+    {
+        $this->allSites = $value;
+        return $this;
+    }
+
     protected function beforePrepare(): bool
     {
+        if ($this->allSites) {
+            $this->siteId = Craft::$app->getSites()->getAllSiteIds(); // siteId is normalized before beforePrepare()
+        }
         if ($this->elementTypes) {
             $this->subQuery->andWhere(['elements.type' => (array)$this->elementTypes]);
         }

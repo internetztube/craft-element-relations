@@ -48,7 +48,7 @@ As a basis the relations table is used. This means that any field that stores re
 
 ### Field settings
 
-The field is Craft's element index, so its settings are the ones you know from Craft's relational fields: View Mode (table or cards; authors can switch it in the View menu, which also offers more table columns), Show the status menu, Show the site menu (multi-site installs) and Elements per page.
+The field is Craft's element index, so its settings are the ones you know from Craft's relational fields: View Mode (table or cards; authors can switch it in the View menu, which also offers more table columns), Show the status menu and Elements per page. On multi-site installs the list covers every site at once, with a Site column.
 
 ### GraphQL
 The Element Relations field exposes its data in GraphQL. Query the field by its handle to

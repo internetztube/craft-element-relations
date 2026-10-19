@@ -140,6 +140,7 @@ abstract class Usage extends Element
         return [
             ['label' => Craft::t('app', 'Title'), 'orderBy' => 'title', 'attribute' => 'title'],
             ['label' => Craft::t('element-relations', 'field-column-type'), 'orderBy' => 'elements.type', 'attribute' => self::ATTR_TYPE],
+            ['label' => Craft::t('app', 'Site'), 'orderBy' => 'elements_sites.siteId', 'attribute' => self::ATTR_SITE],
             ['label' => Craft::t('app', 'Date Updated'), 'orderBy' => 'elements.dateUpdated', 'attribute' => 'dateUpdated', 'defaultDir' => 'desc'],
             ['label' => Craft::t('app', 'Date Created'), 'orderBy' => 'elements.dateCreated', 'attribute' => 'dateCreated', 'defaultDir' => 'desc'],
             ['label' => Craft::t('app', 'ID'), 'orderBy' => 'elements.id', 'attribute' => 'id'],

@@ -38,13 +38,13 @@ return function (array $ctx): void {
     check(Usage::find()->usesElement($target)->siteId($de)->one()->getAttributeHtml(Usage::ATTR_SITE) === 'German', 'Site column names the site');
     check(in_array(Usage::ATTR_SITE, Usage::defaultTableAttributes('*'), true), 'Site column is shown by default on multi-site installs');
 
+    check((int)Usage::find()->usesElement($target)->siteId($en)->allSites()->count() === 2, 'allSites overrides the siteId the index JS always sends');
     $field = Craft::$app->getFields()->getFieldByHandle('relations');
+    Craft::$app->getView()->clear();
     $input = withWebRequest(fn() => $field->getInputHtml($target->getFieldValue('relations'), $target));
-    check(str_contains($input, 'sitemenubtn'), 'the index shows the site menu');
-    $noSiteMenu = clone $field;
-    $noSiteMenu->showSiteMenu = false;
-    $input = withWebRequest(fn() => $noSiteMenu->getInputHtml($target->getFieldValue('relations'), $target));
-    check(!str_contains($input, 'sitemenubtn'), 'field setting: site menu hidden');
+    $js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
+    check(!str_contains($input, 'sitemenubtn') && str_contains($js, '"allSites":true'), 'the field lists all sites at once (no site menu, allSites criteria)');
+    check(str_contains(html_entity_decode($input), '"attr":"elementRelationsSite"'), 'the index can sort by site');
 
     // used on the other site only
     $relDe = new RelationsModel($targetDe->id, $en);
