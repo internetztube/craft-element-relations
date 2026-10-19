@@ -42,7 +42,7 @@ return function (array $ctx): void {
     $unusedIds = Asset::find()->unused()->status(null)->ids();
     check(in_array($fresh->id, $unusedIds, true) && !in_array($asset->id, $unusedIds, true), 'unused(): fresh asset listed, used asset not');
     check(!in_array($asset->id, Asset::find()->unused()->ids(), true), 'SEOmatic global settings count as a usage');
-    check(in_array($asset->id, internetztube\elementRelations\models\RelationsModel::globalTargetIds(), true), 'globalTargetIds() knows the SEOmatic global image');
+    check((int)(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['targetElementId' => $asset->id, 'sourceElementId' => null, 'type' => 'global-seomatic'])->count() >= 1, 'the SEOmatic global usage is a cache row without a source element');
     $condition = Asset::createCondition();
     $condition->addConditionRule(Craft::createObject(['class' => internetztube\elementRelations\elements\conditions\UsedConditionRule::class, 'value' => false]));
     $viaCondition = Asset::find()->status(null);

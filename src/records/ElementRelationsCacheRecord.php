@@ -15,6 +15,7 @@ use craft\db\ActiveRecord;
  * @property int $fieldId
  * @property string $type
  * @property string $customFieldUid
+ * @property string|null $globalKey
  * @property string $dateCreated
  * @property string $dateUpdated
  * @property string $uid
@@ -25,6 +26,8 @@ class ElementRelationsCacheRecord extends ActiveRecord
 
     public const TYPE_FIELD = "field";
     public const TYPE_ELEMENT_USER_PHOTO = "element-user-photo";
+    /** non-element usage rows (no source element), see services\extractors\InterfaceGlobalUsage */
+    public const TYPE_GLOBAL_SEOMATIC = "global-seomatic";
 
     public static function tableName()
     {
@@ -42,6 +45,7 @@ class ElementRelationsCacheRecord extends ActiveRecord
             "fieldId",
             "customFieldUid",
             "type",
+            "globalKey",
         ];
     }
 

@@ -37,6 +37,7 @@ class ReplaceService
             ->distinct()
             ->from('{{%elementrelations_cache}}')
             ->where(['targetElementId' => $from->id])
+            ->andWhere(['not', ['sourceElementId' => null]]) // non-element usages are reported below
             ->limit(self::MAX_SOURCES)
             ->all();
         $types = (new Query())->select(['id', 'type'])->from(Table::ELEMENTS)->where(['id' => array_column($rows, 'sourceElementId')])->pairs();

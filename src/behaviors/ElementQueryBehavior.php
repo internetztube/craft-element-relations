@@ -5,7 +5,6 @@ namespace internetztube\elementRelations\behaviors;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
-use internetztube\elementRelations\models\RelationsModel;
 use yii\base\Behavior;
 use yii\db\Expression;
 
@@ -26,7 +25,7 @@ class ElementQueryBehavior extends Behavior
     /** int|int[]|ElementInterface|ElementInterface[]|null */
     public mixed $usesElement = null;
 
-    /** Only elements nothing relates to (no cache row, no non-element usage such as SEOmatic settings). */
+    /** Only elements nothing relates to: no cache row, which includes non-element usages such as SEOmatic settings. */
     public ?bool $unused = null;
 
     /**
@@ -58,9 +57,6 @@ class ElementQueryBehavior extends Behavior
                 ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
                 ->where('[[elementrelations_cache.targetElementId]] = [[elements.id]]'),
             ]);
-            if ($globalIds = RelationsModel::globalTargetIds()) {
-                $this->owner->subQuery->andWhere(['not in', 'elements.id', $globalIds]);
-            }
         }
         if ($this->usesElement === null) {
             return;

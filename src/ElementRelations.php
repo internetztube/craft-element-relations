@@ -34,7 +34,9 @@ use internetztube\elementRelations\models\SettingsModel;
 use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\QueueElementsForRefreshService;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
+use internetztube\elementRelations\services\extractors\GlobalUsageSeomaticService;
 use yii\base\Application;
+use yii\db\ActiveRecord;
 use yii\base\Event;
 
 /**
@@ -43,7 +45,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.7";
+    public string $schemaVersion = "1.0.8";
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
@@ -173,6 +175,13 @@ class ElementRelations extends Plugin
                     ];
                 }
             });
+        }
+
+        // Non-element usages: rewrite their cache rows whenever the plugin settings they live in change
+        if (class_exists(\nystudio107\seomatic\records\MetaBundle::class)) {
+            foreach ([ActiveRecord::EVENT_AFTER_INSERT, ActiveRecord::EVENT_AFTER_UPDATE, ActiveRecord::EVENT_AFTER_DELETE] as $eventName) {
+                Event::on(\nystudio107\seomatic\records\MetaBundle::class, $eventName, fn() => GlobalUsageSeomaticService::refresh());
+            }
         }
 
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {

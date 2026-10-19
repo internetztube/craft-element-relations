@@ -23,8 +23,8 @@ use internetztube\elementRelations\services\extractors\InterfaceGlobalUsage;
  */
 class RelationsModel
 {
-    /** @var class-string<InterfaceGlobalUsage>[] usages that are not elements (plugin settings) */
-    private const GLOBAL_USAGE_PROVIDERS = [
+    /** @var class-string<InterfaceGlobalUsage>[] usages that are not elements (plugin settings), cached as rows without a source element */
+    public const GLOBAL_USAGE_PROVIDERS = [
         GlobalUsageSeomaticService::class,
     ];
 
@@ -88,29 +88,33 @@ class RelationsModel
         return $this->getCountFast($siteIds) > 0 || $this->getGlobalUsages();
     }
 
+    /** Rewrites the cache rows of every non-element usage provider (full rebuilds, migrations). */
+    public static function refreshGlobalUsages(): void
+    {
+        foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
+            $provider::refresh();
+        }
+    }
+
     /**
      * Usages that are not elements: plugin settings such as SEOmatic's global SEO image.
      * @return GlobalUsage[]
      */
-    /**
-     * Ids of every element referenced by a non-element usage (plugin settings), for the `unused` query param.
-     * @return int[]
-     */
-    public static function globalTargetIds(): array
-    {
-        $ids = [];
-        foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
-            $ids = [...$ids, ...$provider::targetIds()];
-        }
-        return array_values(array_unique($ids));
-    }
-
     public function getGlobalUsages(): array
     {
         if ($this->_globalUsages === null) {
+            $rows = (new Query())
+                ->select(['targetElementId', 'targetSiteId', 'type', 'globalKey'])
+                ->from('{{%elementrelations_cache}}')
+                ->where(['targetElementId' => $this->elementId, 'sourceElementId' => null])
+                ->all();
+            $byType = [];
+            foreach ($rows as $row) {
+                $byType[$row['type']][] = $row;
+            }
             $this->_globalUsages = [];
             foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
-                $this->_globalUsages = [...$this->_globalUsages, ...$provider::usages($this->elementId)];
+                $this->_globalUsages = [...$this->_globalUsages, ...$provider::usages($byType[$provider::type()] ?? [])];
             }
         }
         return $this->_globalUsages;

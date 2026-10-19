@@ -85,7 +85,7 @@ install_plugins() {
   for handle in $(php craft plugin/list | awk 'NF>5 && $(NF-1)=="No"{print $(NF-4)}'); do php craft plugin/install "$handle"; done
 }
 # seed twice: schema created in the first process is only fully usable in a fresh one (see ensureEntry in seed.php)
-seed()  { install_plugins && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php craft queue/release all && php craft element-relations/resave-relations && php craft queue/run; }
+seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php craft queue/release all && php craft element-relations/resave-relations && php craft queue/run; }
 smoke() { seed && php "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; }
 
 stop() { [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; }

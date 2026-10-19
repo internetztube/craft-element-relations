@@ -4,67 +4,78 @@ namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
 use craft\db\Query;
+use craft\helpers\Db;
+use craft\helpers\StringHelper;
 use craft\helpers\UrlHelper;
 use internetztube\elementRelations\models\GlobalUsage;
-use internetztube\elementRelations\services\DatabaseService;
+use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 /**
  * SEOmatic keeps SEO / Twitter / Open Graph image ids in the JSON `metaBundleSettings` column of every meta bundle:
  * the global settings of each site, and the per-section / category group / product type content settings.
+ * One cache row per (bundle, asset); `globalKey` is the bundle id.
  */
 class GlobalUsageSeomaticService implements InterfaceGlobalUsage
 {
     private const IMAGE_ID_KEYS = ['seoImageIds', 'twitterImageIds', 'ogImageIds'];
 
-    public static function targetIds(): array
+    public static function type(): string
     {
-        if (!Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
-            return [];
-        }
-        $ids = [];
-        foreach ((new Query())->select(['metaBundleSettings'])->from([\nystudio107\seomatic\records\MetaBundle::tableName()])->column() as $json) {
-            $settings = json_decode(is_resource($json) ? stream_get_contents($json) : (string)$json, true) ?: [];
-            foreach (self::IMAGE_ID_KEYS as $key) {
-                foreach ((array)($settings[$key] ?? []) as $id) {
-                    if ((int)$id) {
-                        $ids[(int)$id] = true;
+        return ElementRelationsCacheRecord::TYPE_GLOBAL_SEOMATIC;
+    }
+
+    public static function refresh(): void
+    {
+        $table = ElementRelationsCacheRecord::tableName();
+        $db = Craft::$app->getDb();
+        $rows = [];
+        if (Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
+            $primarySiteId = Craft::$app->getSites()->getPrimarySite()->id;
+            $now = Db::prepareDateForDb(new \DateTime());
+            $bundles = (new Query())
+                ->select(['id', 'sourceSiteId', 'metaBundleSettings'])
+                ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
+                ->all();
+            foreach ($bundles as $bundle) {
+                $json = $bundle['metaBundleSettings'];
+                $settings = json_decode(is_resource($json) ? stream_get_contents($json) : (string)$json, true) ?: [];
+                $assetIds = [];
+                foreach (self::IMAGE_ID_KEYS as $key) {
+                    foreach ((array)($settings[$key] ?? []) as $id) {
+                        if ((int)$id) {
+                            $assetIds[(int)$id] = true;
+                        }
                     }
+                }
+                foreach (array_keys($assetIds) as $assetId) {
+                    $rows[] = [$assetId, (int)($bundle['sourceSiteId'] ?: $primarySiteId), self::type(), (string)$bundle['id'], $now, $now, StringHelper::UUID()];
                 }
             }
         }
-        return array_keys($ids);
+
+        $db->transaction(function () use ($db, $table, $rows) {
+            $db->createCommand()->delete($table, ['type' => self::type()])->execute();
+            if ($rows) {
+                $db->createCommand()->batchInsert($table, ['targetElementId', 'targetSiteId', 'type', 'globalKey', 'dateCreated', 'dateUpdated', 'uid'], $rows)->execute();
+            }
+        });
     }
 
-    public static function usages(int $elementId): array
+    public static function usages(array $rows): array
     {
-        if (!Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
+        if (!$rows || !Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
             return [];
         }
-
-        // Each key holds a JSON array of string or int ids: ["5"], [5, 12], ["5", "12"], ...
-        // Normalize to [5,12] (no quotes, no spaces) and match the id at any position.
-        $conditions = ['or'];
-        foreach (self::IMAGE_ID_KEYS as $key) {
-            $ids = 'REPLACE(REPLACE(' . DatabaseService::jsonExtract('metaBundleSettings', [$key]) . ", '\"', ''), ' ', '')";
-            array_push(
-                $conditions,
-                ['like', $ids, "[$elementId]", false],
-                ['like', $ids, "[$elementId,%", false],
-                ['like', $ids, "%,$elementId]", false],
-                ['like', $ids, "%,$elementId,%", false],
-            );
-        }
-
-        $rows = (new Query())
+        $bundles = (new Query())
             ->select(['id', 'sourceBundleType', 'sourceHandle', 'sourceName', 'sourceSiteId'])
             ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
-            ->where($conditions)
+            ->where(['id' => array_column($rows, 'globalKey')])
             ->orderBy(['sourceBundleType' => SORT_ASC, 'sourceName' => SORT_ASC])
             ->all();
 
         $multiSite = Craft::$app->getIsMultiSite();
         $usages = [];
-        foreach ($rows as $row) {
+        foreach ($bundles as $row) {
             $site = $row['sourceSiteId'] ? Craft::$app->getSites()->getSiteById((int)$row['sourceSiteId']) : null;
             $siteSuffix = $multiSite && $site ? "/{$site->handle}" : '';
             $siteLabel = $multiSite && $site ? " ({$site->name})" : '';
