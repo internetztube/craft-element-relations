@@ -11,9 +11,9 @@ class ElementExtractorUserPhotoService implements InterfaceElementExtractor
     /**
      * @param ElementInterface $element
      * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
+     * @return ElementRelationsCacheRecord|false
      */
-    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|false
+    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|array|false
     {
         if (!($element instanceof User) || (!$userPhoto = $element->photo)) {
             return false;

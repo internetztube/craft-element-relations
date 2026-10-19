@@ -27,14 +27,18 @@ class FieldExtractorSeomaticService implements InterfaceFieldExtractor
 
         /** @var \nystudio107\seomatic\models\MetaBundle $value */
         $value = $element->{$field->handle};
-        $assetIds = $value->metaBundleSettings->seoImageIds;
+        $settings = $value->metaBundleSettings;
+        // SEO, Twitter and Open Graph images are separate asset lists
+        $assetIds = collect([...(array)$settings->seoImageIds, ...(array)$settings->twitterImageIds, ...(array)$settings->ogImageIds])
+            ->map(fn ($assetId) => (int) $assetId)
+            ->filter()
+            ->unique();
 
-        if (!$assetIds) {
+        if ($assetIds->isEmpty()) {
             return false;
         }
 
-        return collect($assetIds)
-            ->map(fn (string $assetId) => (int) $assetId)
+        return $assetIds
             ->map(function (int $assetId) use ($field, $baseRecord, $element) {
                 $record = clone $baseRecord;
                 $record->setAttributes([

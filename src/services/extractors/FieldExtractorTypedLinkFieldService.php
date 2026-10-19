@@ -21,7 +21,7 @@ class FieldExtractorTypedLinkFieldService implements InterfaceFieldExtractor
             return false;
         }
 
-        /** @var \lenz\linkfield\models\Link $value */
+        /** @var \lenz\linkfield\models\Link $link */
         $link = $element->{$field->handle};
 
         if (!($link instanceof \lenz\linkfield\models\element\ElementLink)) {
