@@ -5,30 +5,64 @@
     <button type="button" class="btn">{{ 'replace-button'|t('element-relations') }}</button>
 </div>
 {% js %}
+/**
+ * Settings from ElementRelationsField::$replaceSettings.
+ * @typedef {Object} ReplaceSettings
+ * @property {string} elementType class of the element being replaced (step 1 lists elements of this type)
+ * @property {string} usageType the virtual Usage element type (step 2 lists the usages)
+ * @property {number} fromId the element whose usages are replaced
+ * @property {number} siteId
+ * @property {string} step1Title
+ * @property {string} step1Hint
+ * @property {string} step1Button
+ * @property {string} step2Title contains `{to}`, the replacement's title
+ * @property {string} step2Hint contains `{to}`
+ * @property {string} step2Button
+ * @property {string} undoLabel
+ */
+/**
+ * What the replace endpoint (ReplaceController::actionReplace()) answers with.
+ * @typedef {Object} ReplaceResponse
+ * @property {string} message
+ * @property {number|null} operationId
+ * @property {boolean} queued
+ */
+/**
+ * @param {JQuery} $wrap the `[data-element-relations-replace]` wrapper, rendered inside the index's toolbar
+ * @param {ReplaceSettings} settings
+ * @returns {void}
+ */
 window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wrap, settings) {
-    var $index = $wrap.closest('.element-index');
-    var refresh = function () {
-        var index = $index.data('elementIndex');
+    'use strict';
+    const $index = $wrap.closest('.element-index');
+    const refresh = function () {
+        const index = $index.data('elementIndex');
         if (index) {
             index.updateElements();
         }
     };
-    var error = function (e) {
-        Craft.cp.displayError(e.response && e.response.data && e.response.data.message || Craft.t('app', 'A server error occurred.'));
+    /** @param {{response?: {data?: {message?: string}}}} failure */
+    const showError = function (failure) {
+        Craft.cp.displayError(failure.response && failure.response.data && failure.response.data.message || Craft.t('app', 'A server error occurred.'));
     };
-    // Craft's selector modal has a title; a one-line hint below it says what the step does
-    var withHint = function (modal, hint) {
+    /**
+     * Craft's selector modal has a title; a one-line hint below it says what the step does.
+     * @param {Craft.BaseElementSelectorModal} modal
+     * @param {string} hint
+     * @returns {Craft.BaseElementSelectorModal}
+     */
+    const withHint = function (modal, hint) {
         modal.$container.find('.header').append($('<p class="light"/>').text(hint));
         return modal;
     };
 
     // Placement waits for the index (it renders its toolbar asynchronously); the button works right away.
-    var tries = 0;
-    var place = function () {
+    let tries = 0;
+    const place = function () {
         if (!$index.data('elementIndex') && tries++ < 40) {
             return setTimeout(place, 50);
         }
-        var $after = $index.find('[data-element-relations-type-menu]');
+        let $after = $index.find('[data-element-relations-type-menu]');
         if (!$after.length) {
             $after = $index.find('.statusmenubtn').parent();
         }
@@ -38,30 +72,35 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
     };
     place();
 
-    var replace = function (replacement, usages) {
+    /**
+     * @param {{id: number}} replacement the element picked in step 1
+     * @param {Array<{id: number}>} usages the relating elements picked in step 2
+     */
+    const replace = function (replacement, usages) {
         Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
             fromId: settings.fromId,
             toId: replacement.id,
             siteId: settings.siteId,
-            sourceIds: usages.map(function (u) { return u.id; }),
+            sourceIds: usages.map(function (usage) { return usage.id; }),
         }}).then(function (response) {
-            var data = response.data;
-            var notice = null;
-            var noticeSettings = {};
+            /** @type {ReplaceResponse} */
+            const data = response.data;
+            let notice = null;
+            let noticeSettings = {};
             if (data.operationId && !data.queued) {
                 // Undo right in the notice, which stays until closed; Utilities → Element Relations has the same
-                var $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(settings.undoLabel).on('click', function () {
+                const $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(settings.undoLabel).on('click', function () {
                     $undo.addClass('loading').prop('disabled', true);
                     Craft.sendActionRequest('POST', 'element-relations/replace/rollback', {data: {operationId: data.operationId}})
-                        .then(function (r) { Craft.cp.displaySuccess(r.data.message); refresh(); })
-                        .catch(error)
+                        .then(function (rollback) { Craft.cp.displaySuccess(rollback.data.message); refresh(); })
+                        .catch(showError)
                         .finally(function () { if (notice) { notice.close(); } });
                 });
                 noticeSettings = {details: $undo, persist: true};
             }
             notice = Craft.cp.displaySuccess(data.message, noticeSettings);
             refresh();
-        }).catch(error);
+        }).catch(showError);
     };
 
     $wrap.find('.btn').on('click', function () {
@@ -71,16 +110,18 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
             modalTitle: settings.step1Title,
             selectBtnLabel: settings.step1Button,
             disabledElementIds: [settings.fromId],
-            onSelect: function (replacement) {
+            /** @param {Array<{id: number, label: string}>} selected exactly one element (multiSelect: false) */
+            onSelect: function (selected) {
+                const replacement = selected[0];
                 withHint(Craft.createElementSelectorModal(settings.usageType, {
                     multiSelect: true,
                     showSiteMenu: false,
                     showTitle: true,
-                    modalTitle: settings.step2Title.replace('{to}', replacement[0].label),
+                    modalTitle: settings.step2Title.replace('{to}', replacement.label),
                     selectBtnLabel: settings.step2Button,
                     criteria: {usesElement: settings.fromId, allSites: true},
-                    onSelect: function (usages) { replace(replacement[0], usages); },
-                }), settings.step2Hint.replace('{to}', replacement[0].label));
+                    onSelect: function (usages) { replace(replacement, usages); },
+                }), settings.step2Hint.replace('{to}', replacement.label));
             },
         }), settings.step1Hint);
     });

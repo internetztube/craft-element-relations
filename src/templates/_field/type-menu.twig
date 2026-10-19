@@ -12,21 +12,30 @@
     </div>
 </div>
 {% js %}
+/**
+ * Moves the type dropdown next to the index's status menu and filters the index by the chosen element type.
+ * @param {JQuery} $menu the `[data-element-relations-type-menu]` wrapper, rendered inside the index's toolbar
+ * @returns {void}
+ */
 window.ElementRelationsTypeMenu = window.ElementRelationsTypeMenu || function ($menu) {
-    var $index = $menu.closest('.element-index');
-    var tries = 0;
-    var attach = function () {
-        var index = $index.data('elementIndex');
-        var $btn = $menu.find('.menubtn');
-        var menuBtn = $btn.data('menubtn');
-        if ((!index || !menuBtn) && tries++ < 40) { return setTimeout(attach, 50); } // index + Craft's menu button init are async
-        if (!menuBtn) { menuBtn = new Garnish.MenuBtn($btn); }
+    'use strict';
+    const $index = $menu.closest('.element-index');
+    const $button = $menu.find('.menubtn');
+    let tries = 0;
+    const attach = function () {
+        /** @type {Craft.BaseElementIndex|undefined} */
+        const index = $index.data('elementIndex');
+        /** @type {Garnish.MenuBtn|undefined} */
+        let menuButton = $button.data('menubtn');
+        if ((!index || !menuButton) && tries++ < 40) { return setTimeout(attach, 50); } // index + Craft's menu button init are async
+        if (!menuButton) { menuButton = new Garnish.MenuBtn($button); }
         $menu.insertAfter($index.find('.statusmenubtn').parent());
-        menuBtn.on('optionSelect', function (ev) {
-            var $option = $(ev.option);
+        menuButton.on('optionSelect', function (event) {
+            const $option = $(event.option);
             $option.closest('.menu').find('.sel').removeClass('sel');
             $option.addClass('sel');
-            $btn.text($option.contents().first().text().trim());
+            $button.text($option.contents().first().text().trim());
+            // `data-type` is an element class name, empty for "All types"
             index.settings.criteria.elementTypes = $option.data('type') || null;
             index.setPage(1);
             index.updateElements();
