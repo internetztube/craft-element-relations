@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ### Added
 - Editions (Lite/Pro) behind a feature flag: `'features' => ['editions' => true]` in `config/element-relations.php` makes the Pro edition selectable; `ElementRelations::isPro()` is the gate.
 - Element indexes can sort by the field (number of relating elements), like any sortable field.
-- **Pro: Unused.** A “Used anywhere” rule for Craft’s element conditions (index filter, custom sources), an “Unused” source on the asset, category and tag indexes with Craft’s bulk actions, and the `unused()` element query param (`craft.assets().unused()`). Non-element usages (SEOmatic settings) count as used.
+- **Pro: Unused.** A “Used anywhere” rule for Craft’s element conditions: in the index filter on top of any source, with Craft’s bulk actions, and in custom sources. Plus the `unused()` element query param (`craft.assets().unused()`). Non-element usages (SEOmatic settings) count as used.
 - **Pro: Replace.** An index action (“Replace everywhere…”) and a wizard in the field (“Replace…”: pick the replacement, then tick the usages to replace) that swap an element for another of the same type in the relating elements. Every extractor has a matching replacer, so whatever the plugin detects it can rewrite: relational fields (also inside Matrix/nested entries), Craft's Link field, CKEditor/Redactor reference tags, SEOmatic images, Hyper, LinkIt, LinkMate, Typed Link Field, FreeLink, SEO (Ether) social images, Vizy (link marks, images, block fields), user photos, Navigation nodes, Wishlist items and Formie forms. Plugin settings (SEOmatic global/section images) are listed for a manual change. Only elements the current user may save are touched.
 - **Pro: Undo and rollback.** Every replacement is logged; the wizard's notice has an Undo button and Utilities → Element Relations lists all replacements with Roll back. Rolling back swaps the reference back and keeps later edits.
 - **Pro: Revisions.** Entries changed by a replacement or rollback get a revision with a note, attributed to the user.
@@ -51,7 +51,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Pro: replacing and rolling back skip fields the user may not edit (a field layout's “Who can edit” condition), queued replacements are not run when the user who started them is gone or lost the permission, and the history in Utilities shows non-admins only their own replacements.
 - **Breaking (front end):** in site requests `count`, `isInUse` and `elements` in Twig default to what visitors may see (live entries, enabled elements, no drafts). Pass `status: null` and `drafts: null` for everything, as before. The control panel and console keep including every status and drafts.
 - GraphQL `elements` never returns more than Craft's `maxGraphqlResults`.
-- The field's list and the Pro “Unused” source could show outdated results for up to an hour, because Craft caches element index queries per element type. Queries using the plugin's parameters bypass that cache now.
+- The field's list and the Pro “Used anywhere” filter could show outdated results for up to an hour, because Craft caches element index queries per element type. Queries using the plugin's parameters bypass that cache now.
 - `getTabHash()` caught a non-existent exception class, so a field layout referencing a deleted field could still throw.
 - Settings page used the wrong translation category, and the batch size is validated server-side (integer, at least 1).
 

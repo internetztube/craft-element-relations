@@ -40,9 +40,9 @@ Usages that are not elements, such as SEOmatic's global SEO image, appear below 
 
 ## Find what nobody uses <sup>Pro</sup>
 
-An “Unused” source on asset, category and tag indexes, with Craft's bulk actions, and a “Used anywhere” rule for filters and custom sources. Plugin settings count as a usage.
+A “Used anywhere” rule in Craft's filter, on top of any source and with Craft's bulk actions. Set it to off for everything nobody links to; plugin settings count as a usage. The same rule works in custom sources, for a fixed “Unused” entry in the sidebar.
 
-![Find what nobody uses](screenshots/unused.png)
+![Find what nobody uses](screenshots/used-filter.png)
 
 ## Replace an element everywhere <sup>Pro</sup>
 

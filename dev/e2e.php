@@ -192,30 +192,35 @@ $elements->saveElement($renamed) or throw new RuntimeException(json_encode($rena
 $sources['field'] = $renamed;
 $flush();
 
-// Pro "Unused" source on the asset index: an asset becomes unused when another element drops it
-// like Craft's index JS: the source's criteria come from the rendered source link (data-criteria) as baseCriteria
-[$status, $assetsPage] = $http->page('/admin/assets');
-check($status === 200 && preg_match('/<a [^>]*data-key="elementRelations:unused"[^>]*>/', $assetsPage, $anchor) === 1, 'the asset index renders the Unused source');
-check(preg_match('/data-criteria=([\'"])(.*?)\1/', $anchor[0], $m) === 1, 'the Unused source link carries data-criteria');
-$unusedCriteria = json_decode(html_entity_decode($m[2]), true) ?: [];
-check(($unusedCriteria['unused'] ?? null) === true, 'the Unused source carries unused=true (' . json_encode($unusedCriteria) . ')');
-$assetIndexIds = function (string $source) use ($http, $unusedCriteria): array {
-    // the exact parameters the asset index sends (captured from Craft.elementIndex.getViewParams() in the browser)
+// Pro "Used anywhere" filter on the asset index: an asset becomes unused when another element drops it.
+// The filter goes along with Craft's index request as a condition config, on top of the volume's own source.
+$testVolume = Craft::$app->getVolumes()->getVolumeByHandle('test');
+$unusedFilter = [
+    'class' => craft\elements\conditions\assets\AssetCondition::class,
+    'elementType' => craft\elements\Asset::class,
+    'fieldContext' => 'global',
+    'conditionRules' => [['class' => internetztube\elementRelations\elements\conditions\UsedConditionRule::class, 'value' => false]],
+];
+$assetIndexIds = function (?array $filter) use ($http, $testVolume): array {
+    // the parameters the asset index sends (captured from Craft.elementIndex.getViewParams() in the browser)
     [$status, , $json] = $http->action('element-indexes/get-elements', [
-        'context' => 'index', 'elementType' => craft\elements\Asset::class, 'canHaveDrafts' => false, 'source' => $source, 'condition' => null,
-        'baseCriteria' => ['status' => null, 'drafts' => false, 'draftOf' => false, 'savedDraftsOnly' => true, 'siteId' => Craft::$app->getSites()->getPrimarySite()->id] + ($source === 'elementRelations:unused' ? $unusedCriteria : []),
+        'context' => 'index', 'elementType' => craft\elements\Asset::class, 'canHaveDrafts' => false, 'source' => "volume:$testVolume->uid", 'condition' => null,
+        'baseCriteria' => ['status' => null, 'drafts' => false, 'draftOf' => false, 'savedDraftsOnly' => true, 'siteId' => Craft::$app->getSites()->getPrimarySite()->id],
         'criteria' => ['offset' => 0, 'limit' => 100, 'search' => null],
+        'filterConfig' => $filter,
         'disabledElementIds' => [],
         'viewState' => ['mode' => 'table', 'showHeaderColumn' => true, 'inlineEditing' => false, 'static' => false, 'order' => 'dateUpdated', 'sort' => 'desc'],
         'paginated' => true, 'selectable' => true, 'sortable' => false, 'showFolders' => true, 'foldersOnly' => false,
     ]);
-    check($status === 200 && isset($json['html']), "asset index “{$source}” answers (HTTP $status: " . substr(json_encode($json), 0, 300) . ')');
-    preg_match_all('/data-id="(\d+)"/', $json['html'], $m);
-    if (!$m[1] && getenv('E2E_DEBUG')) {
-        file_put_contents(getenv('E2E_DEBUG') . '-assets.json', json_encode($json, JSON_PRETTY_PRINT));
-    }
+    check($status === 200 && isset($json['html']), 'the asset index answers' . ($filter ? ' with the “Used anywhere” filter' : '') . " (HTTP $status: " . substr(json_encode($json), 0, 300) . ')');
+    preg_match_all('/data-id="(\d+)"/', $json['html'] ?? '', $m);
     return array_map('intval', array_unique($m[1]));
 };
+[$status, $assetsPage] = $http->page('/admin/assets');
+check($status === 200 && !str_contains($assetsPage, 'data-key="elementRelations:unused"'), 'no extra “Unused” source in the asset sidebar');
+$testAssetId = craft\elements\Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one()->id; // the seeded, used test asset
+check(in_array($testAssetId, $assetIndexIds(null), true), 'the volume lists the test asset');
+check(!in_array($testAssetId, $assetIndexIds($unusedFilter), true), 'the “Used anywhere: off” filter leaves it out (it is used)');
 $probeAsset = (function () use ($elements) {
     $any = craft\elements\Asset::find()->volume('test')->one();
     $file = tempnam(sys_get_temp_dir(), 'er') . '.png';
@@ -225,8 +230,8 @@ $probeAsset = (function () use ($elements) {
     $elements->saveElement($asset) or throw new RuntimeException(json_encode($asset->getErrors()));
     return $asset;
 })();
-$unusedIds = $assetIndexIds('elementRelations:unused');
-check(in_array($probeAsset->id, $unusedIds, true), "a new asset is listed under Unused (#{$probeAsset->id}; listed: " . implode(',', $unusedIds) . ')');
+$unusedIds = $assetIndexIds($unusedFilter);
+check(in_array($probeAsset->id, $unusedIds, true), "a new asset passes the “Used anywhere: off” filter (#{$probeAsset->id}; listed: " . implode(',', $unusedIds) . ')');
 $user = $make('E2E source (asset user)');
 $assetsField = Craft::$app->getFields()->getFieldByHandle('relatedAssets');
 check($assetsField instanceof craft\fields\Assets, 'the seed added the Related Assets field');
@@ -234,11 +239,11 @@ if ($assetsField) {
     $user->setFieldValue($assetsField->handle, [$probeAsset->id]);
     $elements->saveElement($user) or throw new RuntimeException(json_encode($user->getErrors()));
     $flush();
-    check(!in_array($probeAsset->id, $assetIndexIds('elementRelations:unused'), true), 'once an entry uses it, it leaves Unused immediately');
+    check(!in_array($probeAsset->id, $assetIndexIds($unusedFilter), true), 'once an entry uses it, the filter drops it immediately');
     $user->setFieldValue($assetsField->handle, []);
     $elements->saveElement($user) or throw new RuntimeException(json_encode($user->getErrors()));
     $flush();
-    check(in_array($probeAsset->id, $assetIndexIds('elementRelations:unused'), true), 'when the entry drops it, it is back under Unused immediately');
+    check(in_array($probeAsset->id, $assetIndexIds($unusedFilter), true), 'when the entry drops it, the filter lists it again immediately');
 }
 $elements->deleteElement($user, true);
 $elements->deleteElement($probeAsset, true);

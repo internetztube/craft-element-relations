@@ -23,7 +23,6 @@ use craft\services\UserPermissions;
 use Psr\Log\LogLevel;
 use craft\events\RegisterConditionRulesEvent;
 use craft\events\RegisterElementActionsEvent;
-use craft\events\RegisterElementSourcesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
@@ -63,12 +62,6 @@ class ElementRelations extends Plugin
         \craft\elements\Category::class,
         \craft\elements\Tag::class,
         'craft\\commerce\\elements\\Product',
-    ];
-    /** Element types whose index gets the Pro "Unused" source (elements that exist to be related to). */
-    public const PRO_UNUSED_TYPES = [
-        \craft\elements\Asset::class,
-        \craft\elements\Category::class,
-        \craft\elements\Tag::class,
     ];
 
     /**
@@ -242,19 +235,6 @@ class ElementRelations extends Plugin
                 $event->conditionRules[] = UsedConditionRule::class;
             }
         });
-        foreach (self::PRO_UNUSED_TYPES as $class) {
-            Event::on($class, Element::EVENT_REGISTER_SOURCES, function (RegisterElementSourcesEvent $event) {
-                if ($event->context === 'index' && self::isPro()) {
-                    $event->sources[] = ['heading' => $this->name];
-                    $event->sources[] = [
-                        'key' => 'elementRelations:unused',
-                        'label' => Craft::t('element-relations', 'source-unused'),
-                        'criteria' => ['unused' => true],
-                        'defaultSort' => ['dateUpdated', 'desc'],
-                    ];
-                }
-            });
-        }
 
         // Non-element usages: rewrite their cache rows whenever the plugin settings they live in change
         if (class_exists(\nystudio107\seomatic\records\MetaBundle::class)) {

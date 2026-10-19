@@ -16,7 +16,7 @@ More in the [tour](docs/README.md).
 
 **Pro** (behind a feature flag for now, see [Editions](#editions)):
 
-- **Unused:** a “Used anywhere” filter rule, an “Unused” source on asset, category and tag indexes with Craft's bulk actions, `craft.assets().unused()`.
+- **Unused:** a “Used anywhere” rule in Craft's index filter (on top of any source, with the bulk actions) and in custom sources, `craft.assets().unused()`.
 - **Replace:** swap an element for another everywhere or in the usages you pick, guided by a two-step wizard in the field. Every supported field and plugin is rewritten the way it was read.
 - **Undo and rollback:** Undo right in the notice, a history with Roll back in Utilities, revisions with notes for entries, large replacements in the background.
 
@@ -138,7 +138,7 @@ The relations field only returns what the GraphQL schema may read: elements of s
 
 The plugin is a single Lite edition today; everything in [Features](#features) except the Pro list is Lite. The Pro edition is ready behind a feature flag (`'features' => ['editions' => true]` in `config/element-relations.php`) and adds:
 
-- **Unused:** “Used anywhere” rule in Craft's index filter and custom-source conditions, an “Unused” source on asset, category and tag indexes (with Craft's bulk actions), `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
+- **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
 - **Replace:** the field's “Replace…” button guides you through picking the replacement (step 1) and ticking the usages to replace (step 2). “Replace everywhere…” in an element index does all at once. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements touching more than `replaceSyncLimit` elements run as a queue job as the user who started them.

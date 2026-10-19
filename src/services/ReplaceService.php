@@ -583,9 +583,10 @@ class ReplaceService
         return $identity ? (int)$identity->id : null;
     }
 
+    /** The oldest admin (deterministic when there are several). */
     private static function anyAdminId(): int
     {
-        return (int)User::find()->admin()->status(null)->ids()[0];
+        return (int)User::find()->admin()->status(null)->orderBy(['elements.id' => SORT_ASC])->ids()[0];
     }
 
     /** The user whose permissions apply (console runs without one are unrestricted). */

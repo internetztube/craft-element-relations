@@ -12,7 +12,7 @@ return function (array $ctx): void {
     $drafts = Craft::$app->getDrafts();
     $section = Craft::$app->getEntries()->getSectionByHandle('pages');
     $typeId = $section->getEntryTypes()[0]->id;
-    $adminId = craft\elements\User::find()->admin()->one()->id;
+    $adminId = craft\elements\User::find()->username('admin')->one()->id;
 
     $flush = function (): void {
         Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);

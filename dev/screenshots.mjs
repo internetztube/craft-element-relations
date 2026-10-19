@@ -142,11 +142,31 @@ const SHOTS = [
         act: `await sleep(800); scrollToElement('.element-relations', 90);`,
     },
     {
-        name: 'unused', edition: 'Pro',
+        name: 'used-filter', edition: 'Pro',
         title: 'Find what nobody uses',
-        text: 'An “Unused” source on asset, category and tag indexes, with Craft’s bulk actions. Also as a condition rule.',
-        path: '/admin/assets',
-        act: `await indexReady(pageIndex(), 'the asset index'); pageIndex().selectSourceByKey('elementRelations:unused'); await indexReady(pageIndex(), 'unused assets'); await pageIndex().updateElements(); await indexReady(pageIndex(), 'unused assets');`,
+        text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
+        path: '/admin/assets/images',
+        act: `
+            await indexReady(pageIndex(), 'the asset index');
+            const index = pageIndex();
+            index.showFilterHud();
+            const hud = () => index.filterHuds[index.siteId][index.sourceKey];
+            await until(() => hud()?.$body?.find('[name="condition[new-rule-type]"]').length, 'the filter');
+            // add the rule like picking it from "Add a filter" (Craft's condition builder renders it via htmx)
+            const addButton = hud().$body.find('button.add').data('menubtn');
+            const option = addButton.menu.$options.filter((i, o) => o.textContent.trim() === 'Used anywhere')[0];
+            if (!option) throw new Error('No "Used anywhere" in: ' + addButton.menu.$options.map((i, o) => o.textContent.trim()).get().join(', '));
+            addButton.menu.selectOption(option);
+            await until(() => hud().$body.find('.lightswitch').length, 'the Used anywhere rule');
+            await sleep(300);
+            hud().$body.find('.lightswitch').data('lightswitch').turnOff();
+            await sleep(500);
+            hud().$body.find('button[type="submit"]').trigger('click');
+            await sleep(300);
+            await indexReady(index, 'the filtered assets');
+            index.showFilterHud();
+            await sleep(700);
+        `,
     },
     {
         name: 'wizard-step1', edition: 'Pro',

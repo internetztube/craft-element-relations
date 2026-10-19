@@ -778,7 +778,7 @@ foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amel
     }
     $users[$key] = $user;
 }
-$admin = User::find()->admin()->one(); // stays "admin": the GUI test looks for that label
+$admin = User::find()->username('admin')->one(); // stays "admin": the GUI test looks for that label
 
 $daysAgo = fn(int $days) => (new DateTime())->modify("-$days days")->setTime(9, 0);
 

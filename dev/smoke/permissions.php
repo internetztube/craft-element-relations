@@ -211,7 +211,7 @@ return function (array $ctx): void {
     $adminOpRecord = ReplacementRecord::findOne($adminOp['operationId']);
     check(!ElementRelations::canRollBackOperation($adminOpRecord, $viewerA), 'viewer A cannot roll back the admin\'s replacement');
     check(ElementRelations::canRollBackOperation($mineOp, $viewerA), 'viewer A can roll back their own replacement');
-    check(ElementRelations::canRollBackOperation($mineOp, User::find()->admin()->one()), 'admins can roll back any replacement');
+    check(ElementRelations::canRollBackOperation($mineOp, User::find()->username('admin')->one()), 'admins can roll back any replacement');
     check(!ElementRelations::canRollBackOperation($mineOp, $viewerB), 'a user without the rollback permission cannot');
     check(!ElementRelations::canReplace($viewerB), 'a user without the replace permission cannot replace');
 

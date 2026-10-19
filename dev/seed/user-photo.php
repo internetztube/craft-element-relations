@@ -14,7 +14,7 @@ return function (array $ctx): void {
     if (!$projectConfig->get('users.photoVolumeUid')) {
         $projectConfig->set('users.photoVolumeUid', Craft::$app->getVolumes()->getVolumeByHandle('test')->uid);
     }
-    $admin = \craft\elements\User::find()->admin()->one();
+    $admin = \craft\elements\User::find()->username('admin')->one();
     if ($admin->photoId !== $ctx['asset']->id) {
         $admin->setPhoto($ctx['asset']);
         $elements->saveElement($admin) or fail($admin);

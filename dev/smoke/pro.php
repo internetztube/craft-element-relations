@@ -24,9 +24,11 @@ return function (array $ctx): void {
 
     $editionBefore = ElementRelations::getInstance()->edition;
     $plugins->switchEdition('element-relations', 'lite');
-    check(!in_array('elementRelations:unused', $sourceKeys(), true) && !in_array(ReplaceRelations::class, Asset::actions('*'), true), 'Lite: no Unused source, no Replace action');
+    $offersUsedRule = fn(): bool => in_array(internetztube\elementRelations\elements\conditions\UsedConditionRule::class, array_map(fn($rule) => $rule::class, Asset::createCondition()->getSelectableConditionRules()), true);
+    check(!$offersUsedRule() && !in_array(ReplaceRelations::class, Asset::actions('*'), true), 'Lite: no “Used anywhere” filter, no Replace action');
     $plugins->switchEdition('element-relations', 'pro');
-    check(in_array('elementRelations:unused', $sourceKeys(), true), 'Pro: asset index has the Unused source');
+    check($offersUsedRule(), 'Pro: the asset filter offers “Used anywhere”');
+    check(!in_array('elementRelations:unused', $sourceKeys(), true), 'no extra “Unused” source: the filter works on top of every source');
     $actions = array_map(fn($a) => is_array($a) ? ($a['type'] ?? '') : (is_object($a) ? $a::class : $a), Asset::actions('*'));
     check(in_array(ReplaceRelations::class, $actions, true), 'Pro: asset index has the Replace action');
 
@@ -164,7 +166,7 @@ return function (array $ctx): void {
     $revisions = (new craft\db\Query())->select(['notes', 'creatorId'])->from('{{%revisions}}')->where(['canonicalId' => $plain->id])->orderBy(['num' => SORT_ASC])->all();
     $notes = implode(' | ', array_column($revisions, 'notes'));
     check(str_contains($notes, 'replaced “Page via replace (from)” with “Page via replace (target)”') && str_contains($notes, 'rolled back'), "entries get revisions noting the replacement and the rollback ($notes)");
-    $admin = craft\elements\User::find()->admin()->one();
+    $admin = craft\elements\User::find()->admin()->status(null)->orderBy(['elements.id' => SORT_ASC])->one(); // console: the oldest admin
     check((int)end($revisions)['creatorId'] === (int)$admin->id, 'the revision is attributed to the user who rolled back');
     $elements->deleteElement($plain, true);
 
