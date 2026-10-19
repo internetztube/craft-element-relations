@@ -28,6 +28,28 @@
  * @property {boolean} queued
  */
 /**
+ * An element picked in one of Craft's selector modals.
+ * @typedef {Object} SelectedElement
+ * @property {number} id
+ * @property {string} label
+ */
+/*
+ * A failed Craft.sendActionRequest() (an axios error). Named typedefs instead of inline object types: two opening
+ * braces in a row would start a Twig expression in this template.
+ */
+/**
+ * @typedef {Object} FailedResponseData
+ * @property {string} [message]
+ */
+/**
+ * @typedef {Object} FailedResponse
+ * @property {FailedResponseData} [data]
+ */
+/**
+ * @typedef {Object} FailedRequest
+ * @property {FailedResponse} [response]
+ */
+/**
  * @param {JQuery} $wrap the `[data-element-relations-replace]` wrapper, rendered inside the index's toolbar
  * @param {ReplaceSettings} settings
  * @returns {void}
@@ -41,7 +63,7 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
             index.updateElements();
         }
     };
-    /** @param {{response?: {data?: {message?: string}}}} failure */
+    /** @param {FailedRequest} failure */
     const showError = function (failure) {
         Craft.cp.displayError(failure.response && failure.response.data && failure.response.data.message || Craft.t('app', 'A server error occurred.'));
     };
@@ -73,8 +95,8 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
     place();
 
     /**
-     * @param {{id: number}} replacement the element picked in step 1
-     * @param {Array<{id: number}>} usages the relating elements picked in step 2
+     * @param {SelectedElement} replacement the element picked in step 1
+     * @param {SelectedElement[]} usages the relating elements picked in step 2
      */
     const replace = function (replacement, usages) {
         Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
