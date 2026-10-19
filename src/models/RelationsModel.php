@@ -242,6 +242,12 @@ class RelationsModel
         return array_map(intval(...), $query->column());
     }
 
+    /** How many (primary owner) elements relate to this element, in any site. One COUNT query. */
+    public function getSourceOwnerCount(): int
+    {
+        return (int)$this->fastSubQuery()->count('DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]]');
+    }
+
     /** A site (front-end) web request, where templates render for visitors. */
     private static function isSiteRequest(): bool
     {

@@ -29,6 +29,9 @@ class Install extends Migration
         ]);
 
         $this->createIndex(null, '{{%elementrelations_cache}}', ['type', 'globalKey']);
+        foreach (m261024_000000_cache_indexes::INDEXES as $columns) {
+            $this->createIndex(null, '{{%elementrelations_cache}}', $columns);
+        }
         self::createReplacementsTable($this);
         // No foreign keys, since elements can be linked that are not there anymore, like in Redactor, CkEditor, ....
         return true;
@@ -43,11 +46,13 @@ class Install extends Migration
             'toId' => $migration->integer()->notNull(),
             'siteId' => $migration->integer()->notNull(),
             'userId' => $migration->integer()->null(),
-            'sourceIds' => $migration->text()->null(),
+            'sourceIds' => $migration->longText()->null(),
             'status' => $migration->string(20)->notNull(),
             'changes' => $migration->longText()->null(),
             'revisions' => $migration->longText()->null(),
-            'result' => $migration->text()->null(),
+            'result' => $migration->longText()->null(),
+            'plan' => $migration->longText()->null(),
+            'state' => $migration->longText()->null(),
             'dateCreated' => $migration->dateTime()->notNull(),
             'dateUpdated' => $migration->dateTime()->notNull(),
             'uid' => $migration->uid(),

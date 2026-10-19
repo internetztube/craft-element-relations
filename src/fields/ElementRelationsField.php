@@ -48,7 +48,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     /**
      * Pro: settings of the replace wizard for the index being rendered (same hook as $toolbarTypes); null = no button.
      * Mirrored by the `ReplaceSettings` typedef in templates/_field/replace.twig.
-     * @var array{elementType: class-string<ElementInterface>, usageType: class-string<Usage>, fromId: int, siteId: int, step1Title: string, step1Hint: string, step1Button: string, step2Title: string, step2Hint: string, step2Button: string, undoLabel: string}|null
+     * @var array{fromId: int, siteId: int, undoLabel: string, replaceRunning: string, rollbackRunning: string}|null
      */
     public static ?array $replaceSettings = null;
 
@@ -285,17 +285,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             }
             $currentUser = Craft::$app->getUser()->getIdentity();
             self::$replaceSettings = $currentUser && ElementRelations::canReplace($currentUser) && Craft::$app->getElements()->canSave($element, $currentUser) ? [
-                'elementType' => $element::class,
-                'usageType' => Usage::class,
                 'fromId' => $value->getElementId(),
                 'siteId' => (int)$element->siteId,
-                'step1Title' => Craft::t('element-relations', 'replace-step1-title', ['from' => (string)$element]),
-                'step1Hint' => Craft::t('element-relations', 'replace-step1-hint', ['from' => (string)$element, 'type' => $element::lowerDisplayName()]),
-                'step1Button' => Craft::t('element-relations', 'replace-step1-button'),
-                'step2Title' => Craft::t('element-relations', 'replace-step2-title', ['from' => (string)$element, 'to' => '{to}']),
-                'step2Hint' => Craft::t('element-relations', 'replace-step2-hint', ['from' => (string)$element, 'to' => '{to}']) . self::revisionHint($value),
-                'step2Button' => Craft::t('element-relations', 'replace-step2-button'),
                 'undoLabel' => Craft::t('element-relations', 'replace-undo'),
+                'replaceRunning' => Craft::t('element-relations', 'replace-running'),
+                'rollbackRunning' => Craft::t('element-relations', 'rollback-running'),
             ] : null;
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',
@@ -353,6 +347,12 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     }
 
     /** Pro wizard: how many of the usages keep no revision when replaced (element types without, versioning off). */
+    /** The revision hint for the wizard, see revisionHint(). */
+    public static function revisionHintFor(ElementInterface $element): string
+    {
+        return trim(self::revisionHint(new RelationsModel((int)$element->id, (int)$element->siteId)));
+    }
+
     private static function revisionHint(RelationsModel $value): string
     {
         $viewer = self::restrictedViewer();

@@ -8,7 +8,6 @@ use Craft;
 use craft\base\ElementAction;
 use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
-use internetztube\elementRelations\controllers\ReplaceController;
 use internetztube\elementRelations\services\ReplaceService;
 
 /**
@@ -59,14 +58,12 @@ JS, [static::class, Craft::t('element-relations', 'replace-modal-title')]);
             return false;
         }
 
-        $result = ReplaceService::replace($from, $to, allowQueue: true);
+        $result = ReplaceService::replace($from, $to, queue: true);
         if ($result['denied']) {
             $this->setMessage(Craft::t('element-relations', 'replace-denied'));
             return false;
         }
-        $this->setMessage($result['queued']
-            ? Craft::t('element-relations', 'replace-queued', ['from' => (string)$from, 'to' => (string)$to])
-            : ReplaceController::resultMessage($result, (string)$from, (string)$to) . ' ' . Craft::t('element-relations', 'replace-undo-hint'));
+        $this->setMessage(Craft::t('element-relations', 'replace-queued', ['from' => (string)$from, 'to' => (string)$to]) . ' ' . Craft::t('element-relations', 'replace-undo-hint'));
         return true;
     }
 }

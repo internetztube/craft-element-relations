@@ -1,0 +1,149 @@
+{# Pro: the replace wizard, shown in a slideout (ReplaceController::actionWizard()). Three steps on one screen: the
+   replacement (Craft's element select), the usages to rewrite (all ticked), a review. The slideout's submit button posts
+   it to ReplaceController::actionReplace(), which queues the replacement; the field then follows the queue job. #}
+{% import '_includes/forms' as forms %}
+{% set wizardId = random() %}
+{% set fromTitle = from.title ?? from|string %}
+
+<div class="element-relations-wizard" data-element-relations-wizard="{{ wizardId }}">
+    {{ hiddenInput('fromId', from.id) }}
+    {{ hiddenInput('siteId', siteId) }}
+
+    <section class="element-relations-wizard__step">
+        <h2><span class="element-relations-wizard__number">1</span>{{ 'wizard-step1'|t('element-relations') }}</h2>
+        {{ forms.elementSelectField({
+            id: 'replacement',
+            name: 'toId',
+            instructions: 'wizard-step1-hint'|t('element-relations', {from: fromTitle, type: from.lowerDisplayName()}),
+            elementType: className(from),
+            limit: 1,
+            criteria: {siteId: siteId, id: ['not', from.id]},
+            selectionLabel: 'wizard-choose'|t('element-relations'),
+        }) }}
+    </section>
+
+    <section class="element-relations-wizard__step">
+        <h2><span class="element-relations-wizard__number">2</span>{{ 'wizard-step2'|t('element-relations') }}</h2>
+        {% if usages %}
+            {% if limited %}
+                {# thousands of usages: everywhere by default, or tick among the most recently edited #}
+                <div class="element-relations-wizard__scope">
+                    <label><input type="radio" name="scope" value="everywhere" data-scope checked> {{ 'wizard-everywhere'|t('element-relations', {count: total}) }}</label>
+                    <label><input type="radio" name="scope" value="selected" data-scope> {{ 'wizard-only-ticked'|t('element-relations') }}</label>
+                </div>
+            {% else %}
+                <p class="light">{{ 'wizard-step2-hint'|t('element-relations', {from: fromTitle}) }}</p>
+            {% endif %}
+            <div class="element-relations-wizard__usages" data-usage-list{% if limited %} hidden{% endif %}>
+                {% if limited %}
+                    <p class="light">{{ 'wizard-list-limited'|t('element-relations', {shown: usages|length, total: total}) }}</p>
+                    <input type="search" class="text fullwidth" placeholder="{{ 'Search'|t('app') }}" data-filter>
+                {% endif %}
+                <label class="element-relations-wizard__usage element-relations-wizard__usage--all">
+                    <input type="checkbox" data-select-all{% if not limited %} checked{% endif %}>
+                    <span>{{ (limited ? 'wizard-all-shown' : 'wizard-all')|t('element-relations', {count: usages|length}) }}</span>
+                </label>
+                {% for usage in usages %}
+                    <label class="element-relations-wizard__usage" data-usage-row>
+                        <input type="checkbox" name="sourceIds[]" value="{{ usage.id }}" data-usage{% if not limited %} checked{% endif %}>
+                        {{ elementChip(usage.element, {hyperlink: false, showStatus: true}) }}
+                        <span class="light">{{ [usage.where, usage.field, usage.sites|join(', ')]|filter|join(' · ') }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="light">{{ 'wizard-no-usages'|t('element-relations', {from: fromTitle}) }}</p>
+        {% endif %}
+    </section>
+
+    <section class="element-relations-wizard__step">
+        <h2><span class="element-relations-wizard__number">3</span>{{ 'wizard-step3'|t('element-relations') }}</h2>
+        <p data-summary></p>
+        {% if revisionHint %}
+            <p class="light">{{ revisionHint }}</p>
+        {% endif %}
+        <p class="light">{{ 'wizard-background'|t('element-relations') }}</p>
+    </section>
+</div>
+
+{% css %}
+.element-relations-wizard__step { padding-bottom: var(--l); margin-bottom: var(--l); border-bottom: 1px solid var(--hairline-color); }
+.element-relations-wizard__step:last-child { border-bottom: 0; margin-bottom: 0; }
+.element-relations-wizard__step h2 { display: flex; align-items: center; gap: var(--s); margin-bottom: var(--s); }
+.element-relations-wizard__number {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%;
+    font-size: 13px; color: var(--white); background: var(--gray-500);
+}
+.element-relations-wizard__usages { display: flex; flex-direction: column; gap: 2px; margin-top: var(--s); }
+.element-relations-wizard__usage { display: flex; align-items: center; gap: var(--s); padding: 6px var(--s); border-radius: var(--small-border-radius); cursor: pointer; }
+.element-relations-wizard__usage:hover { background: var(--gray-050); }
+.element-relations-wizard__usage--all { font-weight: 600; border-bottom: 1px solid var(--hairline-color); border-radius: 0; margin-bottom: 4px; }
+.element-relations-wizard__usage .light { margin-left: auto; text-align: right; }
+.element-relations-wizard__scope { display: flex; flex-direction: column; gap: var(--xs); margin-bottom: var(--s); }
+.element-relations-wizard__usages [data-filter] { margin: var(--s) 0; }
+{% endcss %}
+
+{% js %}
+(function () {
+    'use strict';
+    const $wizard = $('[data-element-relations-wizard="{{ wizardId }}"]');
+    const texts = {{ {
+        summaryOne: 'wizard-summary-one'|t('element-relations'),
+        summaryMany: 'wizard-summary-many'|t('element-relations'),
+        summaryIncomplete: 'wizard-summary-incomplete'|t('element-relations'),
+        submitOne: 'wizard-submit-one'|t('element-relations'),
+        submitMany: 'wizard-submit-many'|t('element-relations'),
+        from: fromTitle,
+        total: total,
+    }|json_encode|raw }};
+    const $usages = $wizard.find('[data-usage]'); // names are namespaced inside the slideout
+    const $selectAll = $wizard.find('[data-select-all]');
+
+    /** @returns {string|null} the title of the chosen replacement */
+    const replacementTitle = function () {
+        const $chip = $wizard.find('.elementselect .element, .elementselect .chip').first();
+        return $chip.length ? ($chip.data('label') || $chip.find('.label').text().trim() || $chip.text().trim()) : null;
+    };
+
+    const $scope = $wizard.find('[data-scope]');
+    const everywhere = function () {
+        return $scope.filter(':checked').val() === 'everywhere';
+    };
+
+    const update = function () {
+        const count = everywhere() ? texts.total : $usages.filter(':checked').length;
+        $wizard.find('[data-usage-list]').prop('hidden', everywhere());
+        const replacement = replacementTitle();
+        $selectAll.prop('checked', count === $usages.length).prop('indeterminate', count > 0 && count < $usages.length);
+        const summary = count === 1 ? texts.summaryOne : texts.summaryMany;
+        $wizard.find('[data-summary]').text(replacement && count
+            ? summary.replace('{from}', texts.from).replace('{to}', replacement).replace('{count}', String(count))
+            : texts.summaryIncomplete);
+        const $submit = $wizard.closest('.slideout').find('button[type="submit"]');
+        $submit.prop('disabled', !(replacement && count)).toggleClass('disabled', !(replacement && count));
+        if (replacement && count) {
+            $submit.text((count === 1 ? texts.submitOne : texts.submitMany).replace('{count}', String(count)));
+        }
+    };
+
+    $selectAll.on('change', function () {
+        $usages.prop('checked', this.checked);
+        update();
+    });
+    $usages.on('change', update);
+    $scope.on('change', update);
+    // narrow the listed usages by text (long lists)
+    $wizard.find('[data-filter]').on('input', function () {
+        const needle = this.value.trim().toLowerCase();
+        $wizard.find('[data-usage-row]').each(function () {
+            this.hidden = needle !== '' && !this.textContent.toLowerCase().includes(needle);
+        });
+    });
+    // the element select renders its chip asynchronously; follow what it shows
+    const $selection = $wizard.find('.elementselect');
+    if ($selection.length) {
+        new MutationObserver(update).observe($selection[0], { childList: true, subtree: true });
+    }
+    setTimeout(update, 0);
+})();
+{% endjs %}

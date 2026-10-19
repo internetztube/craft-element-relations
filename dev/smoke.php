@@ -298,6 +298,11 @@ foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
     (require $file)($ctx);
 }
 
+// the indexes elements with thousands of usages rely on (fresh installs and upgrades alike)
+foreach (internetztube\elementRelations\migrations\m261024_000000_cache_indexes::INDEXES as $columns) {
+    check(craft\helpers\Db::findIndex('{{%elementrelations_cache}}', $columns) !== null, 'index on ' . implode(', ', $columns));
+}
+
 // the operations this run created, and older ones whose elements are gone (the history then shows real work only,
 // e.g. the demo's for screenshots)
 internetztube\elementRelations\records\ReplacementRecord::deleteAll(['>=', 'dateCreated', craft\helpers\Db::prepareDateForDb($smokeStartedAt)]);

@@ -248,14 +248,65 @@ if ($assetsField) {
 $elements->deleteElement($user, true);
 $elements->deleteElement($probeAsset, true);
 
+// --- replacements and rollbacks run as queue jobs: post like the browser, then run exactly that job (as Craft's queue
+// would; other queued work, like the save-event refreshes, stays queued for the checks below) and ask for its status
+// like the field's script does
+/** Runs the newest queued job whose description starts like this, exactly as Craft's queue would (with a job id). */
+$runQueuedJob = function (string $descriptionStart): void {
+    $id = (new craft\db\Query())->select(['id'])->from(craft\db\Table::QUEUE)
+        ->where(['like', 'description', $descriptionStart . '%', false])
+        ->andWhere(['fail' => false])
+        ->orderBy(['id' => SORT_DESC])
+        ->scalar();
+    check($id !== false && $id !== null, "a queued job “{$descriptionStart}…”");
+    if ($id) {
+        Craft::$app->getQueue()->executeJob((string)$id);
+    }
+};
+$runReplaceJob = fn(int $operationId) => $runQueuedJob(Craft::t('element-relations', 'replace-job-description'));
+$runRollbackJob = fn(int $operationId, string $mode = 'swap') => $runQueuedJob(Craft::t('element-relations', 'rollback-job-description'));
+/** @return array{int, string, array<string, mixed>} HTTP status, body, the status merged with the stored result */
+$finished = function (int $operationId) use ($http): array {
+    [$status, $body, $json] = $http->action('element-relations/replace/status', ['operationId' => $operationId]);
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($operationId);
+    $result = $record?->getResult() ?? [];
+    $merged = ($json ?? []) + $result + ['skipped' => [], 'restored' => $result['restored'] ?? 0];
+    $merged['skipped'] = $record?->status === 'rolledBack' ? ($result['rollbackSkipped'] ?? []) : ($result['skipped'] ?? []);
+    return [$status, $body, $merged];
+};
+$replaceAndRun = function (array $params) use ($http, $runReplaceJob, $finished): array {
+    [$status, $body, $json] = $http->action('element-relations/replace/replace', $params);
+    if ($status !== 200 || empty($json['operationId'])) {
+        return [$status, $body, $json ?? []];
+    }
+    check(($json['queued'] ?? false) === true, 'the replacement is queued (operation #' . $json['operationId'] . ')');
+    $runReplaceJob((int)$json['operationId']);
+    return $finished((int)$json['operationId']);
+};
+$rollbackAndRun = function (int $operationId, string $mode = 'swap') use ($http, $runRollbackJob, $finished): array {
+    [$status, $body, $json] = $http->action('element-relations/replace/rollback', ['operationId' => $operationId] + ($mode === 'swap' ? [] : ['mode' => $mode]));
+    if ($status !== 200) {
+        return [$status, $body, $json ?? []];
+    }
+    $runRollbackJob($operationId, $mode);
+    return $finished($operationId);
+};
+
+// --- the wizard (a slideout, here opened as a page): the replacement picker and one checkbox per usage
+echo "Wizard\n";
+[$status, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?fromId=' . $from->id . '&siteId=' . $from->siteId);
+preg_match_all('/<input[^>]*\bdata-usage\b/', $wizardHtml, $usageBoxes);
+check($status === 200 && str_contains($wizardHtml, 'name="toId'), "the wizard renders with the replacement picker (HTTP $status)");
+check(count($usageBoxes[0]) === count(array_unique(array_map(fn($e) => $e->id, $sources))), 'the wizard lists one checkbox per usage (' . count($usageBoxes[0]) . ')');
+
 // --- the wizard submits those ids to the replace endpoint
 echo "Replace endpoint\n";
 $ticked = [$sources['field']->id];
 if (isset($sources['nested'])) {
     $ticked[] = $sources['nested']->id;
 }
-[$status, $body, $json] = $http->action('element-relations/replace/replace', ['fromId' => $from->id, 'toId' => $target->id, 'siteId' => $from->siteId, 'sourceIds' => $ticked]);
-check($status === 200 && isset($json['message']), "replace succeeds for the ticked usages (HTTP $status: " . substr($body, 0, 200) . ')');
+[$status, $body, $json] = $replaceAndRun(['fromId' => $from->id, 'toId' => $target->id, 'siteId' => $from->siteId, 'sourceIds' => $ticked]);
+check($status === 200 && ($json['done'] ?? false) && !empty($json['message']) && ($json['canUndo'] ?? false), "replace succeeds for the ticked usages; the status says done and offers Undo (HTTP $status: " . substr($body, 0, 200) . ')');
 check(($json['replaced'] ?? 0) === count($ticked) && empty($json['skipped']), 'exactly the ticked elements were rewritten, nothing skipped (' . substr($body, 0, 200) . ')');
 $flush();
 check(!in_array('E2E source (field)', $relating($from), true) && in_array('E2E source (field)', $relating($target), true), 'the entries-field source now relates to the target');
@@ -285,7 +336,12 @@ echo "Index action endpoint\n";
     'criteria' => ['siteId' => $from->siteId],
     'viewState' => ['mode' => 'table', 'static' => false, 'inlineEditing' => false, 'tableColumns' => []],
 ]);
-check($status === 200 && isset($json['message']) && str_contains($json['message'], 'replaced by'), "perform-action runs the Replace action (HTTP $status: " . ($json['message'] ?? substr(json_encode($json), 0, 200)) . ')');
+check($status === 200 && isset($json['message']) && str_contains($json['message'], 'background'), "perform-action queues the Replace action (HTTP $status: " . ($json['message'] ?? substr(json_encode($json), 0, 200)) . ')');
+$queuedByAction = internetztube\elementRelations\records\ReplacementRecord::find()->where(['status' => 'queued'])->orderBy(['id' => SORT_DESC])->one();
+check($queuedByAction !== null, 'the action left a queued replacement');
+if ($queuedByAction) {
+    $runReplaceJob((int)$queuedByAction->id);
+}
 $flush();
 check(count(array_intersect(array_map('strval', $sources), $relating($from))) === count($sources), 'everything points back to "E2E from" after replacing everywhere');
 
@@ -326,12 +382,12 @@ foreach ($cases as [$origin, $replacement]) {
         }
         $what = "$origin in “{$title}”";
         // forward, exactly as the wizard posts it
-        [$status, $body, $json] = $http->action('element-relations/replace/replace', ['fromId' => $origin->id, 'toId' => $replacement->id, 'siteId' => $origin->siteId, 'sourceIds' => [$ownerId]]);
+        [$status, $body, $json] = $replaceAndRun(['fromId' => $origin->id, 'toId' => $replacement->id, 'siteId' => $origin->siteId, 'sourceIds' => [$ownerId]]);
         check($status === 200 && ($json['replaced'] ?? 0) >= 1 && empty($json['skipped']), "$what: replaced, nothing skipped (HTTP $status: " . substr($body, 0, 220) . ')');
         $fromRows = $listUsages($origin);
         $toRows = $listUsages($replacement);
-        check(!isset($fromRows[$ownerId]), "$what: gone from the list immediately (no reload, no queue; still listed: " . json_encode((new craft\db\Query())->select(['sourceElementId', 'sourceSiteId', 'type', 'fieldId'])->from('{{%elementrelations_cache}}')->where(['targetElementId' => $origin->id, 'sourcePrimaryOwnerId' => $ownerId])->all()) . ')');
-        check(isset($toRows[$ownerId]), "$what: listed under the replacement immediately");
+        check(!isset($fromRows[$ownerId]), "$what: gone from the list right after the job (without the save-event refreshes; still listed: " . json_encode((new craft\db\Query())->select(['sourceElementId', 'sourceSiteId', 'type', 'fieldId'])->from('{{%elementrelations_cache}}')->where(['targetElementId' => $origin->id, 'sourcePrimaryOwnerId' => $ownerId])->all()) . ')');
+        check(isset($toRows[$ownerId]), "$what: listed under the replacement right after the job");
         check(array_diff_key($originalRows, [$ownerId => 1]) == $fromRows, "$what: every other usage is untouched");
         $before = $cacheFingerprint();
         $runQueue();
@@ -344,8 +400,8 @@ foreach ($cases as [$origin, $replacement]) {
         // and undo, exactly as the notice's Undo button does it
         check(!empty($json['operationId']), "$what: the response carries the operation id for Undo");
         $operationId = $json['operationId'];
-        [$status, $body, $json] = $http->action('element-relations/replace/rollback', ['operationId' => $operationId]);
-        check($status === 200 && ($json['restored'] ?? 0) >= 1 && empty($json['skipped']), "$what: Undo rolls it back (HTTP $status: " . substr($body, 0, 220) . ')');
+        [$status, $body, $json] = $rollbackAndRun((int)$operationId);
+        check($status === 200 && ($json['status'] ?? '') === 'rolledBack' && ($json['restored'] ?? 0) >= 1 && empty($json['skipped']), "$what: Undo rolls it back (HTTP $status: " . substr($body, 0, 220) . ')');
         check($listUsages($origin) == $originalRows && !$listUsages($replacement), "$what: back to the original list");
         $before = $cacheFingerprint();
         $runQueue();
@@ -366,7 +422,7 @@ $historyFrom = $make('E2E history from');
 $historyTo = $make('E2E history to');
 $historySource = $make('E2E history source', ['relatedEntries' => [$historyFrom->id]]);
 $flush();
-[$status, , $json] = $http->action('element-relations/replace/replace', ['fromId' => $historyFrom->id, 'toId' => $historyTo->id, 'siteId' => $historyFrom->siteId, 'sourceIds' => [$historySource->id]]);
+[$status, , $json] = $replaceAndRun(['fromId' => $historyFrom->id, 'toId' => $historyTo->id, 'siteId' => $historyFrom->siteId, 'sourceIds' => [$historySource->id]]);
 check($status === 200 && !empty($json['operationId']), 'a replacement for the history');
 $operationId = $json['operationId'];
 [$status, $html] = $http->page('/admin/utilities/element-relations');
@@ -383,6 +439,8 @@ curl_exec($ch);
 $formStatus = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
 curl_close($ch);
 check($formStatus === 302, "the Roll back form redirects back to the utility (HTTP $formStatus)");
+check(internetztube\elementRelations\records\ReplacementRecord::findOne($operationId)?->status === 'rollbackQueued', 'the form queued the rollback');
+$runRollbackJob((int)$operationId);
 $flush();
 check(in_array('E2E history source', $relating($historyFrom), true) && !in_array('E2E history source', $relating($historyTo), true), 'the form rolled the replacement back');
 [, $html] = $http->page('/admin/utilities/element-relations');
@@ -390,7 +448,7 @@ preg_match('#<tr data-operation-id="' . $operationId . '">(.*?)</tr>#s', $html, 
 check(!str_contains($row[1] ?? '', 'element-relations/replace/rollback') && str_contains($row[1] ?? '', 'Rolled back'), 'afterwards the row says Rolled back and offers no button');
 // revert to revisions through the endpoint (the history's second button posts mode=revisions after a confirm);
 // no pauses on purpose: everything may happen within one second, revisions must still be right
-[$status, , $json] = $http->action('element-relations/replace/replace', ['fromId' => $historyFrom->id, 'toId' => $historyTo->id, 'siteId' => $historyFrom->siteId, 'sourceIds' => [$historySource->id]]);
+[$status, , $json] = $replaceAndRun(['fromId' => $historyFrom->id, 'toId' => $historyTo->id, 'siteId' => $historyFrom->siteId, 'sourceIds' => [$historySource->id]]);
 check($status === 200 && !empty($json['operationId']), 'a second replacement for the revert');
 $revertId = $json['operationId'];
 [, $html] = $http->page('/admin/utilities/element-relations');
@@ -400,8 +458,8 @@ $later = Entry::find()->id($historySource->id)->one();
 $later->title = 'E2E history source (edited later)';
 $elements->saveElement($later) or throw new RuntimeException(json_encode($later->getErrors()));
 $flush();
-[$status, $body, $json] = $http->action('element-relations/replace/rollback', ['operationId' => $revertId, 'mode' => 'revisions']);
-check($status === 200 && ($json['reverted'] ?? 0) === 1, "revert to revisions answers with one reverted entry (HTTP $status: " . substr($body, 0, 200) . ')');
+[$status, $body, $json] = $rollbackAndRun((int)$revertId, 'revisions');
+check($status === 200 && ($json['reverted'] ?? 0) === 1, "revert to revisions reverts one entry (HTTP $status: " . substr($body, 0, 200) . ')');
 $flush();
 $back = Entry::find()->id($historySource->id)->one();
 check((string)$back === 'E2E history source' && in_array('E2E history source', $relating($historyFrom), true), 'the entry is back at its revision: original relation, later title edit discarded');

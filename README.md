@@ -12,13 +12,13 @@ More in the [tour](docs/README.md).
 - **Everything that can link to an element.** Anything Craft stores in its relations table works out of the box. Rich text, link fields and plugins that store references elsewhere are read by dedicated extractors (see [Supported fields and plugins](#supported-fields-and-plugins)).
 - **Plugin settings, too.** Usages that are not elements, such as SEOmatic's global or per-section SEO image, are listed below the field.
 - **Templates, GraphQL and element queries.** `isInUse`, counts and the relating elements in Twig and GraphQL; `usesElement` on any element query.
-- **Fast.** Relations are extracted when an element is saved and cached in one table; saves that change no custom field skip the work.
+- **Fast, also at scale.** Relations are extracted when an element is saved and cached in one indexed table; saves that change no custom field skip the work. Lists, counts and the index column stay paginated and SQL-based for elements with tens of thousands of usages; replacements and rollbacks run in batches.
 
 **Pro** (behind a feature flag for now, see [Editions](#editions)):
 
 - **Unused:** a “Used anywhere” rule in Craft's index filter (on top of any source, with the bulk actions) and in custom sources, `craft.assets().unused()`.
-- **Replace:** swap an element for another everywhere or in the usages you pick, guided by a two-step wizard in the field. Every supported field and plugin is rewritten the way it was read.
-- **Undo and rollback:** Undo right in the notice, a history with Roll back in Utilities, revisions with notes for entries, large replacements in the background.
+- **Replace:** swap an element for another everywhere or in the usages you pick, in a slideout right from the field, or from the command line (also with a CSV mapping, for migrations). Every supported field and plugin is rewritten the way it was read, in the background.
+- **Undo and rollback:** Undo right in the notice, a history with Roll back in Utilities, revisions with notes for entries.
 
 ## Requirements
 
@@ -42,7 +42,6 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to ove
 | Setting | Default | Description |
 |---|---|---|
 | `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole relations cache is rebuilt. |
-| `replaceSyncLimit` | `25` | Pro: replacements touching more elements run as a queue job. |
 | `features.editions` | `false` | Offer the Lite and Pro editions. |
 
 Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers more columns), Show the status menu, Elements per page.
@@ -139,9 +138,10 @@ The relations field only returns what the GraphQL schema may read: elements of s
 The plugin is a single Lite edition today; everything in [Features](#features) except the Pro list is Lite. The Pro edition is ready behind a feature flag (`'features' => ['editions' => true]` in `config/element-relations.php`) and adds:
 
 - **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
-- **Replace:** the field's “Replace…” button guides you through picking the replacement (step 1) and ticking the usages to replace (step 2). “Replace everywhere…” in an element index does all at once. Plugin settings are listed for a manual change. Only elements the user may save are touched.
+- **Replace:** the field's “Replace…” button opens a slideout: pick the replacement, untick usages that should keep the element, review, replace. “Replace everywhere…” in an element index does all at once. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
-- **Background:** replacements touching more than `replaceSyncLimit` elements run as a queue job as the user who started them.
+- **Background:** replacements and rollbacks from the control panel run as queue jobs, as the user who started them, so saving many or large entries never blocks the page. The notice follows the job and offers Undo when it is done.
+- **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line-pro).
 
 ### Permissions
 
@@ -162,6 +162,45 @@ Entries changed by a replacement or rollback get a revision with a note, includi
 
 - **Roll back:** swaps the replacement back for the original; changes made since are kept.
 - **Revert to revisions:** reverts the changed entries to their revision from before the replacement with Craft's revision revert (changes since are discarded); elements without revisions are swapped back.
+
+## Command line (Pro)
+
+Replacements from the command line run right away (no queue), without a user, and land in the history like any other, so they can be rolled back:
+
+```sh
+php craft element-relations/replace 12 34                  # replace element #12 with #34 everywhere
+php craft element-relations/replace 12 34 --usages=56,78   # only in these relating elements (ids as listed in the field)
+php craft element-relations/replace 12 34 --dry-run        # list what would change, change nothing
+php craft element-relations/replace 12 34 --site=de        # elements of another site (handle or id)
+php craft element-relations/replace/map duplicates.csv     # many at once: one "from,to" pair of ids per line
+php craft element-relations/replace/history --limit=50     # the latest replacements with their ids
+php craft element-relations/replace/rollback 1234          # roll one back (--revisions: revert entries to their revisions)
+```
+
+A mapping file may have a header line and `#` comments, e.g. after merging duplicate assets:
+
+```csv
+from,to
+# old asset, kept asset
+412,388
+415,388
+```
+
+In a content migration, call the service directly:
+
+```php
+use craft\elements\Asset;
+use internetztube\elementRelations\services\ReplaceService;
+
+public function safeUp(): bool
+{
+    $result = ReplaceService::replace(Asset::find()->id(412)->one(), Asset::find()->id(388)->one());
+    echo "Replaced in {$result['replaced']} elements (rollback: #{$result['operationId']})\n";
+    return true;
+}
+```
+
+`ReplaceService::replace($from, $to, $onlySourceIds)` returns `replaced`, `skipped` (usages that need a manual change), `operationId` and `withoutRevision`; `ReplaceService::rollback()` undoes an operation.
 
 ## Events
 

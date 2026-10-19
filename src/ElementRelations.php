@@ -52,7 +52,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.10";
+    public string $schemaVersion = "1.0.12";
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
@@ -254,6 +254,16 @@ class ElementRelations extends Plugin
             foreach ([ActiveRecord::EVENT_AFTER_INSERT, ActiveRecord::EVENT_AFTER_UPDATE, ActiveRecord::EVENT_AFTER_DELETE] as $eventName) {
                 Event::on(\nystudio107\seomatic\records\MetaBundle::class, $eventName, fn() => GlobalUsageSeomaticService::refresh());
             }
+        }
+
+        // what a user may view among the usages is cached; forget it whenever that could change
+        $forgetPermissions = fn() => \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        foreach ([\craft\services\Elements::EVENT_AFTER_SAVE_ELEMENT, \craft\services\Elements::EVENT_AFTER_DELETE_ELEMENT, \craft\services\Elements::EVENT_AFTER_RESTORE_ELEMENT] as $eventName) {
+            Event::on(\craft\services\Elements::class, $eventName, $forgetPermissions);
+        }
+        Event::on(\craft\services\Users::class, \craft\services\Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, $forgetPermissions);
+        foreach ([\craft\services\ProjectConfig::EVENT_ADD_ITEM, \craft\services\ProjectConfig::EVENT_UPDATE_ITEM, \craft\services\ProjectConfig::EVENT_REMOVE_ITEM] as $eventName) {
+            Event::on(\craft\services\ProjectConfig::class, $eventName, $forgetPermissions);
         }
 
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event): void {

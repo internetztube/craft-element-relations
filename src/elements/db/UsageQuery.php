@@ -64,6 +64,9 @@ class UsageQuery extends ElementQuery
      */
     private User|false|null $_viewableBy = null;
 
+    /** Cache tag of the per-user permission results (viewablePairs()). */
+    public const PERMISSION_CACHE_TAG = 'element-relations:usage-permissions';
+
     /** @var array<string, array{pairs: array<int, int[]>}> per request: "<viewer>|<targets>" => viewable pairs */
     private static array $_pairs = [];
 
@@ -215,6 +218,28 @@ class UsageQuery extends ElementQuery
         if (isset(self::$_pairs[$key])) {
             return self::$_pairs[$key];
         }
+        // an element with thousands of usages means thousands of permission checks: kept in Craft's data cache until
+        // anything that could change the answer happens (see resetPermissionCache())
+        $cache = Craft::$app->getCache();
+        if (!$cache) {
+            return self::$_pairs[$key] = self::computeViewablePairs($targetIds, $viewer);
+        }
+        /** @var array{pairs: array<int, int[]>} $cached */
+        $cached = $cache->getOrSet(
+            'element-relations:viewable:' . md5($key),
+            fn(): array => self::computeViewablePairs($targetIds, $viewer),
+            3600,
+            new \yii\caching\TagDependency(['tags' => [self::PERMISSION_CACHE_TAG]]),
+        );
+        return self::$_pairs[$key] = $cached;
+    }
+
+    /**
+     * @param int[] $targetIds
+     * @return array{pairs: array<int, int[]>}
+     */
+    private static function computeViewablePairs(array $targetIds, User $viewer): array
+    {
         $base = (new Query())
             ->select(['id' => 'elements.id', 'siteId' => 'elements_sites.siteId', 'type' => 'elements.type'])
             ->distinct()
@@ -240,22 +265,32 @@ class UsageQuery extends ElementQuery
                 continue;
             }
             foreach ($sites as $siteId => $ids) {
-                /** @var ElementInterface[] $loaded */
-                $loaded = $type::find()->id($ids)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
-                foreach ($loaded as $element) {
-                    if ($elementsService->canView($element, $viewer)) {
-                        $pairs[$siteId][] = (int)$element->id;
+                foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
+                    /** @var ElementInterface[] $loaded */
+                    $loaded = $type::find()->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
+                    foreach ($loaded as $element) {
+                        if ($elementsService->canView($element, $viewer)) {
+                            $pairs[$siteId][] = (int)$element->id;
+                        }
                     }
                 }
             }
         }
-        return self::$_pairs[$key] = ['pairs' => $pairs];
+        return ['pairs' => $pairs];
     }
 
-    /** Forgets the memoized permission results (tests, long-running processes after permission changes). */
+    /**
+     * Forgets the permission results, in this request and in Craft's data cache. Called whenever the answer could change:
+     * relations written, any element saved, deleted or restored, users assigned to groups, project config changed
+     * (sections, volumes, group permissions); see ElementRelations::init().
+     */
     public static function resetPermissionCache(): void
     {
         self::$_pairs = [];
+        $cache = Craft::$app->getCache();
+        if ($cache) {
+            \yii\caching\TagDependency::invalidate($cache, self::PERMISSION_CACHE_TAG);
+        }
     }
 
     /** The user to restrict to: explicit, or the logged-in non-admin user of a control panel request. */

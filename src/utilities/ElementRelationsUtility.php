@@ -71,6 +71,7 @@ class ElementRelationsUtility extends Utility
             ReplacementRecord::STATUS_QUEUED => Color::Blue,
             ReplacementRecord::STATUS_APPLIED => Color::Teal,
             ReplacementRecord::STATUS_ROLLED_BACK => Color::Gray,
+            ReplacementRecord::STATUS_ROLLBACK_QUEUED => Color::Blue,
             ReplacementRecord::STATUS_FAILED => Color::Red,
         ];
         $rows = [];

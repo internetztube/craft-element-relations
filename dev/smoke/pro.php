@@ -123,7 +123,6 @@ return function (array $ctx): void {
     $flush();
 
     // rollback edge cases on an entries field
-    $settings = ElementRelations::getInstance()->getSettings();
     $both = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (both)']);
     $both->setFieldValue('relatedEntries', [$c->id, $target->id]);
     $elements->saveElement($both) or throw new RuntimeException(json_encode($both->getErrors()));
@@ -170,23 +169,53 @@ return function (array $ctx): void {
     check((int)end($revisions)['creatorId'] === (int)$admin->id, 'the revision is attributed to the user who rolled back');
     $elements->deleteElement($plain, true);
 
-    // large operations run as a queue job (here: limit 0)
-    $limitBefore = $settings->replaceSyncLimit;
-    $settings->replaceSyncLimit = 0;
+    // the control panel queues replacements and rollbacks (queue: true / queueRollback())
     $queued = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (queued)']);
     $queued->setFieldValue('relatedEntries', [$c->id]);
     $elements->saveElement($queued) or throw new RuntimeException(json_encode($queued->getErrors()));
     $flush();
-    $op = ReplaceService::replace($c, $target, [$queued->id], allowQueue: true);
-    check($op['queued'] === true && internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId'])->status === 'queued' && in_array('Page via replace (queued)', relatingTitles($c), true), 'above the sync limit the replacement is queued, nothing changed yet');
+    $op = ReplaceService::replace($c, $target, [$queued->id], queue: true);
+    check($op['queued'] === true && internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId'])->status === 'queued' && in_array('Page via replace (queued)', relatingTitles($c), true), 'queue: true queues the replacement, nothing changed yet');
     $flush();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
     check($record->status === 'applied' && in_array('Page via replace (queued)', relatingTitles($target), true), 'the queue job applies it and logs the result (' . $record->result . ')');
-    ReplaceService::rollback($record);
+    check(ReplaceService::replace($c, $target, [$queued->id], queue: true)['queued'] === false, 'nothing left to replace: not queued at all (the endpoint answers right away)');
+    ReplaceService::queueRollback($record);
+    check(internetztube\elementRelations\records\ReplacementRecord::findOne($record->id)->status === 'rollbackQueued' && in_array('Page via replace (queued)', relatingTitles($target), true), 'queueRollback() marks it "rolling back", nothing changed yet');
     $flush();
-    check(in_array('Page via replace (queued)', relatingTitles($c), true), 'and it rolls back like any other operation');
-    $settings->replaceSyncLimit = $limitBefore;
+    check(internetztube\elementRelations\records\ReplacementRecord::findOne($record->id)->status === 'rolledBack' && in_array('Page via replace (queued)', relatingTitles($c), true), 'the rollback job rolls it back');
     $elements->deleteElement($queued, true);
+
+    // batches: one owner group per batch, so every batch hands over to the next (elements with thousands of usages)
+    $batchSources = [];
+    foreach (['a', 'b', 'c'] as $n) {
+        $batchSource = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => "Page via replace (batch $n)"]);
+        $batchSource->setFieldValue('relatedEntries', [$c->id]);
+        $elements->saveElement($batchSource) or throw new RuntimeException(json_encode($batchSource->getErrors()));
+        $batchSources[] = $batchSource;
+    }
+    $flush();
+    $batchIds = array_map(fn(Entry $e) => (int)$e->id, $batchSources);
+    $siteRows = (int)Entry::find()->id($batchIds)->site('*')->status(null)->count(); // one owner group per entry and site
+    $op = ReplaceService::replace($c, $target, $batchIds, queue: true);
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    check(count($record->getPlan()) === $siteRows, 'the plan has one owner group per source and site (' . count($record->getPlan()) . ')');
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute(); // run it with batches of one instead
+    Craft::$app->getQueue()->push(new internetztube\elementRelations\jobs\ReplaceElementJob(['operationId' => (int)$record->id, 'batchSize' => 1]));
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $titles = relatingTitles($target);
+    check($record->status === 'applied' && $record->getResult()['replaced'] === $siteRows && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], $titles)) === 3, 'in batches of one owner group, every source is replaced and the result adds up (' . $record->result . ')');
+    check($record->plan === null && $record->state === null && count($record->getChanges()) === $siteRows, 'afterwards the plan and state are gone, the changes are complete');
+    ReplaceService::queueRollback($record);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
+    Craft::$app->getQueue()->push(new internetztube\elementRelations\jobs\RollbackJob(['operationId' => (int)$record->id, 'batchSize' => 1]));
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    check($record->status === 'rolledBack' && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the rollback runs in batches too (' . $record->result . ')');
+    foreach ($batchSources as $batchSource) {
+        $elements->deleteElement($batchSource, true);
+    }
 
     // developer events
     $probe = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (events)']);

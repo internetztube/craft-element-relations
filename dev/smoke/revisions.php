@@ -139,11 +139,8 @@ return function (array $ctx): void {
     check(in_array('RV unversioned source', relatingTitles($c), true), 'Roll back works without revisions');
     $op->delete();
 
-    $field = $app->getFields()->getFieldByHandle('relations');
-    $app->getView()->clear();
-    withWebRequest(fn() => $field->getInputHtml($c->getFieldValue('relations'), $c));
-    $js = implode("\n", array_merge(...array_values($app->getView()->js ?: [[]])));
-    check(str_contains($js, 'keep no revision') || str_contains($js, 'keeps no revision'), 'the wizard\'s step 2 hint mentions the usages without revisions');
+    $hint = withWebRequest(fn() => internetztube\elementRelations\fields\ElementRelationsField::revisionHintFor($c));
+    check(str_contains($hint, 'keep no revision') || str_contains($hint, 'keeps no revision'), "the wizard's review mentions the usages without revisions ($hint)");
 
     // --- cleanup
     foreach ([$plain, $owner, $target] as $element) {
