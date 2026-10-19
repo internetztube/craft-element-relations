@@ -157,17 +157,26 @@ $entryType = $section->getEntryTypes()[0];
 $volumes = Craft::$app->getVolumes();
 // With public URLs: rich-text fields rebuild the `||fallback` of asset reference tags from the asset's URL on save
 // and drop tags whose asset has none, so embedded images need a filesystem with URLs (as in real projects).
+// The folder lives under the web root so `@web/test-assets` really serves the files (images, thumbs, user photos).
+$fsPath = '@webroot/test-assets';
 if (!$fs = Craft::$app->getFs()->getFilesystemByHandle('testFs')) {
     $fs = Craft::$app->getFs()->createFilesystem([
         'type' => Local::class,
         'name' => 'Test FS',
         'handle' => 'testFs',
         'hasUrls' => true,
-        'settings' => ['path' => '@storage/test-assets', 'url' => '@web/test-assets'],
+        'settings' => ['path' => $fsPath, 'url' => '@web/test-assets'],
     ]);
     Craft::$app->getFs()->saveFilesystem($fs) or fail($fs);
-} elseif (!$fs->hasUrls) {
+} elseif (!$fs->hasUrls || $fs->path !== $fsPath) {
+    // older dev projects: move the folder from storage/ into the web root and fix the filesystem
+    $old = Craft::getAlias($fs->path);
+    $new = Craft::getAlias($fsPath);
+    if ($old !== $new && is_dir($old) && !is_dir($new)) {
+        rename($old, $new);
+    }
     $fs->hasUrls = true;
+    $fs->path = $fsPath;
     Craft::$app->getFs()->saveFilesystem($fs) or fail($fs);
 }
 if (!$volume = $volumes->getVolumeByHandle('test')) {
