@@ -26,34 +26,47 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, 
         $fieldData = $element->{$field->handle};
         $data = $fieldData?->getRawContent() ?? '';
 
-        /** @var list<ElementRelationsCacheRecord> */
-        return collect(explode("{", $data))
-            ->map(fn (string $row): array => explode('}', $row))
-            ->flatten()
-            ->filter(fn (string $row): bool => str_contains($row, '||'))
-            ->map(fn (string $row): string => explode('||', $row)[0])
-            ->map(fn (string $row): string => explode(':', $row)[1])
-            ->map(function (string $row) use ($element, $baseRecord, $field): ?ElementRelationsCacheRecord {
-                $siteId = str_contains($row, '@') ? explode('@', $row)[1] : $element->siteId;
-                $elementId = explode('@', $row)[0];
+        $records = [];
+        foreach (self::referenceTags($data) as ['id' => $elementId, 'site' => $site]) {
+            $siteId = self::siteId($site, (int)$element->siteId);
+            if ($siteId === null) {
+                continue;
+            }
+            $record = clone $baseRecord;
+            $record->setAttributes([
+                'type' => ElementRelationsCacheRecord::TYPE_FIELD,
+                'targetElementId' => $elementId,
+                'targetSiteId' => $siteId,
+                'customFieldUid' => $field->uid,
+                'fieldId' => $field->id,
+            ]);
+            $records[] = $record;
+        }
+        return $records;
+    }
 
-                if (!$elementId || !$siteId) {
-                    return null;
-                }
+    /**
+     * Craft's reference tags in rich text: {entry:12@2:url||fallback}, {asset:7:url}, {entry:12@de}. Matched as a whole,
+     * so `||` or braces in ordinary text are not mistaken for one. Only numeric ids count; references by slug or uid are
+     * not written by the rich text editors.
+     * @return list<array{id: int, site: string}> site is '' (the element's own site), a site id or a site handle
+     */
+    private static function referenceTags(string $html): array
+    {
+        preg_match_all('/\{[a-z][\w\\\\]*:(?<id>\d+)(?:@(?<site>[\w-]+))?(?::[^}|]*)?(?:\|\|[^}]*)?\}/i', $html, $matches, PREG_SET_ORDER);
+        return array_map(fn(array $match): array => ['id' => (int)$match['id'], 'site' => $match['site'] ?? ''], $matches);
+    }
 
-                $record = clone $baseRecord;
-                $record->setAttributes([
-                    'type' => ElementRelationsCacheRecord::TYPE_FIELD,
-                    'targetElementId' => $elementId,
-                    'targetSiteId' => $siteId,
-                    'customFieldUid' => $field->uid,
-                    'fieldId' => $field->id,
-                ]);
-                return $record;
-            })
-            ->filter()
-            ->values()
-            ->all();
+    /** The site of a reference tag: the element's own one, a site id, or a site handle (null when it does not exist). */
+    private static function siteId(string $site, int $ownSiteId): ?int
+    {
+        if ($site === '') {
+            return $ownSiteId;
+        }
+        if (ctype_digit($site)) {
+            return (int)$site;
+        }
+        return Craft::$app->getSites()->getSiteByHandle($site)?->id;
     }
 
     /**
