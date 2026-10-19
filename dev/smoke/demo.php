@@ -29,7 +29,7 @@ return function (array $ctx): void {
 
     $types = array_unique(array_map(fn(Entry $e) => $e->getType()->handle, Entry::find()->section('journal')->status(null)->all()));
     check(!array_diff(['article', 'photoEssay', 'route', 'review'], $types), 'demo: the journal has every entry type (' . implode(', ', $types) . ')');
-    $logoRows = $usages(Asset::find()->filename('transit-logo.png')->one());
+    $logoRows = $usages(Asset::find()->filename('transit-logo.svg')->one());
     check(($logoRows['Transit tote bag:default'] ?? null) === 'Image' && ($logoRows['Site settings:default'] ?? null) === 'Logo', 'demo: the logo is used by a product and the global set (' . json_encode($logoRows) . ')');
     $hk = Entry::find()->section('destinations')->title('Hong Kong')->one();
     check(($usages($hk)['Beijing to Hong Kong in one day:default'] ?? null) === 'Destinations', 'demo: a route stop (Matrix) uses a destination, listed as its route');
