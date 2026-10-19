@@ -8,6 +8,7 @@ use craft\base\Field;
 use craft\base\FieldInterface;
 use craft\base\FieldLayoutElement;
 use craft\base\PreviewableFieldInterface;
+use craft\base\SortableFieldInterface;
 use craft\enums\Color;
 use craft\errors\FieldNotFoundException;
 use craft\fieldlayoutelements\CustomField;
@@ -27,7 +28,7 @@ use yii\base\InvalidConfigException;
  * Read-only field that shows where the element is used. It stores nothing; the value is computed from the cache table.
  * The control panel UI is Craft's own: element indexes for the field, element chips for index columns.
  */
-class ElementRelationsField extends Field implements PreviewableFieldInterface
+class ElementRelationsField extends Field implements PreviewableFieldInterface, SortableFieldInterface
 {
     /** Chips shown in element index columns before Craft's "+N" badge takes over. */
     private const PREVIEW_LIMIT = 10;
@@ -156,6 +157,17 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
             'name' => $this->handle,
             'type' => RelationsType::getType(),
             'resolve' => fn($source) => $source->{$this->handle},
+        ];
+    }
+
+    /** Sort option for element indexes: number of relating elements (all sites). Yii passes an expression with parentheses through unquoted. */
+    public function getSortOption(): array
+    {
+        return [
+            'label' => Craft::t('site', $this->name),
+            'orderBy' => '(SELECT COUNT(*) FROM {{%elementrelations_cache}} WHERE [[targetElementId]] = [[elements.id]])',
+            'attribute' => "field:$this->uid",
+            'defaultDir' => 'desc',
         ];
     }
 

@@ -92,6 +92,19 @@ class RelationsModel
      * Usages that are not elements: plugin settings such as SEOmatic's global SEO image.
      * @return GlobalUsage[]
      */
+    /**
+     * Ids of every element referenced by a non-element usage (plugin settings), for the `unused` query param.
+     * @return int[]
+     */
+    public static function globalTargetIds(): array
+    {
+        $ids = [];
+        foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
+            $ids = [...$ids, ...$provider::targetIds()];
+        }
+        return array_values(array_unique($ids));
+    }
+
     public function getGlobalUsages(): array
     {
         if ($this->_globalUsages === null) {

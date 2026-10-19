@@ -27,6 +27,13 @@ return [
     'utility-form-rebuild-cache-button-label' => 'Push Cache Refresh Job into Queue',
     'utility-form-rebuild-cache-success-notice' => 'Successfully pushed Job into Queue.',
 
+    'source-unused' => 'Unused',
+    'replace-action-label' => 'Replace everywhere…',
+    'replace-modal-title' => 'Replace with',
+    'replace-invalid' => 'Pick a different element of the same type as the replacement.',
+    'replace-done' => '{from} replaced by {to} in {count, plural, =1{one element} other{# elements}}.',
+    'replace-skipped' => '{count, plural, =1{One usage needs} other{# usages need}} a manual change: {list}',
+    'condition-used' => 'Used anywhere',
     'settings-view-mode-instructions' => 'How the list of relating elements looks initially. Authors can switch it in the field’s View menu.',
     'settings-show-status-menu' => 'Show the status menu',
     'settings-page-size' => 'Elements per page',

@@ -19,7 +19,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Element chips in element index columns link to the element's edit page again on Craft 5. Supersedes [#59](https://github.com/internetztube/craft-element-relations/pull/59). Thank you, [@sebastian-works](https://github.com/sebastian-works)!
 
 ### Added
-- Editions scaffolding (Lite/Pro) behind a feature flag: `'features' => ['editions' => true]` in `config/element-relations.php` makes the Pro edition selectable; `ElementRelations::isPro()` is the gate. There are no Pro-only features yet.
+- Editions (Lite/Pro) behind a feature flag: `'features' => ['editions' => true]` in `config/element-relations.php` makes the Pro edition selectable; `ElementRelations::isPro()` is the gate.
+- Element indexes can sort by the field (number of relating elements), like any sortable field.
+- **Pro: Unused.** A “Used anywhere” rule for Craft’s element conditions (index filter, custom sources), an “Unused” source on the asset, category and tag indexes with Craft’s bulk actions, and the `unused()` element query param (`craft.assets().unused()`). Non-element usages (SEOmatic settings) count as used.
+- **Pro: Replace everywhere.** An index action that swaps an element for another of the same type in every relating element: relational fields (also inside Matrix/nested entries), CKEditor/Redactor reference tags and SEOmatic images; everything else is listed for a manual change.
 - `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
 - `internetztube\elementRelations\elements\Usage`: a virtual element type whose query spans all element types, e.g. `Usage::find()->usesElement($asset)->search('contact')->all()` returns entries, products, menus, ... as their real classes.
 - `relationsModel.globalUsages`: non-element usages (plugin settings) as `GlobalUsage` models (`label`, `url`, `provider`). `isUsedInSeomaticGlobalSettings` is kept.

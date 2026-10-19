@@ -65,6 +65,11 @@ function checkRelation(ElementInterface $target, string $sourceTitle, string $wh
     check(in_array($sourceTitle, $titles, true), "$what: '$sourceTitle' relates to '$target' (found: " . implode(', ', $titles) . ")");
 }
 
+// Leftovers of an aborted run (a FAIL exits before the cleanup at the end of each section)
+foreach ([...Entry::find()->title(['Page via replace*', 'Page via save event', 'ST *', 'DX *'])->status(null)->drafts(null)->provisionalDrafts(null)->all(), ...Asset::find()->filename('unused*')->all()] as $leftover) {
+    Craft::$app->getElements()->deleteElement($leftover, true);
+}
+
 $b = Entry::find()->title('Page B')->one() ?? throw new RuntimeException('Run seed.php first');
 /** @var RelationsModel $rel */
 $rel = $b->getFieldValue('relations');
@@ -177,7 +182,8 @@ echo "Editions (behind the `features.editions` flag)\n";
 $plugin = internetztube\elementRelations\ElementRelations::class;
 check($plugin::editionsFor([]) === ['lite'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: Lite only; flag on: Lite and Pro');
 check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
-check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'installed edition defaults to Lite');
+Craft::$app->getPlugins()->switchEdition('element-relations', 'lite'); // an aborted run may have left Pro on
+check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'Lite: isPro() is false');
 Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
 check($plugin::isPro(), 'switching to Pro makes isPro() true');
 Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');

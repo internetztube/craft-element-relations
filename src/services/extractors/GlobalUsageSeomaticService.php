@@ -16,6 +16,25 @@ class GlobalUsageSeomaticService implements InterfaceGlobalUsage
 {
     private const IMAGE_ID_KEYS = ['seoImageIds', 'twitterImageIds', 'ogImageIds'];
 
+    public static function targetIds(): array
+    {
+        if (!Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
+            return [];
+        }
+        $ids = [];
+        foreach ((new Query())->select(['metaBundleSettings'])->from([\nystudio107\seomatic\records\MetaBundle::tableName()])->column() as $json) {
+            $settings = json_decode(is_resource($json) ? stream_get_contents($json) : (string)$json, true) ?: [];
+            foreach (self::IMAGE_ID_KEYS as $key) {
+                foreach ((array)($settings[$key] ?? []) as $id) {
+                    if ((int)$id) {
+                        $ids[(int)$id] = true;
+                    }
+                }
+            }
+        }
+        return array_keys($ids);
+    }
+
     public static function usages(int $elementId): array
     {
         if (!Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {

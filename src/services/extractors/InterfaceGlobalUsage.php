@@ -14,4 +14,10 @@ interface InterfaceGlobalUsage
      * @return GlobalUsage[]
      */
     public static function usages(int $elementId): array;
+
+    /**
+     * Every element id this provider references anywhere (for the "unused" query param).
+     * @return int[]
+     */
+    public static function targetIds(): array;
 }

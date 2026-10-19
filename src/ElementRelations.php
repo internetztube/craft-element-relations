@@ -13,13 +13,20 @@ use craft\events\DefineAttributeHtmlEvent;
 use craft\events\DefineBehaviorsEvent;
 use craft\events\ModelEvent;
 use craft\events\PluginEvent;
+use craft\base\conditions\BaseCondition;
+use craft\elements\conditions\ElementCondition;
 use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterConditionRulesEvent;
+use craft\events\RegisterElementActionsEvent;
+use craft\events\RegisterElementSourcesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
 use craft\helpers\Html;
 use internetztube\elementRelations\behaviors\ElementQueryBehavior;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\elements\actions\ReplaceRelations;
+use internetztube\elementRelations\elements\conditions\UsedConditionRule;
 use internetztube\elementRelations\helpers\ElementSummary;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
@@ -40,6 +47,21 @@ class ElementRelations extends Plugin
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
+
+    /** Element types that get the Pro "Replace everywhere…" index action (plugin classes may be absent). */
+    public const PRO_ELEMENT_TYPES = [
+        \craft\elements\Asset::class,
+        \craft\elements\Entry::class,
+        \craft\elements\Category::class,
+        \craft\elements\Tag::class,
+        'craft\\commerce\\elements\\Product',
+    ];
+    /** Element types whose index gets the Pro "Unused" source (elements that exist to be related to). */
+    public const PRO_UNUSED_TYPES = [
+        \craft\elements\Asset::class,
+        \craft\elements\Category::class,
+        \craft\elements\Tag::class,
+    ];
 
     /**
      * Feature flags from `config/element-relations.php` (`'features' => ['editions' => true]`). Read from the file, not
@@ -120,6 +142,38 @@ class ElementRelations extends Plugin
                 'id' => 'element-relations-types-' . mt_rand(),
             ]);
         });
+
+        // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
+        // indexes and a "Replace everywhere…" action on indexes.
+        // Registered unconditionally and decided per call, so switching the edition needs no restart.
+        foreach (self::PRO_ELEMENT_TYPES as $class) {
+            if (!class_exists($class)) {
+                continue;
+            }
+            Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event) {
+                if (self::isPro()) {
+                    $event->actions[] = ReplaceRelations::class;
+                }
+            });
+        }
+        Event::on(ElementCondition::class, BaseCondition::EVENT_REGISTER_CONDITION_RULES, function (RegisterConditionRulesEvent $event) {
+            if (self::isPro()) {
+                $event->conditionRules[] = UsedConditionRule::class;
+            }
+        });
+        foreach (self::PRO_UNUSED_TYPES as $class) {
+            Event::on($class, Element::EVENT_REGISTER_SOURCES, function (RegisterElementSourcesEvent $event) {
+                if ($event->context === 'index' && self::isPro()) {
+                    $event->sources[] = ['heading' => $this->name];
+                    $event->sources[] = [
+                        'key' => 'elementRelations:unused',
+                        'label' => Craft::t('element-relations', 'source-unused'),
+                        'criteria' => ['unused' => true],
+                        'defaultSort' => ['dateUpdated', 'desc'],
+                    ];
+                }
+            });
+        }
 
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {
             /** @var Element $element */

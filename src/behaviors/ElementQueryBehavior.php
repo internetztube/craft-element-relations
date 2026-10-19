@@ -5,6 +5,7 @@ namespace internetztube\elementRelations\behaviors;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\elements\db\ElementQuery;
+use internetztube\elementRelations\models\RelationsModel;
 use yii\base\Behavior;
 use yii\db\Expression;
 
@@ -16,6 +17,7 @@ use yii\db\Expression;
  * {% set pages = craft.entries().usesElement(asset).all() %}
  * ```
  * Also usable as element index criteria (`{usesElement: 123}`), which is how the field renders its native indexes.
+ * `unused()` is the inverse for a single element type: `craft.assets().unused()` lists assets nothing relates to.
  *
  * @property ElementQuery $owner
  */
@@ -23,6 +25,9 @@ class ElementQueryBehavior extends Behavior
 {
     /** int|int[]|ElementInterface|ElementInterface[]|null */
     public mixed $usesElement = null;
+
+    /** Only elements nothing relates to (no cache row, no non-element usage such as SEOmatic settings). */
+    public ?bool $unused = null;
 
     /**
      * @param int|int[]|ElementInterface|ElementInterface[]|null $value
@@ -33,14 +38,30 @@ class ElementQueryBehavior extends Behavior
         return $this->owner;
     }
 
+    public function unused(?bool $value = true): ElementQuery
+    {
+        $this->unused = $value;
+        return $this->owner;
+    }
+
     public function events(): array
     {
-        return [ElementQuery::EVENT_AFTER_PREPARE => 'applyUsesElement'];
+        return [ElementQuery::EVENT_AFTER_PREPARE => 'applyParams'];
     }
 
     /** Runs after Craft created the sub query, which is rebuilt on every prepare (count, all, ...). */
-    public function applyUsesElement(): void
+    public function applyParams(): void
     {
+        if ($this->unused) {
+            $this->owner->subQuery->andWhere(['not exists', (new Query())
+                ->select(new Expression('1'))
+                ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
+                ->where('[[elementrelations_cache.targetElementId]] = [[elements.id]]'),
+            ]);
+            if ($globalIds = RelationsModel::globalTargetIds()) {
+                $this->owner->subQuery->andWhere(['not in', 'elements.id', $globalIds]);
+            }
+        }
         if ($this->usesElement === null) {
             return;
         }

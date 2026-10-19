@@ -155,13 +155,19 @@ $entryType = $section->getEntryTypes()[0];
 
 // 2. Asset volume with one image (for SEOmatic, user photos, asset links).
 $volumes = Craft::$app->getVolumes();
-if (!Craft::$app->getFs()->getFilesystemByHandle('testFs')) {
+// With public URLs: rich-text fields rebuild the `||fallback` of asset reference tags from the asset's URL on save
+// and drop tags whose asset has none, so embedded images need a filesystem with URLs (as in real projects).
+if (!$fs = Craft::$app->getFs()->getFilesystemByHandle('testFs')) {
     $fs = Craft::$app->getFs()->createFilesystem([
         'type' => Local::class,
         'name' => 'Test FS',
         'handle' => 'testFs',
+        'hasUrls' => true,
         'settings' => ['path' => '@storage/test-assets', 'url' => '@web/test-assets'],
     ]);
+    Craft::$app->getFs()->saveFilesystem($fs) or fail($fs);
+} elseif (!$fs->hasUrls) {
+    $fs->hasUrls = true;
     Craft::$app->getFs()->saveFilesystem($fs) or fail($fs);
 }
 if (!$volume = $volumes->getVolumeByHandle('test')) {
