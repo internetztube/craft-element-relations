@@ -226,6 +226,7 @@ Lite is everything above. Pro (behind a feature flag for now: `'features' => ['e
 
 - **Unused:** a “Used anywhere” rule in Craft’s index filter and custom-source conditions, an “Unused” source on the asset, category and tag indexes (with Craft’s bulk actions), and `craft.assets().unused()`. Sorting an index by the field (relation count) works in Lite.
 - **Replace:** on the element itself, the field's “Replace…” button guides you through picking the replacement and ticking the usages to replace. In an element index, “Replace everywhere…” does all of them at once. Every supported field and plugin above is rewritten the way it was detected; plugin settings are listed for a manual change.
+- **Undo and rollback:** Undo in the success notice; Utilities → Element Relations lists every replacement with Roll back. Entries get a revision with a note. Large replacements run as a queue job.
 
 ## Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-element-relations/issues) page.

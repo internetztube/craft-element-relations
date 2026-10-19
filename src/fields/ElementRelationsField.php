@@ -254,6 +254,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 'step2Title' => Craft::t('element-relations', 'replace-step2-title', ['from' => (string)$element, 'to' => '{to}']),
                 'step2Hint' => Craft::t('element-relations', 'replace-step2-hint', ['from' => (string)$element, 'to' => '{to}']),
                 'step2Button' => Craft::t('element-relations', 'replace-step2-button'),
+                'undoLabel' => Craft::t('element-relations', 'replace-undo'),
             ] : null;
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',

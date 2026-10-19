@@ -45,7 +45,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.8";
+    public string $schemaVersion = "1.0.9";
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';

@@ -5,6 +5,7 @@ namespace internetztube\elementRelations\elements\actions;
 use Craft;
 use craft\base\ElementAction;
 use craft\elements\db\ElementQueryInterface;
+use internetztube\elementRelations\controllers\ReplaceController;
 use internetztube\elementRelations\services\ReplaceService;
 
 /**
@@ -52,12 +53,10 @@ JS, [static::class, Craft::t('element-relations', 'replace-modal-title')]);
             return false;
         }
 
-        $result = ReplaceService::replace($from, $to);
-        $message = Craft::t('element-relations', 'replace-done', ['count' => $result['replaced'], 'from' => (string)$from, 'to' => (string)$to]);
-        if ($result['skipped']) {
-            $message .= ' ' . Craft::t('element-relations', 'replace-skipped', ['count' => count($result['skipped']), 'list' => implode(', ', $result['skipped'])]);
-        }
-        $this->setMessage($message);
+        $result = ReplaceService::replace($from, $to, allowQueue: true);
+        $this->setMessage($result['queued']
+            ? Craft::t('element-relations', 'replace-queued', ['from' => (string)$from, 'to' => (string)$to])
+            : ReplaceController::resultMessage($result, (string)$from, (string)$to) . ' ' . Craft::t('element-relations', 'replace-undo-hint'));
         return true;
     }
 }

@@ -10,3 +10,48 @@
     {% js %}Craft.cp.displayNotice({{ "utility-form-rebuild-cache-success-notice" | t("element-relations") | json_encode | raw }});{% endjs %}
 {% endif %}
 
+{% if history is not null %}
+    <hr>
+    <h2>{{ 'history-headline'|t('element-relations') }}</h2>
+    <p class="light">{{ 'history-intro'|t('element-relations') }}</p>
+    {% if history|length %}
+        <table class="data fullwidth" id="element-relations-history">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Date'|t('app') }}</th>
+                    <th scope="col">{{ 'history-replaced'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'history-with'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'history-elements'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'history-by'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'Status'|t('app') }}</th>
+                    <td></td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                    <tr data-operation-id="{{ row.id }}">
+                        <td>{{ row.date|datetime('short') }}</td>
+                        <td>{{ row.from|raw }}</td>
+                        <td>{{ row.to|raw }}</td>
+                        <td>{{ row.elements|number }}</td>
+                        <td>{{ row.user|raw }}</td>
+                        <td>{{ row.status|raw }}</td>
+                        <td class="thin">
+                            {% if row.canRollBack %}
+                                <form method="post" class="element-relations-rollback">
+                                    {{ csrfInput() }}
+                                    {{ actionInput('element-relations/replace/rollback') }}
+                                    {{ redirectInput(craft.app.request.url) }}
+                                    {{ hiddenInput('operationId', row.id) }}
+                                    <button type="submit" class="btn small">{{ 'history-rollback'|t('element-relations') }}</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>{{ 'history-empty'|t('element-relations') }}</p>
+    {% endif %}
+{% endif %}

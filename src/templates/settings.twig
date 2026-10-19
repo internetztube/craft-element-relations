@@ -10,3 +10,15 @@
     value: settings.bulkRefreshBatchSize,
     errors: settings.getErrors('bulkRefreshBatchSize'),
 }) }}
+
+{% if craft.app.plugins.getPlugin('element-relations').is('pro') %}
+    {{ forms.textField({
+        type: 'number',
+        min: 0,
+        label: 'settings-replace-sync-limit-label' | t('element-relations'),
+        instructions: 'settings-replace-sync-limit-instructions' | t('element-relations'),
+        name: 'replaceSyncLimit',
+        value: settings.replaceSyncLimit,
+        errors: settings.getErrors('replaceSyncLimit'),
+    }) }}
+{% endif %}

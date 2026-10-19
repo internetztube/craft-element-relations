@@ -40,7 +40,21 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
                                 siteId: settings.siteId,
                                 sourceIds: usages.map(function (u) { return u.id; }),
                             }}).then(function (response) {
-                                Craft.cp.displayNotice(response.data.message);
+                                var data = response.data;
+                                var notice = null;
+                                var settingsNotice = {};
+                                if (data.operationId && !data.queued) {
+                                    // Undo right in the notice, which stays until closed; Utilities → Element Relations has the same
+                                    var $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(settings.undoLabel).on('click', function () {
+                                        $undo.addClass('loading').prop('disabled', true);
+                                        Craft.sendActionRequest('POST', 'element-relations/replace/rollback', {data: {operationId: data.operationId}})
+                                            .then(function (r) { Craft.cp.displaySuccess(r.data.message); index.updateElements(); })
+                                            .catch(function (e) { Craft.cp.displayError(e.response && e.response.data && e.response.data.message || Craft.t('app', 'A server error occurred.')); })
+                                            .finally(function () { notice && notice.close(); });
+                                    });
+                                    settingsNotice = {details: $undo, persist: true};
+                                }
+                                notice = Craft.cp.displaySuccess(data.message, settingsNotice);
                                 index.updateElements();
                             }).catch(function (error) {
                                 Craft.cp.displayError(error.response && error.response.data && error.response.data.message || Craft.t('app', 'A server error occurred.'));

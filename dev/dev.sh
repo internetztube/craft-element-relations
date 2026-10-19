@@ -87,8 +87,11 @@ install_plugins() {
 }
 # seed twice: schema created in the first process is only fully usable in a fresh one (see ensureEntry in seed.php)
 seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php craft queue/release all && php craft element-relations/resave-relations && php craft queue/run; }
-smoke() { seed && php "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; }
-e2e()   { serve && php "$PLUGIN_DIR/dev/e2e.php" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; return $rc; }
+# the tests switch the plugin edition in console processes; write the project config YAML back afterwards so the
+# control panel does not report pending changes
+syncpc() { (cd "$PROJECT_DIR" && php craft project-config/write >/dev/null 2>&1) || true; }
+smoke() { seed && php "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; local rc=$?; syncpc; return $rc; }
+e2e()   { serve && php "$PLUGIN_DIR/dev/e2e.php" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; syncpc; return $rc; }
 
 stop() { [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; }
 

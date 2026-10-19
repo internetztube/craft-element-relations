@@ -28,7 +28,7 @@ function check(bool $ok, string $what): void
 /** Minimal HTTP client with a cookie jar and Craft's CSRF token, like the control panel's JavaScript. */
 final class Http
 {
-    private string $jar;
+    public string $jar;
     public ?string $csrf = null;
 
     public function __construct(private string $base)
@@ -94,6 +94,7 @@ $switchEdition = function (string $edition) use ($plugins): void {
     Craft::$app->getProjectConfig()->saveModifiedConfigData();
 };
 $editionBefore = ElementRelations::getInstance()->edition;
+$startedAt = new DateTime('-1 second');
 $switchEdition('pro');
 
 // --- fixtures (through Craft, as the console smoke does)
@@ -331,13 +332,17 @@ foreach ($cases as [$origin, $replacement]) {
             [$status] = $http->page(parse_url($url, PHP_URL_PATH) . '?' . (parse_url($url, PHP_URL_QUERY) ?? ''));
             check($status === 200, "$what: the source's edit page still renders (HTTP $status)");
         }
-        // and back
-        [$status, $body, $json] = $http->action('element-relations/replace/replace', ['fromId' => $replacement->id, 'toId' => $origin->id, 'siteId' => $origin->siteId, 'sourceIds' => [$ownerId]]);
-        check($status === 200 && ($json['replaced'] ?? 0) >= 1 && empty($json['skipped']), "$what: replaced back (HTTP $status: " . substr($body, 0, 220) . ')');
+        // and undo, exactly as the notice's Undo button does it
+        check(!empty($json['operationId']), "$what: the response carries the operation id for Undo");
+        $operationId = $json['operationId'];
+        [$status, $body, $json] = $http->action('element-relations/replace/rollback', ['operationId' => $operationId]);
+        check($status === 200 && ($json['restored'] ?? 0) >= 1 && empty($json['skipped']), "$what: Undo rolls it back (HTTP $status: " . substr($body, 0, 220) . ')');
         check($listUsages($origin) == $originalRows && !$listUsages($replacement), "$what: back to the original list");
         $before = $cacheFingerprint();
         $runQueue();
-        check($cacheFingerprint() === $before, "$what: the queued refresh after replacing back changes nothing");
+        check($cacheFingerprint() === $before, "$what: the queued refresh after the rollback changes nothing");
+        [$status, , $json] = $http->action('element-relations/replace/rollback', ['operationId' => $operationId]);
+        check($status === 400, "$what: a second Undo is refused");
         $checked++;
     }
     $elements->deleteElement($replacement, true);
@@ -346,6 +351,38 @@ check($cacheFingerprint() === $fingerprintAtStart || getenv('E2E_ONLY'), "the re
 $failedJobs = (new craft\db\Query())->from('{{%queue}}')->where(['fail' => true])->count();
 check((int)$failedJobs === 0, 'no failed queue jobs');
 
+// --- the history in Utilities: lists operations, rolls back through a plain form post
+echo "Replacement history (Utilities)\n";
+$historyFrom = $make('E2E history from');
+$historyTo = $make('E2E history to');
+$historySource = $make('E2E history source', ['relatedEntries' => [$historyFrom->id]]);
+$flush();
+[$status, , $json] = $http->action('element-relations/replace/replace', ['fromId' => $historyFrom->id, 'toId' => $historyTo->id, 'siteId' => $historyFrom->siteId, 'sourceIds' => [$historySource->id]]);
+check($status === 200 && !empty($json['operationId']), 'a replacement for the history');
+$operationId = $json['operationId'];
+[$status, $html] = $http->page('/admin/utilities/element-relations');
+check($status === 200 && str_contains($html, 'id="element-relations-history"'), 'the utility renders the history table');
+check(preg_match('#<tr data-operation-id="' . $operationId . '">(.*?)</tr>#s', $html, $row) === 1, 'the operation is listed');
+check(str_contains($row[1], 'E2E history from') && str_contains($row[1], 'E2E history to') && str_contains($row[1], 'admin'), 'its row shows what was replaced with what, and by whom');
+check(str_contains($row[1], 'element-relations/replace/rollback') && str_contains($row[1], 'name="operationId" value="' . $operationId . '"'), 'its row has a Roll back form');
+// submit it like the browser would: form-encoded POST with CSRF and redirect
+preg_match('/name="CRAFT_CSRF_TOKEN" value="([^"]+)"/', $row[1], $token);
+preg_match('/name="redirect" value="([^"]+)"/', $row[1], $redirect);
+$ch = curl_init($base . '/index.php?p=admin/actions/element-relations/replace/rollback');
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_USERAGENT => 'element-relations-e2e', CURLOPT_COOKIEFILE => $http->jar, CURLOPT_COOKIEJAR => $http->jar, CURLOPT_POSTFIELDS => http_build_query(['CRAFT_CSRF_TOKEN' => html_entity_decode($token[1] ?? ''), 'redirect' => html_entity_decode($redirect[1] ?? ''), 'operationId' => $operationId])]);
+curl_exec($ch);
+$formStatus = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+curl_close($ch);
+check($formStatus === 302, "the Roll back form redirects back to the utility (HTTP $formStatus)");
+$flush();
+check(in_array('E2E history source', $relating($historyFrom), true) && !in_array('E2E history source', $relating($historyTo), true), 'the form rolled the replacement back');
+[, $html] = $http->page('/admin/utilities/element-relations');
+preg_match('#<tr data-operation-id="' . $operationId . '">(.*?)</tr>#s', $html, $row);
+check(!str_contains($row[1] ?? '', 'element-relations/replace/rollback') && str_contains($row[1] ?? '', 'Rolled back'), 'afterwards the row says Rolled back and offers no button');
+foreach ([$historySource, $historyTo, $historyFrom] as $entry) {
+    $elements->deleteElement($entry, true);
+}
+
 // --- Lite: no button, endpoint refused
 echo "Lite\n";
 $switchEdition('lite');
@@ -353,9 +390,16 @@ $switchEdition('lite');
 check(!str_contains($html, 'data-element-relations-replace'), 'Lite: no wizard button on the edit page');
 [$status] = $http->action('element-relations/replace/replace', ['fromId' => $from->id, 'toId' => $target->id, 'siteId' => $from->siteId, 'sourceIds' => $ticked]);
 check($status === 403, "Lite: replace endpoint is forbidden (HTTP $status)");
+[$status] = $http->action('element-relations/replace/rollback', ['operationId' => 1]);
+check($status === 403, "Lite: rollback endpoint is forbidden (HTTP $status)");
+[, $html] = $http->page('/admin/utilities/element-relations');
+check(!str_contains($html, 'element-relations-history'), 'Lite: no history in the utility');
 
 // --- cleanup
 $switchEdition($editionBefore);
+foreach (internetztube\elementRelations\records\ReplacementRecord::find()->where(['>', 'dateCreated', craft\helpers\Db::prepareDateForDb($startedAt)])->all() as $operation) {
+    $operation->delete(); // the operations this run created
+}
 foreach ([...array_values($sources), $target, $from] as $entry) {
     $elements->deleteElement($entry, true);
 }

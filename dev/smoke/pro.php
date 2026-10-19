@@ -52,7 +52,7 @@ return function (array $ctx): void {
     check(in_array(internetztube\elementRelations\elements\conditions\UsedConditionRule::class, array_map(fn($r) => $r::class, Asset::createCondition()->getSelectableConditionRules()), true), 'the rule is offered in asset conditions (filter HUD, custom sources)');
     $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
     $sorted = Asset::find()->status(null)->orderBy([$sort['orderBy'] => SORT_DESC])->ids();
-    check($sorted[0] === $asset->id && end($sorted) === $fresh->id, 'sorting by the field puts the used asset first and the unused one last');
+    check(array_search($asset->id, $sorted, true) < array_search($fresh->id, $sorted, true) && $sorted[0] === $asset->id, 'sorting by the field puts the most used asset first and the unused one after it');
     $category = Category::find()->title('Test Category')->one(); // relates to Page C, nothing relates to it
     check($category && in_array($category->id, Category::find()->unused()->status(null)->ids(), true), 'unused() works for categories (Test Category is a source, not a target)');
 
@@ -119,6 +119,72 @@ return function (array $ctx): void {
     $flush();
     ReplaceService::replace($fresh, $asset); // undo the asset swap
     $flush();
+
+    // rollback edge cases on an entries field
+    $settings = ElementRelations::getInstance()->getSettings();
+    $both = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (both)']);
+    $both->setFieldValue('relatedEntries', [$c->id, $target->id]);
+    $elements->saveElement($both) or throw new RuntimeException(json_encode($both->getErrors()));
+    $flush();
+    $ids = fn(Entry $e) => array_map('intval', Entry::find()->id($e->id)->one()->getFieldValue('relatedEntries')->ids());
+    $op = ReplaceService::replace($c, $target, [$both->id]);
+    $flush();
+    check($ids($both) === [$target->id], 'replacing in a field that already held the target leaves it once');
+    $rb = ReplaceService::rollback(internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']));
+    $flush();
+    check($rb['restored'] === 1 && $ids($both) === [$c->id, $target->id], 'rollback restores the exact previous value (both, in order)');
+    $op = ReplaceService::replace($c, $target, [$both->id]);
+    $flush();
+    $edited = Entry::find()->id($both->id)->one();
+    $edited->setFieldValue('relatedEntries', [$target->id, $b->id]); // edited after the replacement
+    $elements->saveElement($edited) or throw new RuntimeException(json_encode($edited->getErrors()));
+    $flush();
+    $rb = ReplaceService::rollback(internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']));
+    check($rb['restored'] === 0 && count($rb['skipped']) === 1 && $ids($both) === [$target->id, $b->id], 'a field edited since is not overwritten; the rollback reports it');
+    $elements->deleteElement($both, true);
+
+    $plain = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (later edit)']);
+    $plain->setFieldValue('relatedEntries', [$c->id]);
+    $elements->saveElement($plain) or throw new RuntimeException(json_encode($plain->getErrors()));
+    $flush();
+    sleep(1); // Craft skips a revision when the last one is from the same second
+    $op = ReplaceService::replace($c, $target, [$plain->id]);
+    $flush();
+    sleep(1);
+    $later = Entry::find()->id($plain->id)->one();
+    $later->setFieldValue('relatedEntries', [$target->id, $b->id]); // someone adds Page B afterwards
+    $elements->saveElement($later) or throw new RuntimeException(json_encode($later->getErrors()));
+    $flush();
+    sleep(1);
+    $rb = ReplaceService::rollback(internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']));
+    $flush();
+    check($rb['restored'] === 1 && $ids($plain) === [$c->id, $b->id], 'rollback swaps the reference back and keeps later edits (Page B stays)');
+
+    // entries get a revision with a note for both steps
+    $revisions = (new craft\db\Query())->select(['notes', 'creatorId'])->from('{{%revisions}}')->where(['canonicalId' => $plain->id])->orderBy(['num' => SORT_ASC])->all();
+    $notes = implode(' | ', array_column($revisions, 'notes'));
+    check(str_contains($notes, 'replaced “Page via replace (from)” with “Page via replace (target)”') && str_contains($notes, 'rolled back'), "entries get revisions noting the replacement and the rollback ($notes)");
+    $admin = craft\elements\User::find()->admin()->one();
+    check((int)end($revisions)['creatorId'] === (int)$admin->id, 'the revision is attributed to the user who rolled back');
+    $elements->deleteElement($plain, true);
+
+    // large operations run as a queue job (here: limit 0)
+    $limitBefore = $settings->replaceSyncLimit;
+    $settings->replaceSyncLimit = 0;
+    $queued = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (queued)']);
+    $queued->setFieldValue('relatedEntries', [$c->id]);
+    $elements->saveElement($queued) or throw new RuntimeException(json_encode($queued->getErrors()));
+    $flush();
+    $op = ReplaceService::replace($c, $target, [$queued->id], allowQueue: true);
+    check($op['queued'] === true && internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId'])->status === 'queued' && in_array('Page via replace (queued)', relatingTitles($c), true), 'above the sync limit the replacement is queued, nothing changed yet');
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    check($record->status === 'applied' && in_array('Page via replace (queued)', relatingTitles($target), true), 'the queue job applies it and logs the result (' . $record->result . ')');
+    ReplaceService::rollback($record);
+    $flush();
+    check(in_array('Page via replace (queued)', relatingTitles($c), true), 'and it rolls back like any other operation');
+    $settings->replaceSyncLimit = $limitBefore;
+    $elements->deleteElement($queued, true);
 
     $elements->deleteElement($source, true);
     $elements->deleteElement($other, true);

@@ -68,7 +68,8 @@ function flushQueue(): void
 /**
  * Round trip of the Pro replace feature on one relating element, the way the field's wizard calls it: `$from` is
  * swapped for a temporary element of the same type in `$source` only, the relation must move, `$pointsTo($reloaded,
- * $target)` must see the new reference in the plugin's own field value; then the swap is reverted and checked again.
+ * $target)` must see the new reference in the plugin's own field value; then the operation is rolled back and the
+ * original checked again.
  * Every extractor's replacer gets exercised through this helper by its integration smoke.
  */
 function replaceRoundTrip(ElementInterface $source, ElementInterface $from, string $what, callable $pointsTo): void
@@ -93,9 +94,14 @@ function replaceRoundTrip(ElementInterface $source, ElementInterface $from, stri
     check(in_array((string)$source, relatingTitles($target), true) && !in_array((string)$source, relatingTitles($from), true), "$what: the relation moved to the target");
     check((bool)$pointsTo($reload(), $target), "$what: the field value points to the target");
 
-    $back = internetztube\elementRelations\services\ReplaceService::replace($target, $from, [$source->id]);
+    // undo through the operation log, exactly what the wizard's Undo and the history's Roll back do
+    $operation = internetztube\elementRelations\records\ReplacementRecord::findOne($result['operationId']);
+    check($operation && $operation->status === 'applied' && $operation->getChanges(), "$what: the operation is logged with its changes");
+    $back = internetztube\elementRelations\services\ReplaceService::rollback($operation);
     flushQueue();
-    check($back['replaced'] === 1 && in_array((string)$source, relatingTitles($from), true) && (bool)$pointsTo($reload(), $from), "$what: replacing back restores the original");
+    check($back['restored'] === 1 && !$back['skipped'] && in_array((string)$source, relatingTitles($from), true) && !in_array((string)$source, relatingTitles($target), true) && (bool)$pointsTo($reload(), $from), "$what: rollback restores the original (" . json_encode($back) . ')');
+    check(internetztube\elementRelations\records\ReplacementRecord::findOne($operation->id)->status === 'rolledBack', "$what: the operation is marked rolled back");
+    $operation->delete(); // keep the dev project's history clean
     $elements->deleteElement($target, true);
 }
 
@@ -286,6 +292,13 @@ foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
     }
     echo ucfirst(basename($file, '.php')) . "\n";
     (require $file)($ctx);
+}
+
+// operations the tests created (their temporary elements are gone again)
+foreach (internetztube\elementRelations\records\ReplacementRecord::find()->all() as $operation) {
+    if (!Craft::$app->getElements()->getElementById($operation->fromId, null, $operation->siteId) || !Craft::$app->getElements()->getElementById($operation->toId, null, $operation->siteId)) {
+        $operation->delete();
+    }
 }
 
 echo "All good.\n";

@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Element indexes can sort by the field (number of relating elements), like any sortable field.
 - **Pro: Unused.** A “Used anywhere” rule for Craft’s element conditions (index filter, custom sources), an “Unused” source on the asset, category and tag indexes with Craft’s bulk actions, and the `unused()` element query param (`craft.assets().unused()`). Non-element usages (SEOmatic settings) count as used.
 - **Pro: Replace.** An index action (“Replace everywhere…”) and a wizard in the field (“Replace…”: pick the replacement, then tick the usages to replace) that swap an element for another of the same type in the relating elements. Every extractor has a matching replacer, so whatever the plugin detects it can rewrite: relational fields (also inside Matrix/nested entries), Craft's Link field, CKEditor/Redactor reference tags, SEOmatic images, Hyper, LinkIt, LinkMate, Typed Link Field, FreeLink, SEO (Ether) social images, Vizy (link marks, images, block fields), user photos, Navigation nodes, Wishlist items and Formie forms. Plugin settings (SEOmatic global/section images) are listed for a manual change. Only elements the current user may save are touched.
+- **Pro: Undo and rollback.** Every replacement is logged; the wizard's notice has an Undo button and Utilities → Element Relations lists all replacements with Roll back. Rolling back swaps the reference back and keeps later edits.
+- **Pro: Revisions.** Entries changed by a replacement or rollback get a revision with a note, attributed to the user.
+- **Pro: Large replacements run in the background** above the “Replace in the background above” setting (default 25 elements).
 - `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
 - `internetztube\elementRelations\elements\Usage`: a virtual element type whose query spans all element types, e.g. `Usage::find()->usesElement($asset)->search('contact')->all()` returns entries, products, menus, ... as their real classes.
 - `relationsModel.globalUsages`: non-element usages (plugin settings) as `GlobalUsage` models (`label`, `url`, `provider`). `isUsedInSeomaticGlobalSettings` is kept. They are cache rows now (without a source element), refreshed when SEOmatic saves its settings and on full rebuilds, so the “unused” filter and the relation-count sort include them; `count` and `elements` stay element-only.
@@ -37,6 +40,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - The hand-built field UI: the React/MUI bundle (660 KB, loaded on every control panel page) and its Node toolchain, the `element-relations/paginate` controller action, the asset bundle and the `elementRelationsElementPreviewHtml` Twig function (control-panel internal).
 
 ### Fixed
+- The field's list and the Pro “Unused” source could show outdated results for up to an hour, because Craft caches element index queries per element type. Queries using the plugin's parameters bypass that cache now.
 - `getTabHash()` caught a non-existent exception class, so a field layout referencing a deleted field could still throw.
 - Settings page used the wrong translation category, and the batch size is validated server-side (integer, at least 1).
 

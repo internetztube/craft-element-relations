@@ -101,6 +101,24 @@ class ExtractorService
         return true;
     }
 
+    /**
+     * Ids of the elements this element references through one field (or, with `$field = null`, through the element-level
+     * extractors), as the extractors read them right now (unsaved values included).
+     * @return int[]
+     */
+    public static function targetIds(ElementInterface $element, ?Field $field): array
+    {
+        $base = new ElementRelationsCacheRecord(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId]);
+        $records = $field
+            ? self::fieldRelations($field, $element, $base)
+            : collect(array_filter(self::ELEMENT_EXTRACTORS, 'class_exists'))
+                ->map(fn(string $extractor) => self::safely($extractor, $element, fn() => $extractor::getRelations($element, clone $base)))
+                ->flatten()
+                ->filter()
+                ->all();
+        return array_values(array_unique(array_map(fn(ElementRelationsCacheRecord $r) => (int)$r->targetElementId, $records)));
+    }
+
     /** Whether an element-level extractor (user photo, navigation node, ...) applies to this element. */
     public static function hasElementExtractor(ElementInterface $element): bool
     {
