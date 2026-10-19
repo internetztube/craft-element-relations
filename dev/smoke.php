@@ -182,12 +182,13 @@ echo "Editions (behind the `features.editions` flag)\n";
 $plugin = internetztube\elementRelations\ElementRelations::class;
 check($plugin::editionsFor([]) === ['lite'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: Lite only; flag on: Lite and Pro');
 check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
-Craft::$app->getPlugins()->switchEdition('element-relations', 'lite'); // an aborted run may have left Pro on
+$editionBefore = $plugin::getInstance()->edition; // restored at the end of every section that switches, so the dev project keeps its edition
+Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
 check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'Lite: isPro() is false');
 Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
 check($plugin::isPro(), 'switching to Pro makes isPro() true');
-Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
-check(!$plugin::isPro(), 'switched back to Lite');
+Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
+check($plugin::isPro() === ($editionBefore === 'pro'), "restored the $editionBefore edition");
 
 echo "Live save path (save event -> queued refresh job -> cache)\n";
 // Seeds never fire EVENT_AFTER_REQUEST, so everything above was built by resave-relations. This exercises the real flow.

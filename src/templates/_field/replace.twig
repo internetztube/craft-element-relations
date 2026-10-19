@@ -13,17 +13,25 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
         if (!index && tries++ < 40) { return setTimeout(attach, 50); }
         var $toolbar = $index.find('.statusmenubtn').parent();
         if ($toolbar.length) { $wrap.insertAfter($index.find('[data-element-relations-type-menu]').length ? $index.find('[data-element-relations-type-menu]') : $toolbar); }
+        // Craft's selector modal has a title; a one-line hint below it says what the step does
+        var withHint = function (modal, hint) {
+            modal.$container.find('.header').append($('<p class="light"/>').text(hint));
+            return modal;
+        };
         $wrap.find('.btn').on('click', function () {
-            Craft.createElementSelectorModal(settings.elementType, {
+            withHint(Craft.createElementSelectorModal(settings.elementType, {
                 multiSelect: false,
-                modalTitle: settings.titleReplacement,
+                showTitle: true,
+                modalTitle: settings.step1Title,
+                selectBtnLabel: settings.step1Button,
                 disabledElementIds: [settings.fromId],
                 onSelect: function (replacement) {
-                    Craft.createElementSelectorModal(settings.usageType, {
+                    withHint(Craft.createElementSelectorModal(settings.usageType, {
                         multiSelect: true,
                         showSiteMenu: false,
-                        modalTitle: Craft.t('element-relations', 'replace-modal-usages', {from: settings.fromTitle, to: replacement[0].label}),
-                        selectBtnLabel: settings.selectBtnLabel,
+                        showTitle: true,
+                        modalTitle: settings.step2Title.replace('{to}', replacement[0].label),
+                        selectBtnLabel: settings.step2Button,
                         criteria: {usesElement: settings.fromId, allSites: true},
                         onSelect: function (usages) {
                             Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
@@ -38,9 +46,9 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wr
                                 Craft.cp.displayError(error.response && error.response.data && error.response.data.message || Craft.t('app', 'A server error occurred.'));
                             });
                         },
-                    });
+                    }), settings.step2Hint.replace('{to}', replacement[0].label));
                 },
-            });
+            }), settings.step1Hint);
         });
     };
     attach();

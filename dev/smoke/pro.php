@@ -22,6 +22,7 @@ return function (array $ctx): void {
         return array_column(array_filter(Asset::sources('index'), fn($s) => isset($s['key'])), 'key');
     };
 
+    $editionBefore = ElementRelations::getInstance()->edition;
     $plugins->switchEdition('element-relations', 'lite');
     check(!in_array('elementRelations:unused', $sourceKeys(), true) && !in_array(ReplaceRelations::class, Asset::actions('*'), true), 'Lite: no Unused source, no Replace action');
     $plugins->switchEdition('element-relations', 'pro');
@@ -111,5 +112,5 @@ return function (array $ctx): void {
     $elements->deleteElement($target, true);
     $elements->deleteElement($c, true);
     $elements->deleteElement($fresh, true);
-    $plugins->switchEdition('element-relations', 'lite');
+    $plugins->switchEdition('element-relations', $editionBefore);
 };
