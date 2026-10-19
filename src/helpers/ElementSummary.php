@@ -40,16 +40,10 @@ class ElementSummary
     public static function viaHtml(ElementInterface $element): string
     {
         $vias = Usage::$via["$element->id:$element->siteId"] ?? [];
-        $editUrl = $element->getCpEditUrl();
-        $layoutFields = $element->getFieldLayout()?->getCustomFields() ?? [];
         $parts = [];
         foreach ($vias as $via) {
             if ($via['fieldId'] && ($field = Craft::$app->getFields()->getFieldById($via['fieldId']))) {
-                $onLayout = (bool)array_filter($layoutFields, fn($f) => $f->id === $field->id);
-                $label = Html::encode(Craft::t('site', $field->name));
-                $parts[$field->id] = $editUrl && $onLayout
-                    ? Html::a($label, $editUrl . "#fields-$field->handle-field", ['class' => 'go', 'title' => Craft::t('element-relations', 'field-via-open')])
-                    : $label;
+                $parts[$field->id] = Html::encode(Craft::t('site', $field->name));
             } else {
                 $label = match (true) {
                     $via['type'] === 'element-user-photo' => Craft::t('element-relations', 'field-via-user-photo'),

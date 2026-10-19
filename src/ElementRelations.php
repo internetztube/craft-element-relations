@@ -80,19 +80,6 @@ class ElementRelations extends Plugin
             };
         });
 
-        // "Field" column links open the relating element at that field: switch to its tab and scroll to it
-        if (Craft::$app->getRequest()->getIsCpRequest() && !Craft::$app->getRequest()->getIsConsoleRequest()) {
-            Craft::$app->getView()->registerJs(<<<JS
-(function () {
-    var m = /^#(fields-[\\w-]+-field)$/.exec(location.hash);
-    var el = m && document.getElementById(m[1]);
-    if (!el) return;
-    var pane = el.closest('[id^="tab-"]');
-    if (pane) $('a[href="#' + pane.id + '"]').trigger('click');
-    el.scrollIntoView({behavior: 'smooth', block: 'center'});
-})();
-JS);
-        }
 
         // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
         Craft::$app->getView()->hook('cp.elements.toolbar', function (array &$context): string {

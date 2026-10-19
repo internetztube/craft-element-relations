@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## Unreleased (3.2.0)
 ### Changed
 - **Craft 5.3+ only.** Craft 4 stays on the 3.1.x releases.
-- **The field is now Craft's own element index** with a type dropdown (element types with counts), the entry statuses (live, pending, expired, disabled) applied across all element types, and a "Field" column naming the field that holds the link, with a link that opens the relating element at that field, listing everything that uses the element across all element types in one place: Craft's search, sorting, status menu (with a Drafts toggle), site menu, pagination, table and card views, and element chips linking to the edit pages. Below it, non-element usages such as SEOmatic's global or per-section settings appear as chips linking to the respective settings page. All hand-built UI (tables, pagination, JavaScript) is gone.
+- **The field is now Craft's own element index** with a type dropdown (element types with counts), the entry statuses (live, pending, expired, disabled) applied across all element types, and a "Field" column naming the field that holds the link, listing everything that uses the element across all element types in one place: Craft's search, sorting, status menu (with a Drafts toggle), site menu, pagination, table and card views, and element chips linking to the edit pages. Below it, non-element usages such as SEOmatic's global or per-section settings appear as chips linking to the respective settings page. All hand-built UI (tables, pagination, JavaScript) is gone.
 - The field no longer stores anything in the element content column (it is computed from the relations cache).
 - Element chips in the field and in element indexes link to the element's edit page again on Craft 5. Supersedes [#59](https://github.com/internetztube/craft-element-relations/pull/59). Thank you, [@sebastian-works](https://github.com/sebastian-works)!
 - Replaced the React/MUI pagination bundle (660 KB, loaded on every control panel page) with a few lines of inline JavaScript. No more Node toolchain in the repository.
@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Requires Craft 4.3+ (or 5.x).
 
 ### Added
+- Field settings like Craft's relational fields: View Mode (table or cards), Show the status menu, Show the site menu, Elements per page.
 - More table columns to pick from in the field's View menu: Status, Authors, Post Date, Expiry Date, Link, Slug, URI, Last Edited By, UID.
 - `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
 - `internetztube\elementRelations\elements\Usage`: a virtual element type whose query spans all element types, e.g. `Usage::find()->usesElement($asset)->search('contact')->all()` returns entries, products, menus, ... as their real classes.

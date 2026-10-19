@@ -9,7 +9,6 @@ return [
     'field-all-types' => 'All types',
     'field-column-where' => 'Where',
     'field-column-field' => 'Field',
-    'field-via-open' => 'Open at this field',
     'field-via-user-photo' => 'User photo',
     'field-via-navigation' => 'Navigation node',
     'field-via-wishlist' => 'Wishlist item',
@@ -28,6 +27,9 @@ return [
     'utility-form-rebuild-cache-button-label' => 'Push Cache Refresh Job into Queue',
     'utility-form-rebuild-cache-success-notice' => 'Successfully pushed Job into Queue.',
 
+    'settings-view-mode-instructions' => 'How the list of relating elements looks initially. Authors can switch it in the field’s View menu.',
+    'settings-show-status-menu' => 'Show the status menu',
+    'settings-page-size' => 'Elements per page',
     'settings-batch-size-label' => 'Bulk-refresh batch size',
     'settings-batch-size-instructions' => 'Maximum number of elements handled per queue job during a bulk relation refresh.',
 ];

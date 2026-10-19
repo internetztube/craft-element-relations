@@ -39,6 +39,16 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
      */
     public static ?array $toolbarTypes = null;
 
+    public const VIEW_MODE_TABLE = 'table';
+    public const VIEW_MODE_CARDS = 'cards';
+
+    /** Initial view mode of the index; authors can switch it and Craft remembers their choice. */
+    public string $viewMode = self::VIEW_MODE_TABLE;
+    public bool $showStatusMenu = true;
+    public bool $showSiteMenu = true;
+    /** Elements per page */
+    public ?int $pageSize = 20;
+
     public static function displayName(): string
     {
         return Craft::t("element-relations", "Element Relations");
@@ -62,6 +72,59 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
     public static function dbType(): array|string|null
     {
         return null;
+    }
+
+    protected function defineRules(): array
+    {
+        $rules = parent::defineRules();
+        $rules[] = [['viewMode'], 'in', 'range' => [self::VIEW_MODE_TABLE, self::VIEW_MODE_CARDS]];
+        $rules[] = [['pageSize'], 'default', 'value' => 20];
+        $rules[] = [['pageSize'], 'integer', 'min' => 1, 'max' => 500];
+        return $rules;
+    }
+
+    /**
+     * The same settings Craft's relational fields offer for their element index, built with Craft's form helpers.
+     */
+    public function getSettingsHtml(): ?string
+    {
+        $html = Cp::selectFieldHtml([
+            'label' => Craft::t('app', 'View Mode'),
+            'instructions' => Craft::t('element-relations', 'settings-view-mode-instructions'),
+            'id' => 'viewMode',
+            'name' => 'viewMode',
+            'options' => [
+                ['label' => Craft::t('app', 'Table'), 'value' => self::VIEW_MODE_TABLE],
+                ['label' => Craft::t('app', 'Cards'), 'value' => self::VIEW_MODE_CARDS],
+            ],
+            'value' => $this->viewMode,
+            'errors' => $this->getErrors('viewMode'),
+        ]);
+        $html .= Cp::lightswitchFieldHtml([
+            'label' => Craft::t('element-relations', 'settings-show-status-menu'),
+            'id' => 'showStatusMenu',
+            'name' => 'showStatusMenu',
+            'on' => $this->showStatusMenu,
+        ]);
+        if (Craft::$app->getIsMultiSite()) {
+            $html .= Cp::lightswitchFieldHtml([
+                'label' => Craft::t('app', 'Show the site menu'),
+                'id' => 'showSiteMenu',
+                'name' => 'showSiteMenu',
+                'on' => $this->showSiteMenu,
+            ]);
+        }
+        $html .= Cp::textFieldHtml([
+            'label' => Craft::t('element-relations', 'settings-page-size'),
+            'id' => 'pageSize',
+            'name' => 'pageSize',
+            'type' => 'number',
+            'min' => 1,
+            'size' => 4,
+            'value' => $this->pageSize,
+            'errors' => $this->getErrors('pageSize'),
+        ]);
+        return $html;
     }
 
     public function normalizeValue(mixed $value, ?ElementInterface $element = null): ?RelationsModel
@@ -177,13 +240,14 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                 'context' => 'embedded-index',
                 'id' => 'element-relations-' . StringHelper::randomString(8),
                 'sources' => false,
-                'showSiteMenu' => 'auto',
-                'defaultViewMode' => 'table',
+                'showStatusMenu' => $this->showStatusMenu,
+                'showSiteMenu' => $this->showSiteMenu ? 'auto' : false,
+                'defaultViewMode' => $this->viewMode,
                 'jsSettings' => [
                     'criteria' => ['usesElement' => $value->getElementId(), 'site' => '*'],
                     'static' => true,
                     'canHaveDrafts' => true, // the status menu's "Drafts" option only takes effect with this
-                    'batchSize' => 20,
+                    'batchSize' => $this->pageSize ?? 20,
                     'storageKey' => 'elementRelations',
                 ],
             ]);
