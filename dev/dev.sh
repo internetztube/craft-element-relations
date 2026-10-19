@@ -4,6 +4,7 @@
 #   dev/dev.sh serve    start server in background (http://localhost:8080/admin, admin / password)
 #   dev/dev.sh stop     stop server
 #   dev/dev.sh e2e      start the server and run dev/e2e.php (control panel over HTTP: login, edit page, index + replace endpoints)
+#   dev/dev.sh screenshots  documentation screenshots of the demo site into docs/screenshots (dev/screenshots.mjs)
 #   dev/dev.sh queue    run queued jobs (plugin refreshes its cache via queue)
 #   dev/dev.sh seed     test fixtures (Pages section, "Page A1..A12" -> "Page B", one entry per integration) + demo site
 #   dev/dev.sh smoke    run dev/smoke.php assertions against the seeded project
@@ -93,6 +94,9 @@ seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 &
 syncpc() { (cd "$PROJECT_DIR" && php craft project-config/write >/dev/null 2>&1) || true; }
 smoke() { seed && php "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; local rc=$?; syncpc; return $rc; }
 e2e()   { serve && php "$PLUGIN_DIR/dev/e2e.php" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; syncpc; return $rc; }
+# documentation screenshots of the demo site into docs/screenshots (queue first: pending image transforms show a job
+# indicator in the control panel)
+screenshots() { serve && (cd "$PROJECT_DIR" && php craft queue/run >/dev/null) && (cd "$PLUGIN_DIR" && node dev/screenshots.mjs "$PROJECT_DIR" "http://localhost:$PORT" docs/screenshots); }
 
 stop() { [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; }
 
@@ -114,6 +118,7 @@ case "${1:-up}" in
   smoke) smoke ;;
   reset) stop; db_drop; db_up; install; seed; serve ;;
   e2e)   e2e ;;
+  screenshots) screenshots ;;
   ci)    scaffold; install; smoke; e2e ;;
-  *)     sed -n "2,13p" "$0"; exit 1 ;;
+  *)     sed -n "2,14p" "$0"; exit 1 ;;
 esac

@@ -671,6 +671,13 @@ if ($phase === 'schema') {
         $projectConfig->set($path, array_values($configs));
     }
 
+    // Craft Pro's rebrand: the Transit mark as the control panel icon
+    $iconDir = Craft::$app->getPath()->getRebrandPath() . '/icon';
+    if (!is_dir($iconDir) || !glob("$iconDir/*")) {
+        craft\helpers\FileHelper::createDirectory($iconDir);
+        file_put_contents("$iconDir/transit.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">' . markSvg('icon') . '</svg>');
+    }
+
     // site-wide settings as a global set
     $globals = Craft::$app->getGlobals();
     if (!$globals->getSetByHandle('siteSettings')) {
@@ -757,6 +764,12 @@ foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amel
         $elements->saveElement($user) or fail($user);
         Craft::$app->getUsers()->assignUserToGroups($user->id, [$editors->id]);
         Craft::$app->getUsers()->activateUser($user);
+    }
+    if ($key === 'mara' && !$user->admin) {
+        // the editor the screenshots log in as (dev/screenshots.mjs), with the dev project's password
+        $user->admin = true;
+        $user->newPassword = 'password';
+        $elements->saveElement($user) or fail($user);
     }
     if ($user->photoId !== $portraits[$key]->id) {
         // straight to the column: saving a user with a photo copies it into the user photo volume, which is the test
@@ -1062,6 +1075,8 @@ foreach ($sites->getAllSites() as $site) {
         $bundle->metaBundleSettings->twitterImageSource = 'fromAsset';
         $bundle->metaBundleSettings->twitterImageIds = [$social->id];
     }
+    $bundle->metaSiteVars->siteName = 'Transit';
+    $bundle->metaSiteVars->identity->genericName = 'Transit';
     $bundle->metaSiteVars->identity->genericImageIds = [$logo->id];
     $seomatic->metaBundles->updateMetaBundle($bundle, $site->id);
 }

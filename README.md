@@ -2,8 +2,9 @@
 
 See where every element is used. One native list of everything that links to an entry, asset, category, product or any other element, across all element types, sites and the plugins your project uses.
 
-![Share](screenshots/share.png)
-![Asset Detail](screenshots/asset-detail-en.png)
+![See where every element is used](docs/screenshots/usage-list.png)
+
+More in the [tour](docs/README.md).
 
 ## Features
 
@@ -197,17 +198,7 @@ Extractor errors, replacements and rollbacks are logged to `storage/logs/element
 
 ## Screenshots
 
-Asset Overview
-![Asset Overview Primary Page](screenshots/asset-overview.png)
-
-Asset detail
-![Asset Detail](screenshots/asset-detail-en.png)
-
-Create Field
-![Field Edit Page](screenshots/field.png)
-
-Add to Field Layout
-![Field Edit Page](screenshots/fieldlayout.png)
+Every feature, in the demo site: [docs/README.md](docs/README.md).
 
 ## Development
 
@@ -218,6 +209,7 @@ dev/dev.sh                      # setup + serve (PostgreSQL)
 DB_DRIVER=mysql PROJECT_DIR=../craft-element-relations-dev-mysql PORT=8081 dev/dev.sh
 dev/dev.sh smoke                # seed and run dev/smoke.php (every integration, incl. replace and rollback)
 dev/dev.sh e2e                  # control panel over HTTP: every usage through the wizard, undo, history
+dev/dev.sh screenshots          # retake docs/screenshots from the demo site (headless Chrome)
 vendor/bin/phpstan              # static analysis
 ```
 

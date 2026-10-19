@@ -6,6 +6,7 @@
  * Run: dev/dev.sh smoke   (or: php dev/smoke.php <craft-project-dir>, after seeding and rebuilding the cache)
  */
 require ($argv[1] ?? __DIR__) . '/bootstrap.php';
+$smokeStartedAt = new DateTime('-1 second'); // the replacement history this run writes is removed again at the end
 /** @var craft\console\Application $app */
 $app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
 
@@ -297,9 +298,12 @@ foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
     (require $file)($ctx);
 }
 
-// operations the tests created (their temporary elements are gone again)
+// the operations this run created, and older ones whose elements are gone (the history then shows real work only,
+// e.g. the demo's for screenshots)
+internetztube\elementRelations\records\ReplacementRecord::deleteAll(['>=', 'dateCreated', craft\helpers\Db::prepareDateForDb($smokeStartedAt)]);
 foreach (internetztube\elementRelations\records\ReplacementRecord::find()->all() as $operation) {
-    if (!Craft::$app->getElements()->getElementById($operation->fromId, null, $operation->siteId) || !Craft::$app->getElements()->getElementById($operation->toId, null, $operation->siteId)) {
+    $elements = Craft::$app->getElements();
+    if (!$elements->getElementById($operation->fromId, null, $operation->siteId) || !$elements->getElementById($operation->toId, null, $operation->siteId)) {
         $operation->delete();
     }
 }
