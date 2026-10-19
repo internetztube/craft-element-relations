@@ -99,6 +99,17 @@ class ElementRelations extends Plugin
             if ($element->getIsRevision()) {
                 return;
             }
+            // Only changed custom fields can change field relations (Craft tracks them per save, incl. propagation to
+            // other sites and untouched nested Matrix entries, which are saved along with their owner). Elements read
+            // by an element-level extractor (user photo, ...) have no such signal and always refresh.
+            if (
+                !$event->isNew
+                && !$element->isNewForSite
+                && !$element->getDirtyFields()
+                && !ExtractorService::hasElementExtractor($element)
+            ) {
+                return;
+            }
             QueueElementsForRefreshService::registerForRefresh($element->id, $element->siteId);
         });
 

@@ -172,12 +172,29 @@ echo "Live save path (save event -> queued refresh job -> cache)\n";
 // Seeds never fire EVENT_AFTER_REQUEST, so everything above was built by resave-relations. This exercises the real flow.
 $c = Entry::find()->title('Page C')->one();
 $section = Craft::$app->getEntries()->getSectionByHandle('pages');
+foreach (Entry::find()->title('Page via save event')->status(null)->drafts(null)->all() as $leftover) { // from an aborted run
+    Craft::$app->getElements()->deleteElement($leftover, true);
+}
 $live = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via save event']);
 $live->setFieldValue('relatedEntries', [$c->id]);
 Craft::$app->getElements()->saveElement($live) or throw new RuntimeException(json_encode($live->getErrors()));
 Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
 Craft::$app->getQueue()->run();
 check(in_array('Page via save event', relatingTitles($c), true), 'saving an entry queues a refresh that records its relation');
+$queueRows = fn() => (int)(new craft\db\Query())->from('{{%queue}}')->where(['description' => 'Resave Element Relations'])->count(); // Craft queues its own jobs on save (revision pruning, ...)
+$rowIds = fn() => (new craft\db\Query())->select('id')->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $live->id])->orderBy('id')->column();
+[$jobsBefore, $idsBefore] = [$queueRows(), $rowIds()];
+$untouched = Entry::find()->id($live->id)->one();
+Craft::$app->getElements()->saveElement($untouched) or throw new RuntimeException(json_encode($untouched->getErrors()));
+Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
+check($queueRows() === $jobsBefore, 'saving an entry without changing a custom field queues no refresh');
+check(internetztube\elementRelations\services\ExtractorService::refreshRelationsForElement($untouched) === false && $rowIds() === $idsBefore, 'a refresh with unchanged relations leaves the cache rows untouched');
+$untouched->setFieldValue('relatedEntries', [$b->id]);
+Craft::$app->getElements()->saveElement($untouched) or throw new RuntimeException(json_encode($untouched->getErrors()));
+Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
+check($queueRows() === $jobsBefore + 1, 'changing a relational field queues a refresh');
+Craft::$app->getQueue()->run();
+check(!in_array('Page via save event', relatingTitles($c), true) && in_array('Page via save event', relatingTitles($b), true), 'the refresh moves the relation from Page C to Page B');
 Craft::$app->getElements()->deleteElement($live, true);
 check(!in_array('Page via save event', relatingTitles($c), true), 'deleting the entry removes its relation');
 

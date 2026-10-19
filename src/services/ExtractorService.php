@@ -6,6 +6,7 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\base\FieldInterface;
+use craft\db\Query;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use internetztube\elementRelations\services\extractors\InterfaceElementExtractor;
 use internetztube\elementRelations\services\extractors\InterfaceFieldExtractor;
@@ -39,6 +40,18 @@ class ExtractorService
      * (a user's photo, a navigation node's linked element, ...). All of them run.
      * @var class-string<InterfaceElementExtractor>[]
      */
+    /** The columns that identify a relation (everything but id/uid/dates). */
+    private const ROW_COLUMNS = ['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'customFieldUid', 'type'];
+
+    /** Element classes the ELEMENT_EXTRACTORS read attributes from (not custom fields), see hasElementExtractor(). */
+    private const ELEMENT_EXTRACTOR_ELEMENT_TYPES = [
+        \craft\elements\User::class,
+        'verbb\\navigation\\elements\\Node',
+        'verbb\\wishlist\\elements\\Item',
+        'verbb\\formie\\elements\\Form',
+        'verbb\\formie\\elements\\Submission',
+    ];
+
     private const ELEMENT_EXTRACTORS = [
         extractors\ElementExtractorUserPhotoService::class,
         extractors\ElementExtractorNavigationNodeService::class,
@@ -67,9 +80,36 @@ class ExtractorService
                 ->flatten())
             ->filter();
 
+        // Write only when the relations actually changed: keeps row ids/dates stable and skips the delete+insert
+        // churn for the common case (an element saved without touching its relations).
+        $normalize = fn(array $rows) => collect($rows)
+            ->map(fn(array $row) => implode('|', array_map(fn(string $c) => $row[$c] === null ? '' : (string)$row[$c], self::ROW_COLUMNS)))
+            ->sort()
+            ->values()
+            ->all();
+        $existing = (new Query())
+            ->select(self::ROW_COLUMNS)
+            ->from(ElementRelationsCacheRecord::tableName())
+            ->where(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId])
+            ->all();
+        if ($normalize($existing) === $normalize($records->map(fn(ElementRelationsCacheRecord $r) => $r->getAttributes(self::ROW_COLUMNS))->all())) {
+            return false;
+        }
+
         self::deleteRelationsForElement($element);
         $records->each(fn(ElementRelationsCacheRecord $record) => $record->save());
         return true;
+    }
+
+    /** Whether an element-level extractor (user photo, navigation node, ...) applies to this element. */
+    public static function hasElementExtractor(ElementInterface $element): bool
+    {
+        foreach (self::ELEMENT_EXTRACTOR_ELEMENT_TYPES as $type) {
+            if (is_a($element, $type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

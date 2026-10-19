@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Requires Craft 4.3+ (or 5.x).
 
 ### Added
+- Saving an element without changing any custom field no longer queues a relations refresh (this covers resaves of untouched nested Matrix entries and site propagation). A refresh now writes to the cache table only when the relations actually changed.
 - Field settings like Craft's relational fields: View Mode (table or cards), Show the status menu, Show the site menu, Elements per page.
 - More table columns to pick from in the field's View menu: Status, Authors, Post Date, Expiry Date, Link, Slug, URI, Last Edited By, UID.
 - `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
