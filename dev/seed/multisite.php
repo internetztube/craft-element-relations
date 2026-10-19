@@ -1,6 +1,6 @@
 <?php
 /**
- * Multi-site: a second site ("de"), a section propagating to both sites with a non-localized and a localized
+ * Multi-site: a section propagating to both sites with a non-localized and a localized
  * (per-site) Entries field, and entries whose relations differ per site:
  *  - "Multi Source" relates to "Multi Target" on both sites (relatedEntries, not localized) and, on the German site
  *    only, to "Multi Target" and "Multi Target (de only)" via relatedEntriesLocalized.
@@ -22,17 +22,7 @@ return function (array $ctx): void {
     $entries = Craft::$app->getEntries();
     $elements = Craft::$app->getElements();
 
-    if (!$de = $sites->getSiteByHandle('de')) {
-        $de = new Site([
-            'groupId' => $sites->getPrimarySite()->groupId,
-            'name' => 'German',
-            'handle' => 'de',
-            'language' => 'de',
-            'hasUrls' => true,
-            'baseUrl' => '@web/de',
-        ]);
-        $sites->saveSite($de) or fail($de);
-    }
+    $de = $sites->getSiteByHandle('de'); // created by seed.php before any other content
 
     if (!$section = $entries->getSectionByHandle('multi')) {
         $related = Craft::$app->getFields()->getFieldByHandle('relatedEntries');

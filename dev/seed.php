@@ -36,6 +36,7 @@ use craft\models\FieldLayout;
 use craft\models\FieldLayoutTab;
 use craft\models\Section;
 use craft\models\Section_SiteSettings;
+use craft\models\Site;
 use craft\models\Volume;
 use internetztube\elementRelations\fields\ElementRelationsField;
 
@@ -98,6 +99,22 @@ function ensureEntry(string $title, array $fieldValues = [], bool $enabled = tru
 
 $entries = Craft::$app->getEntries();
 $siteId = Craft::$app->getSites()->getPrimarySite()->id;
+
+// 0. Second site, created before anything else: Craft adds a new site to existing category groups via project config
+// only, so a group created earlier in the same run ends up with site settings in project config but not in the
+// database, and saving its categories then fails silently ("group is not enabled for site 2").
+$sites = Craft::$app->getSites();
+if (!$sites->getSiteByHandle('de')) {
+    $de = new Site([
+        'groupId' => $sites->getPrimarySite()->groupId,
+        'name' => 'German',
+        'handle' => 'de',
+        'language' => 'de',
+        'hasUrls' => true,
+        'baseUrl' => '@web/de',
+    ]);
+    $sites->saveSite($de) or fail($de);
+}
 
 // 1. Section + entry type (project config may already contain them after a `dev.sh reset`).
 $section = $entries->getSectionByHandle('pages');

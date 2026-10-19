@@ -71,7 +71,11 @@ return function (array $ctx): void {
     $categories = Craft::$app->getCategories();
     if (!$group = $categories->getGroupByHandle('testCategories')) {
         $group = new CategoryGroup(['name' => 'Test Categories', 'handle' => 'testCategories']);
-        $group->setSiteSettings([$ctx['siteId'] => new CategoryGroup_SiteSettings(['siteId' => $ctx['siteId'], 'hasUrls' => false])]);
+        $siteSettings = [];
+        foreach (Craft::$app->getSites()->getAllSiteIds() as $siteId) {
+            $siteSettings[$siteId] = new CategoryGroup_SiteSettings(['siteId' => $siteId, 'hasUrls' => false]);
+        }
+        $group->setSiteSettings($siteSettings);
         $group->setFieldLayout($relatedLayout(Category::class));
         $categories->saveGroup($group) or fail($group);
     }
