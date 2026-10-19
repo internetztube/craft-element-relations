@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use internetztube\elementRelations\models\GlobalUsage;
@@ -18,9 +20,9 @@ interface InterfaceGlobalUsage
     public static function refresh(): void;
 
     /**
-     * Turns this provider's cache rows (`targetElementId`, `targetSiteId`, `globalKey`) into display models.
-     * @param array[] $rows
-     * @return GlobalUsage[]
+     * Turns this provider's cache rows into display models.
+     * @param list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}> $rows
+     * @return list<GlobalUsage>
      */
     public static function usages(array $rows): array;
 }

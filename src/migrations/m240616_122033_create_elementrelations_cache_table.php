@@ -1,13 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\migrations;
 
 use craft\db\Migration;
-use craft\db\Table;
 
 class m240616_122033_create_elementrelations_cache_table extends Migration
 {
-    public function safeUp()
+    public function safeUp(): bool
     {
         $this->createTable('{{%elementrelations_cache}}', [
             'id' => $this->primaryKey(),
@@ -28,7 +29,7 @@ class m240616_122033_create_elementrelations_cache_table extends Migration
         return true;
     }
 
-    public function safeDown()
+    public function safeDown(): bool
     {
         echo "m240616_122033_create_elementrelations_cache_table cannot be reverted.\n";
         return false;

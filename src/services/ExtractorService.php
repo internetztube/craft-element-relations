@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services;
 
 use Craft;
@@ -31,16 +33,18 @@ class ExtractorService
     /** Same for element extractors (InterfaceElementExtractor, ideally InterfaceElementReplacer as well). */
     public const EVENT_REGISTER_ELEMENT_EXTRACTORS = 'registerElementExtractors';
 
+    /** @var list<class-string<InterfaceFieldExtractor>>|null */
     private static ?array $fieldExtractors = null;
+    /** @var list<class-string<InterfaceElementExtractor>>|null */
     private static ?array $elementExtractors = null;
 
-    /** @return class-string<InterfaceFieldExtractor>[] the built-in field extractors plus registered ones (installed classes only) */
+    /** @return list<class-string<InterfaceFieldExtractor>> the built-in field extractors plus registered ones (installed classes only) */
     public static function fieldExtractors(): array
     {
         return self::$fieldExtractors ??= self::registered(self::EVENT_REGISTER_FIELD_EXTRACTORS, self::FIELD_EXTRACTORS);
     }
 
-    /** @return class-string<InterfaceElementExtractor>[] */
+    /** @return list<class-string<InterfaceElementExtractor>> */
     public static function elementExtractors(): array
     {
         return self::$elementExtractors ??= self::registered(self::EVENT_REGISTER_ELEMENT_EXTRACTORS, self::ELEMENT_EXTRACTORS);
@@ -52,11 +56,17 @@ class ExtractorService
         self::$fieldExtractors = self::$elementExtractors = null;
     }
 
+    /**
+     * @template T of object
+     * @param list<class-string<T>> $types
+     * @return list<class-string<T>>
+     */
     private static function registered(string $eventName, array $types): array
     {
         if (Event::hasHandlers(self::class, $eventName)) {
             $event = new RegisterComponentTypesEvent(['types' => $types]);
             Event::trigger(self::class, $eventName, $event);
+            /** @var list<class-string<T>> $types handlers are asked to add implementations of the same interface */
             $types = $event->types;
         }
         return array_values(array_filter($types, 'class_exists'));
@@ -65,7 +75,7 @@ class ExtractorService
     /**
      * Field extractors, tried in order; the first one that returns records for a field wins.
      * Each checks itself whether its plugin is installed, so listing one for a missing plugin is harmless.
-     * @var class-string<InterfaceFieldExtractor>[]
+     * @var list<class-string<InterfaceFieldExtractor>>
      */
     public const FIELD_EXTRACTORS = [
         // core relation fields (also picks up drafts of the targets)
@@ -84,15 +94,14 @@ class ExtractorService
         extractors\FieldExtractorLinkMateService::class,
     ];
 
-    /**
-     * Element extractors: relations that belong to the element itself rather than to one of its fields
-     * (a user's photo, a navigation node's linked element, ...). All of them run.
-     * @var class-string<InterfaceElementExtractor>[]
-     */
     /** The columns that identify a relation (everything but id/uid/dates). */
     private const ROW_COLUMNS = ['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'customFieldUid', 'type'];
 
-
+    /**
+     * Element extractors: relations that belong to the element itself rather than to one of its fields
+     * (a user's photo, a navigation node's linked element, ...). All of them run.
+     * @var list<class-string<InterfaceElementExtractor>>
+     */
     public const ELEMENT_EXTRACTORS = [
         extractors\ElementExtractorUserPhotoService::class,
         extractors\ElementExtractorNavigationNodeService::class,
@@ -114,17 +123,17 @@ class ExtractorService
         ]);
 
         $records = collect($fields)
-            ->map(fn(FieldInterface $field) => $field instanceof Field ? self::fieldRelations($field, $element, $baseRecord) : [])
+            ->map(fn(FieldInterface $field): array => $field instanceof Field ? self::fieldRelations($field, $element, $baseRecord) : [])
             ->flatten()
             ->merge(collect(self::elementExtractors())
-                ->map(fn(string $extractor) => self::safely($extractor, $element, fn() => $extractor::getRelations($element, clone $baseRecord)))
+                ->map(fn(string $extractor): mixed => self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($element, clone $baseRecord)))
                 ->flatten())
             ->filter();
 
         // Write only when the relations actually changed: keeps row ids/dates stable and skips the delete+insert
         // churn for the common case (an element saved without touching its relations).
-        $normalize = fn(array $rows) => collect($rows)
-            ->map(fn(array $row) => implode('|', array_map(fn(string $c) => $row[$c] === null ? '' : (string)$row[$c], self::ROW_COLUMNS)))
+        $normalize = fn(array $rows): array => collect($rows)
+            ->map(fn(array $row): string => implode('|', array_map(fn(string $column): string => $row[$column] === null ? '' : (string)$row[$column], self::ROW_COLUMNS)))
             ->sort()
             ->values()
             ->all();
@@ -133,12 +142,12 @@ class ExtractorService
             ->from(ElementRelationsCacheRecord::tableName())
             ->where(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId])
             ->all();
-        if ($normalize($existing) === $normalize($records->map(fn(ElementRelationsCacheRecord $r) => $r->getAttributes(self::ROW_COLUMNS))->all())) {
+        if ($normalize($existing) === $normalize($records->map(fn(ElementRelationsCacheRecord $record): array => $record->getAttributes(self::ROW_COLUMNS))->all())) {
             return false;
         }
 
         self::deleteRelationsForElement($element);
-        $records->each(fn(ElementRelationsCacheRecord $record) => $record->save());
+        $records->each(fn(ElementRelationsCacheRecord $record): bool => $record->save());
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         return true;
     }
@@ -146,7 +155,7 @@ class ExtractorService
     /**
      * Ids of the elements this element references through one field (or, with `$field = null`, through the element-level
      * extractors), as the extractors read them right now (unsaved values included).
-     * @return int[]
+     * @return list<int>
      */
     public static function targetIds(ElementInterface $element, ?Field $field): array
     {
@@ -154,11 +163,11 @@ class ExtractorService
         $records = $field
             ? self::fieldRelations($field, $element, $base)
             : collect(self::elementExtractors())
-                ->map(fn(string $extractor) => self::safely($extractor, $element, fn() => $extractor::getRelations($element, clone $base)))
+                ->map(fn(string $extractor): mixed => self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($element, clone $base)))
                 ->flatten()
                 ->filter()
                 ->all();
-        return array_values(array_unique(array_map(fn(ElementRelationsCacheRecord $r) => (int)$r->targetElementId, $records)));
+        return array_values(array_unique(array_map(fn(ElementRelationsCacheRecord $record): int => (int)$record->targetElementId, $records)));
     }
 
     /** Whether an element-level extractor (user photo, navigation node, ...) applies to this element. */
@@ -182,8 +191,8 @@ class ExtractorService
     public static function fieldRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array
     {
         foreach (self::fieldExtractors() as $extractor) {
-            $records = self::safely($extractor, $element, fn() => $extractor::getRelations($field, $element, clone $baseRecord));
-            if ($records) {
+            $records = self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($field, $element, clone $baseRecord));
+            if (is_array($records) && $records) {
                 return $records;
             }
         }
@@ -202,6 +211,8 @@ class ExtractorService
     /**
      * One misbehaving extractor (e.g. after a third-party plugin update) must not fail the whole refresh job,
      * which would leave every other element of the batch without relations. In dev mode the error is rethrown.
+     * @param callable(): mixed $fn
+     * @return mixed what `$fn` returns, false when it failed
      */
     private static function safely(string $extractor, ElementInterface $element, callable $fn): mixed
     {
@@ -226,7 +237,7 @@ class ExtractorService
         while (
             property_exists($element, 'primaryOwnerId')
             && $element->primaryOwnerId
-            && $newElement = Craft::$app->getElements()->getElementById($element->primaryOwnerId, null, $element->siteId)
+            && $newElement = Craft::$app->getElements()->getElementById((int)$element->primaryOwnerId, null, $element->siteId)
         ) {
             $element = $newElement;
         }

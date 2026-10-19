@@ -2,9 +2,15 @@ includes:
     - vendor/craftcms/phpstan/phpstan.neon
 
 parameters:
-    level: 5
+    level: 9
     paths:
         - src
     ignoreErrors:
         # Optional third-party plugins that are not installed here.
         - '#(nystudio107|verbb|presseddigital|lenz|benf|ether|vaersaagod|justinholtweb|craft\\redactor|craft\\ckeditor|craft\\commerce)\\#'
+        # Craft types Field::$handle as nullable (a field that was never saved); every field read from a field layout has one.
+        - '#^Parameter \#1 \$fieldHandle of method craft\\base\\ElementInterface::(get|set)FieldValue\(\) expects string, string\|null given\.$#'
+        # Elements::getElementById() is generic over its $elementType argument; with `null` (look the type up) there is nothing to infer.
+        - '#^Unable to resolve the template type T in call to method craft\\services\\Elements::getElementById\(\)$#'
+        # Yii documents Migration column types as strings, but its own column builders (`$this->integer()`, ...) are the intended argument.
+        - '#^Parameter \#3 \$type of method yii\\db\\Migration::(addColumn|alterColumn)\(\) expects string, yii\\db\\ColumnSchemaBuilder given\.$#'

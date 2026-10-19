@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\migrations;
 
-use Craft;
 use craft\db\Migration;
 
 /**
@@ -33,6 +34,7 @@ class m241004_144031_optimize_index_elementrelations_table extends Migration
         return true;
     }
 
+    /** @return list<array{string, list<string>, bool}> table, columns, unique */
     private function _indexes(): array
     {
         return [

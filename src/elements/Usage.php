@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\elements;
 
 use Craft;
@@ -81,23 +83,31 @@ abstract class Usage extends Element
         return true;
     }
 
-    /** Entry statuses for the index's status menu; UsageQuery applies them to every element type. */
+    /**
+     * Entry statuses for the index's status menu; UsageQuery applies them to every element type.
+     * @return array<string, string|array{label: string, color: \craft\enums\Color}>
+     */
     public static function statuses(): array
     {
         return Entry::statuses();
     }
 
-    /** Exporting a mixed-type list makes no sense; this hides the index's Export button. */
+    /**
+     * Exporting a mixed-type list makes no sense; this hides the index's Export button.
+     * @return array{}
+     */
     public static function exporters(string $source): array
     {
         return [];
     }
 
+    /** @return list<array{key: string, label: string}> */
     protected static function defineSources(string $context): array
     {
         return [['key' => '*', 'label' => Craft::t('app', 'All elements')]];
     }
 
+    /** @return array<string, array{label: string, icon?: string}> */
     protected static function defineTableAttributes(): array
     {
         $attributes = [
@@ -125,6 +135,7 @@ abstract class Usage extends Element
         return $attributes;
     }
 
+    /** @return list<string> */
     protected static function defineDefaultTableAttributes(string $source): array
     {
         $attributes = [self::ATTR_TYPE, self::ATTR_WHERE, self::ATTR_FIELD];
@@ -135,6 +146,7 @@ abstract class Usage extends Element
         return $attributes;
     }
 
+    /** @return list<array{label: string, orderBy: string, attribute: string, defaultDir?: string}> */
     protected static function defineSortOptions(): array
     {
         return [

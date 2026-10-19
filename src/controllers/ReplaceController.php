@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\controllers;
 
 use Craft;
@@ -23,17 +25,19 @@ class ReplaceController extends Controller
         return parent::beforeAction($action);
     }
 
-    public function actionReplace(): Response
+    public function actionReplace(): ?Response
     {
         $this->requireAcceptsJson();
         if (!ElementRelations::canReplace()) {
             throw new ForbiddenHttpException('User is not permitted to replace element references.');
         }
-        $request = Craft::$app->getRequest();
-        $siteId = (int)$request->getRequiredBodyParam('siteId');
-        $from = Craft::$app->getElements()->getElementById((int)$request->getRequiredBodyParam('fromId'), null, $siteId);
-        $to = $from ? Craft::$app->getElements()->getElementById((int)$request->getRequiredBodyParam('toId'), $from::class, $siteId) : null;
-        $sourceIds = array_values(array_filter(array_map('intval', (array)$request->getBodyParam('sourceIds', []))));
+        $siteId = $this->intBodyParam('siteId');
+        $from = Craft::$app->getElements()->getElementById($this->intBodyParam('fromId'), null, $siteId);
+        $to = $from ? Craft::$app->getElements()->getElementById($this->intBodyParam('toId'), $from::class, $siteId) : null;
+        $sourceIds = array_values(array_filter(array_map(
+            fn(mixed $id): int => is_numeric($id) ? (int)$id : 0,
+            (array)$this->request->getBodyParam('sourceIds', []),
+        )));
         if (!$from || !$to || $to->id === $from->id) {
             return $this->asFailure(Craft::t('element-relations', 'replace-invalid'));
         }
@@ -59,15 +63,14 @@ class ReplaceController extends Controller
         if (!ElementRelations::canRollBack()) {
             throw new ForbiddenHttpException('User is not permitted to roll back replacements.');
         }
-        $request = Craft::$app->getRequest();
-        $operation = ReplacementRecord::findOne((int)$request->getRequiredBodyParam('operationId'));
+        $operation = ReplacementRecord::findOne($this->intBodyParam('operationId'));
         if (!$operation || $operation->status !== ReplacementRecord::STATUS_APPLIED) {
             return $this->asFailure(Craft::t('element-relations', 'rollback-not-possible'));
         }
         if (!ElementRelations::canRollBackOperation($operation)) {
             throw new ForbiddenHttpException('Only admins can roll back replacements of other users.');
         }
-        $mode = $request->getBodyParam('mode') === ReplaceService::ROLLBACK_REVISIONS ? ReplaceService::ROLLBACK_REVISIONS : ReplaceService::ROLLBACK_SWAP;
+        $mode = $this->request->getBodyParam('mode') === ReplaceService::ROLLBACK_REVISIONS ? ReplaceService::ROLLBACK_REVISIONS : ReplaceService::ROLLBACK_SWAP;
         $result = ReplaceService::rollback($operation, $mode);
         $message = $result['reverted']
             ? Craft::t('element-relations', 'rollback-reverted', ['count' => $result['restored'], 'reverted' => $result['reverted']])
@@ -78,7 +81,7 @@ class ReplaceController extends Controller
         return $this->asSuccess($message, $result);
     }
 
-    /** @param array{replaced: int, skipped: string[], withoutRevision?: int} $result */
+    /** @param array{replaced: int, skipped: list<string>, withoutRevision?: int} $result */
     public static function resultMessage(array $result, string $from, string $to): string
     {
         $message = Craft::t('element-relations', 'replace-done', ['count' => $result['replaced'], 'from' => $from, 'to' => $to]);
@@ -89,5 +92,12 @@ class ReplaceController extends Controller
             $message .= ' ' . Craft::t('element-relations', 'replace-skipped', ['count' => count($result['skipped']), 'list' => implode(', ', $result['skipped'])]);
         }
         return $message;
+    }
+
+    /** A required id from the request body; anything that is not a number becomes 0, which matches no record. */
+    private function intBodyParam(string $name): int
+    {
+        $value = $this->request->getRequiredBodyParam($name);
+        return is_numeric($value) ? (int)$value : 0;
     }
 }

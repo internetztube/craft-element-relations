@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\elements;
 
 use Craft;
@@ -57,6 +59,7 @@ final class RestrictedUsage extends Element
         return null;
     }
 
+    /** @return array{} */
     protected static function defineTableAttributes(): array
     {
         return [];

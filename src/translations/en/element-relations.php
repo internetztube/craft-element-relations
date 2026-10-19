@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
     'field-value-unused' => 'Unused',
     'field-hint-draft' => 'Drafts cannot be used in relations',

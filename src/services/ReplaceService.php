@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services;
 
 use Craft;
@@ -40,6 +42,11 @@ use yii\base\Event;
  *   restored instead, as long as the field was not changed since.
  * - revert to revisions: owners with a revision from before the replacement are reverted to it with Craft's own
  *   revision revert (later edits to those entries are discarded); everything else is swapped back.
+ *
+ * @phpstan-import-type Change from ReplacementRecord
+ * @phpstan-import-type OwnerRevisions from ReplacementRecord
+ * @phpstan-type ReplaceResult array{replaced: int, skipped: list<string>, operationId: int|null, queued: bool, withoutRevision: int, denied: bool}
+ * @phpstan-type RollbackResult array{restored: int, skipped: list<string>, reverted: int}
  */
 class ReplaceService
 {
@@ -62,9 +69,9 @@ class ReplaceService
      * @param int[]|null $onlySourceIds restrict to these relating elements as listed in the field (top-level owners;
      * nested entries, navigation nodes etc. are matched through their owner); null = everywhere
      * @param ReplacementRecord|null $operation a queued operation to run (ReplaceElementJob); null = start a new one
-     * @param callable|null $progress called with 0..1 while running (queue job progress)
+     * @param (callable(float): void)|null $progress called with 0..1 while running (queue job progress)
      * @param bool $allowQueue run as a queue job when more elements than the `replaceSyncLimit` setting are affected
-     * @return array{replaced: int, skipped: string[], operationId: int|null, queued: bool, withoutRevision: int, denied: bool}
+     * @return ReplaceResult
      */
     public static function replace(
         ElementInterface $from,
@@ -81,7 +88,7 @@ class ReplaceService
         if ($onlySourceIds === []) {
             return $nothing; // "none selected" must never mean "everywhere"
         }
-        $userId = $operation?->userId ?? self::currentUserId();
+        $userId = $operation?->userId !== null ? (int)$operation->userId : self::currentUserId();
         $user = self::permissionUser($userId);
         $elementsService = Craft::$app->getElements();
         if ($userId && !$user) {
@@ -98,6 +105,7 @@ class ReplaceService
             }
         }
 
+        /** @var list<array{sourceElementId: int|string, sourceSiteId: int|string, sourcePrimaryOwnerId: int|string|null, fieldId: int|string|null, type: string}> $rows */
         $rows = (new Query())
             ->select(['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'fieldId', 'type'])
             ->distinct()
@@ -113,7 +121,7 @@ class ReplaceService
             $bySource["{$row['sourceElementId']}:{$row['sourceSiteId']}"][] = $row;
         }
 
-        if (!$operation && $allowQueue && count(array_unique(array_column($rows, 'sourceElementId'))) > ElementRelations::getInstance()->getSettings()->replaceSyncLimit) {
+        if (!$operation && $allowQueue && count(array_unique(array_column($rows, 'sourceElementId'))) > ElementRelations::$plugin->getSettings()->replaceSyncLimit) {
             $operation = self::newOperation($from, $to, $onlySourceIds, $userId, ReplacementRecord::STATUS_QUEUED);
             Craft::$app->getQueue()->push(new ReplaceElementJob(['operationId' => $operation->id]));
             Craft::info(sprintf('Replacement #%d of #%d by #%d queued (%d elements)', $operation->id, $from->id, $to->id, count($bySource)), 'element-relations');
@@ -123,8 +131,10 @@ class ReplaceService
         $notes = Craft::t('element-relations', 'replace-revision-notes', ['from' => (string)$from, 'to' => (string)$to]);
         $replaced = 0;
         $skipped = [];
+        /** @var list<Change> $changes */
         $changes = [];
-        $owners = []; // "ownerId:siteId" => owner info, see ownerInfo()
+        /** @var array<string, array{ownerId: int, siteId: int, support: string, revisionBeforeId: int|null, revisionAfterId?: int|null, changed?: bool, nested?: bool}> $owners "ownerId:siteId" => see ownerInfo() */
+        $owners = [];
         $saved = []; // element ids rewritten (in whichever site)
         $pending = []; // "not rewritten" per element id; decided once every site has been seen
         $done = 0;
@@ -158,10 +168,10 @@ class ReplaceService
                     continue;
                 }
                 $preHadTo = in_array($to->id, ExtractorService::targetIds($element, $field), true);
-                $before = $field ? $field->serializeValue($element->getFieldValue($field->handle), $element) : null;
+                $before = $field ? self::serializedFieldValue($field, $element) : null;
                 $ok = $field ? self::replaceInField($field, $element, $from, $to) : self::replaceInElement($element, $from, $to);
                 if ($ok) {
-                    $elementChanges[] = ['elementId' => $id, 'siteId' => $siteId, 'ownerId' => $ownerId, 'fieldId' => $field?->id, 'preHadTo' => $preHadTo, 'before' => $before];
+                    $elementChanges[] = ['elementId' => $id, 'siteId' => $siteId, 'ownerId' => $ownerId, 'fieldId' => $field ? (int)$field->id : null, 'preHadTo' => $preHadTo, 'before' => $before];
                 } else {
                     $pending[$id][] = self::label($element, $user, $field);
                 }
@@ -186,14 +196,14 @@ class ReplaceService
             $fresh = self::load($types[$id] ?? null, $id, $siteId);
             foreach ($elementChanges as $change) {
                 $field = $change['fieldId'] ? Craft::$app->getFields()->getFieldById($change['fieldId']) : null;
-                $change['after'] = $field && $fresh ? $field->serializeValue($fresh->getFieldValue($field->handle), $fresh) : null;
+                $change['after'] = $field instanceof Field && $fresh ? self::serializedFieldValue($field, $fresh) : null;
                 $changes[] = $change;
             }
         }
 
         // every changed owner gets a revision of the replaced state (Craft makes none for a nested-only change, and
         // skips one when the previous revision is from the same second)
-        $owners = array_filter($owners, fn(array $owner) => !empty($owner['changed']));
+        $owners = array_filter($owners, fn(array $owner): bool => !empty($owner['changed']));
         foreach ($owners as $key => $owner) {
             $owners[$key]['revisionAfterId'] = self::guaranteeRevision($owner, $owner['revisionBeforeId'], $notes, $userId);
             unset($owners[$key]['changed'], $owners[$key]['nested']);
@@ -210,19 +220,20 @@ class ReplaceService
         self::refreshEverySite(array_keys($saved), $types);
 
         if ($onlySourceIds === null) {
-            foreach ((new RelationsModel($from->id, $from->siteId))->getGlobalUsages() as $usage) {
+            foreach ((new RelationsModel((int)$from->id, (int)$from->siteId))->getGlobalUsages() as $usage) {
                 $skipped[] = $usage->label;
             }
         }
         $skipped = array_values(array_unique($skipped));
-        $withoutRevision = count(array_filter($owners, fn(array $owner) => $owner['support'] !== self::REVISIONS_YES));
+        $withoutRevision = count(array_filter($owners, fn(array $owner): bool => $owner['support'] !== self::REVISIONS_YES));
 
         if ($changes || $operation) {
             $operation ??= self::newOperation($from, $to, $onlySourceIds, $userId, ReplacementRecord::STATUS_APPLIED);
             $operation->status = ReplacementRecord::STATUS_APPLIED;
-            $operation->changes = json_encode($changes);
-            $operation->revisions = json_encode(array_values($owners));
-            $operation->result = json_encode(['replaced' => $replaced, 'skipped' => $skipped, 'withoutRevision' => $withoutRevision]);
+            // json_encode() fails only on invalid UTF-8; such a column reads back as empty, as it always did
+            $operation->changes = json_encode($changes) ?: null;
+            $operation->revisions = json_encode(array_values($owners)) ?: null;
+            $operation->result = json_encode(['replaced' => $replaced, 'skipped' => $skipped, 'withoutRevision' => $withoutRevision]) ?: null;
             $operation->save(false);
         }
         if ($progress) {
@@ -238,7 +249,8 @@ class ReplaceService
 
     /**
      * Undoes a replace operation, see the class docs for the two modes.
-     * @return array{restored: int, skipped: string[], reverted: int}
+     * @param self::ROLLBACK_* $mode
+     * @return RollbackResult
      */
     public static function rollback(ReplacementRecord $operation, string $mode = self::ROLLBACK_SWAP): array
     {
@@ -246,8 +258,8 @@ class ReplaceService
             throw new \InvalidArgumentException('Only applied operations can be rolled back.');
         }
         $elementsService = Craft::$app->getElements();
-        $from = $elementsService->getElementById($operation->fromId, null, $operation->siteId);
-        $to = $from ? $elementsService->getElementById($operation->toId, $from::class, $operation->siteId) : null;
+        $from = $elementsService->getElementById((int)$operation->fromId, null, (int)$operation->siteId);
+        $to = $from ? $elementsService->getElementById((int)$operation->toId, $from::class, (int)$operation->siteId) : null;
         $userId = self::currentUserId();
         $user = self::permissionUser($userId);
         if ($userId && !$user) {
@@ -273,7 +285,7 @@ class ReplaceService
                 }
                 $canonical = Entry::find()->id($owner['ownerId'])->siteId($owner['siteId'])->status(null)->one();
                 $revision = Entry::find()->id($owner['revisionBeforeId'])->siteId($owner['siteId'])->revisions()->status(null)->one();
-                if (!$canonical || !$revision) {
+                if (!$canonical instanceof Entry || !$revision instanceof Entry) {
                     continue; // falls back to swapping back below
                 }
                 if ($user && !$elementsService->canSave($canonical, $user)) {
@@ -282,7 +294,8 @@ class ReplaceService
                     continue;
                 }
                 $currentBefore = $canonical->getCurrentRevision()?->id;
-                Craft::$app->getRevisions()->revertToRevision($revision, $userId ?? $operation->userId ?? self::anyAdminId());
+                $creatorId = $userId ?? ($operation->userId !== null ? (int)$operation->userId : self::anyAdminId());
+                Craft::$app->getRevisions()->revertToRevision($revision, $creatorId);
                 self::guaranteeRevision($owner, $currentBefore, $notes ?? '', $userId);
                 self::refreshOwnerTree((int)$owner['ownerId']);
                 $revertedOwners[$key] = true;
@@ -298,8 +311,9 @@ class ReplaceService
                 $byElement["{$change['elementId']}:{$change['siteId']}"][] = $change;
             }
         }
-        $types = self::types(array_map(fn($k) => (int)explode(':', $k)[0], array_keys($byElement)));
-        $touchedOwners = []; // ownerKey => [owner info, revision id before the rollback]
+        $types = self::types(array_map(fn(string $key): int => (int)explode(':', $key)[0], array_keys($byElement)));
+        /** @var array<string, array{OwnerRevisions, int|null, bool}> $touchedOwners ownerKey => [owner info, revision id before the rollback, changed] */
+        $touchedOwners = [];
         foreach ($byElement as $key => $changes) {
             [$id, $siteId] = array_map('intval', explode(':', $key));
             $element = self::load($types[$id] ?? null, $id, $siteId);
@@ -317,7 +331,7 @@ class ReplaceService
             }
             $changed = false;
             foreach ($changes as $change) {
-                $field = $change['fieldId'] ? Craft::$app->getFields()->getFieldById($change['fieldId']) : null;
+                $field = $change['fieldId'] ? Craft::$app->getFields()->getFieldById((int)$change['fieldId']) : null;
                 $field = $field instanceof Field ? $field : null;
                 if ($field && !self::canEditField($element, $field, $user)) {
                     $skipped[] = self::label($element, $user, $field) . ' (' . Craft::t('element-relations', 'replace-no-permission') . ')';
@@ -326,7 +340,7 @@ class ReplaceService
                 if (!$change['preHadTo']) {
                     // the replacement only got there through this operation: swap it back, keep later edits
                     $ok = $field ? self::replaceInField($field, $element, $to, $from) : self::replaceInElement($element, $to, $from);
-                } elseif ($field && json_encode($field->serializeValue($element->getFieldValue($field->handle), $element)) === json_encode($change['after'])) {
+                } elseif ($field && json_encode(self::serializedFieldValue($field, $element)) === json_encode($change['after'] ?? null)) {
                     // it was referenced before too: restore the previous value exactly, the field is unchanged since
                     $element->setFieldValue($field->handle, $change['before']);
                     $ok = true;
@@ -366,7 +380,7 @@ class ReplaceService
         self::refreshEverySite(array_keys($saved), $types);
 
         $operation->status = ReplacementRecord::STATUS_ROLLED_BACK;
-        $operation->result = json_encode([...$operation->getResult(), 'restored' => $restored, 'reverted' => $reverted, 'rollbackMode' => $mode, 'rollbackSkipped' => $skipped]);
+        $operation->result = json_encode([...$operation->getResult(), 'restored' => $restored, 'reverted' => $reverted, 'rollbackMode' => $mode, 'rollbackSkipped' => $skipped]) ?: null;
         $operation->save(false);
         Craft::info(sprintf('Rolled back replacement #%d (%s): %d swapped back, %d reverted to revisions%s', $operation->id, $mode, $restored, $reverted, $skipped ? '; skipped: ' . implode(', ', $skipped) : ''), 'element-relations');
         $result = ['restored' => $restored + $reverted, 'skipped' => $skipped, 'reverted' => $reverted];
@@ -379,6 +393,7 @@ class ReplaceService
     /**
      * Whether an owner gets revisions: entries in sections with versioning do; entries in sections without it and all
      * other element types do not.
+     * @return self::REVISIONS_*
      */
     public static function revisionSupport(?ElementInterface $owner): string
     {
@@ -391,10 +406,12 @@ class ReplaceService
     /**
      * How many of the usages listed for an element (owners × sites) would get no revision when replaced, by reason.
      * Cheap: one query for the owners' types, sections looked up from Craft's section cache.
+     * @param int[]|null $onlyOwnerIds
      * @return array{total: int, versioningOff: int, unsupported: int}
      */
     public static function revisionCoverage(int $elementId, ?array $onlyOwnerIds = null): array
     {
+        /** @var list<array{id: int|string, type: string, sectionId: int|string|null}> $owners */
         $owners = (new Query())
             ->select(['owners.id', 'owners.type', 'entries.sectionId'])
             ->distinct()
@@ -474,19 +491,21 @@ class ReplaceService
         return ['ownerId' => $ownerId, 'siteId' => $siteId, 'support' => $support, 'revisionBeforeId' => $before];
     }
 
+    /** @param array{ownerId: int, siteId: int, support: string} $owner */
     private static function currentRevisionId(array $owner): ?int
     {
         if ($owner['support'] !== self::REVISIONS_YES) {
             return null;
         }
         $entry = Entry::find()->id($owner['ownerId'])->siteId($owner['siteId'])->status(null)->one();
-        return $entry?->getCurrentRevision()?->id;
+        return $entry instanceof Entry ? $entry->getCurrentRevision()?->id : null;
     }
 
     /**
      * Makes sure the owner's current state has a revision: when the latest revision is still the one from before
      * (`$revisionBefore`) — a nested-only change, or Craft skipped it because the previous one is from the same
      * second — one is created with these notes. Returns the current revision id.
+     * @param array{ownerId: int, siteId: int, support: string} $owner
      */
     private static function guaranteeRevision(array $owner, ?int $revisionBefore, string $notes, ?int $userId): ?int
     {
@@ -494,7 +513,7 @@ class ReplaceService
             return null;
         }
         $entry = Entry::find()->id($owner['ownerId'])->siteId($owner['siteId'])->status(null)->one();
-        if (!$entry) {
+        if (!$entry instanceof Entry) {
             return null;
         }
         $current = $entry->getCurrentRevision()?->id;
@@ -507,8 +526,8 @@ class ReplaceService
     /** After a revision revert: the owner and every element it owns, in all sites. */
     private static function refreshOwnerTree(int $ownerId): void
     {
-        $ids = [$ownerId, ...(new Query())->select(['elementId'])->from(Table::ELEMENTS_OWNERS)->where(['ownerId' => $ownerId])->column()];
-        self::refreshEverySite(array_map('intval', $ids), self::types($ids));
+        $ids = [$ownerId, ...array_map(intval(...), (new Query())->select(['elementId'])->from(Table::ELEMENTS_OWNERS)->where(['ownerId' => $ownerId])->column())];
+        self::refreshEverySite($ids, self::types($ids));
     }
 
     /**
@@ -549,32 +568,49 @@ class ReplaceService
         return $field ? "{$field->name}: $name" : $name;
     }
 
-    /** @return array<int, string> element id => type */
+    /**
+     * @param array<int|string|null> $ids
+     * @return array<int, string> element id => type
+     */
     private static function types(array $ids): array
     {
-        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        $ids = array_values(array_unique(array_filter(array_map(intval(...), $ids))));
+        /** @var array<int, string> */
         return $ids ? (new Query())->select(['id', 'type'])->from(Table::ELEMENTS)->where(['id' => $ids])->pairs() : [];
     }
 
     private static function load(?string $type, int $id, int $siteId): ?ElementInterface
     {
-        return is_subclass_of($type, ElementInterface::class)
-            ? $type::find()->id($id)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->one()
-            : null;
+        if ($type === null || !is_subclass_of($type, ElementInterface::class)) {
+            return null;
+        }
+        $element = $type::find()->id($id)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->one();
+        return $element instanceof ElementInterface ? $element : null;
     }
 
-    /** @param int[] $ids @param array<int, string> $types */
+    /**
+     * @param int[] $ids
+     * @param array<int, string> $types element id => type
+     */
     private static function refreshEverySite(array $ids, array $types): void
     {
         foreach ($ids as $id) {
             $type = $types[$id] ?? null;
-            if (!is_subclass_of($type, ElementInterface::class)) {
+            if ($type === null || !is_subclass_of($type, ElementInterface::class)) {
                 continue;
             }
-            foreach ($type::find()->id($id)->site('*')->status(null)->drafts(null)->provisionalDrafts(null)->all() as $siteElement) {
+            /** @var ElementInterface[] $siteElements */
+            $siteElements = $type::find()->id($id)->site('*')->status(null)->drafts(null)->provisionalDrafts(null)->all();
+            foreach ($siteElements as $siteElement) {
                 ExtractorService::refreshRelationsForElement($siteElement);
             }
         }
+    }
+
+    /** The field's value on the element in the shape it is stored (and posted) in. */
+    private static function serializedFieldValue(Field $field, ElementInterface $element): mixed
+    {
+        return $field->serializeValue($element->getFieldValue($field->handle), $element);
     }
 
     private static function currentUserId(): ?int
@@ -591,9 +627,11 @@ class ReplaceService
     /** The user whose permissions apply (console runs without one are unrestricted). */
     private static function permissionUser(?int $userId): ?User
     {
-        return $userId ? User::find()->id($userId)->status(null)->one() : null;
+        $user = $userId ? User::find()->id($userId)->status(null)->one() : null;
+        return $user instanceof User ? $user : null;
     }
 
+    /** @param int[]|null $onlySourceIds */
     private static function newOperation(ElementInterface $from, ElementInterface $to, ?array $onlySourceIds, ?int $userId, string $status): ReplacementRecord
     {
         $operation = new ReplacementRecord([

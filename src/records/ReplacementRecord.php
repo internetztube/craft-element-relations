@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\records;
 
 use craft\db\ActiveRecord;
@@ -20,6 +22,9 @@ use craft\db\ActiveRecord;
  * @property string $dateCreated
  * @property string $dateUpdated
  * @property string $uid
+ *
+ * @phpstan-type Change array{elementId: int, siteId: int, ownerId?: int, fieldId: int|null, preHadTo: bool, before: mixed, after?: mixed}
+ * @phpstan-type OwnerRevisions array{ownerId: int, siteId: int, support: string, revisionBeforeId: int|null, revisionAfterId?: int|null}
  */
 class ReplacementRecord extends ActiveRecord
 {
@@ -34,26 +39,40 @@ class ReplacementRecord extends ActiveRecord
         return '{{%elementrelations_replacements}}';
     }
 
-    /** @return array<int, array{elementId: int, siteId: int, ownerId?: int, fieldId: int|null, preHadTo: bool, before: mixed, after: mixed}> */
+    /** @return list<Change> */
     public function getChanges(): array
     {
-        return json_decode($this->changes ?? '[]', true) ?: [];
+        /** @var list<Change> $changes */
+        $changes = self::decode($this->changes);
+        return $changes;
     }
 
-    /** @return array<int, array{ownerId: int, siteId: int, support: string, revisionBeforeId: int|null, revisionAfterId: int|null}> */
+    /** @return list<OwnerRevisions> */
     public function getRevisions(): array
     {
-        return json_decode($this->revisions ?? '[]', true) ?: [];
+        /** @var list<OwnerRevisions> $revisions */
+        $revisions = self::decode($this->revisions);
+        return $revisions;
     }
 
     /** Whether "revert to revisions" can do more than swapping back: at least one owner has a revision from before. */
     public function canRevertToRevisions(): bool
     {
-        return (bool)array_filter($this->getRevisions(), fn(array $owner) => !empty($owner['revisionBeforeId']));
+        return (bool)array_filter($this->getRevisions(), fn(array $owner): bool => !empty($owner['revisionBeforeId']));
     }
 
+    /** @return array{replaced?: int, skipped?: list<string>, withoutRevision?: int, restored?: int, reverted?: int, rollbackMode?: string, rollbackSkipped?: list<string>} */
     public function getResult(): array
     {
-        return json_decode($this->result ?? '[]', true) ?: [];
+        /** @var array{replaced?: int, skipped?: list<string>, withoutRevision?: int, restored?: int, reverted?: int, rollbackMode?: string, rollbackSkipped?: list<string>} $result */
+        $result = self::decode($this->result);
+        return $result;
+    }
+
+    /** @return array<mixed> */
+    private static function decode(?string $json): array
+    {
+        $value = json_decode($json ?? '[]', true);
+        return is_array($value) ? $value : [];
     }
 }

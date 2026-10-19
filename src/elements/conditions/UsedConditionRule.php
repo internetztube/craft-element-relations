@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\elements\conditions;
 
 use Craft;
@@ -32,6 +34,6 @@ class UsedConditionRule extends BaseLightswitchConditionRule implements ElementC
 
     public function matchElement(ElementInterface $element): bool
     {
-        return $this->matchValue((new RelationsModel($element->id, $element->siteId))->getIsInUseFast([]));
+        return $this->matchValue((new RelationsModel((int)$element->id, (int)$element->siteId))->getIsInUseFast([]));
     }
 }

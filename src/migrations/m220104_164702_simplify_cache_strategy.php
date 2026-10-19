@@ -1,20 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\migrations;
 
 use Craft;
 use craft\db\Migration;
-use internetztube\elementRelations\records\ElementRelationsRecord;
 
 class m220104_164702_simplify_cache_strategy extends Migration
 {
-    public function safeUp()
+    public function safeUp(): bool
     {
         $table = '{{%elementrelations_cache}}';
         // drop previous foreign key on `siteId` which was built by the install so we can drop the column
         foreach (Craft::$app->db->getSchema()->getTableForeignKeys($table) as $foreignKey) {
-            if (in_array("siteId", $foreignKey->columnNames)) {
-                $this->dropForeignKey($foreignKey->name, $table);
+            if (in_array("siteId", $foreignKey->columnNames ?? [], true)) {
+                $this->dropForeignKey((string)$foreignKey->name, $table);
             }
         }
 
@@ -39,7 +40,7 @@ class m220104_164702_simplify_cache_strategy extends Migration
         return true;
     }
 
-    public function safeDown()
+    public function safeDown(): bool
     {
         echo "m220104_164702_simplify_cache_strategy cannot be reverted.\n";
         return false;
