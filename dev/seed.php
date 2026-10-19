@@ -100,7 +100,13 @@ function ensureEntry(string $title, array $fieldValues = [], bool $enabled = tru
 $entries = Craft::$app->getEntries();
 $siteId = Craft::$app->getSites()->getPrimarySite()->id;
 
-// 0. Second site, created before anything else: Craft adds a new site to existing category groups via project config
+// 0a. Plugin config with the feature flags on, so the dev project and CI exercise the Pro edition path.
+$configFile = CRAFT_BASE_PATH . '/config/element-relations.php';
+if (!file_exists($configFile)) {
+    file_put_contents($configFile, "<?php\n\nreturn [\n    'features' => ['editions' => true],\n];\n");
+}
+
+// 0b. Second site, created before anything else: Craft adds a new site to existing category groups via project config
 // only, so a group created earlier in the same run ends up with site settings in project config but not in the
 // database, and saving its categories then fails silently ("group is not enabled for site 2").
 $sites = Craft::$app->getSites();

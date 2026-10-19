@@ -9,6 +9,9 @@ class SettingsModel extends Model
 {
     public int $bulkRefreshBatchSize = 2000;
 
+    /** Feature flags; only meaningful in `config/element-relations.php`, see ElementRelations::features(). */
+    public array $features = [];
+
     protected function defineRules(): array
     {
         return [

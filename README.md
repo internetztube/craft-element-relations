@@ -220,6 +220,10 @@ vendor/bin/phpstan              # static analysis
 
 GitHub Actions (`.github/workflows/ci.yml`) runs PHPStan and the same `dev/dev.sh ci` smoke test on PHP 8.2 and 8.3 against MySQL 8 and PostgreSQL 14, with every supported plugin installed.
 
+### Editions
+
+The plugin is a single (Lite) edition. The Pro edition exists as scaffolding behind a feature flag and has no features yet; `'features' => ['editions' => true]` in `config/element-relations.php` enables it, `ElementRelations::isPro()` gates Pro behaviour.
+
 ## Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-element-relations/issues) page.
 

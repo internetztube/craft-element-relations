@@ -8,4 +8,5 @@ Shows where an element is used. Relations are extracted on element save into `{{
 - `vendor/bin/phpstan` must stay clean (level 5, `phpstan.neon`).
 - Craft 5.3+ only (3.2+). No custom list UI and no build step: the field renders Craft's element index over the virtual `elements/Usage` type (abstract on purpose, see its docblock) filtered by the `usesElement` query param (`behaviors/ElementQueryBehavior`). The only JavaScript is one small inline snippet: the type dropdown (`templates/_field/type-menu.twig`, injected via the `cp.elements.toolbar` hook).
 - Extractors are registered in `ExtractorService::FIELD_EXTRACTORS` / `ELEMENT_EXTRACTORS`; non-element usages (plugin settings) in `RelationsModel::GLOBAL_USAGE_PROVIDERS`.
+- Editions: `ElementRelations::editions()` offers Pro only when the `features.editions` flag in `config/element-relations.php` is on (the dev seed writes that file); gate Pro behaviour with `ElementRelations::isPro()`. Detection/display stays free, workflows (delete protection, unused reports, replace) are the Pro candidates.
 - `CHANGELOG.md` has an `Unreleased` section; add user-facing changes there.

@@ -173,6 +173,16 @@ check($gql !== null, 'query succeeded: ' . json_encode($result['errors'] ?? null
 check($gql['count'] === 12 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count / count(status) / isInUse');
 check(count($gql['elements']) === 1 && $gql['elements'][0]['title'] === 'Page A12', 'elements(status: ["disabled"]) returns only Page A12');
 
+echo "Editions (behind the `features.editions` flag)\n";
+$plugin = internetztube\elementRelations\ElementRelations::class;
+check($plugin::editionsFor([]) === ['lite'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: Lite only; flag on: Lite and Pro');
+check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
+check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'installed edition defaults to Lite');
+Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
+check($plugin::isPro(), 'switching to Pro makes isPro() true');
+Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
+check(!$plugin::isPro(), 'switched back to Lite');
+
 echo "Live save path (save event -> queued refresh job -> cache)\n";
 // Seeds never fire EVENT_AFTER_REQUEST, so everything above was built by resave-relations. This exercises the real flow.
 $c = Entry::find()->title('Page C')->one();

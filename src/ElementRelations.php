@@ -37,6 +37,35 @@ class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
     public string $schemaVersion = "1.0.7";
+
+    public const EDITION_LITE = 'lite';
+    public const EDITION_PRO = 'pro';
+
+    /**
+     * Feature flags from `config/element-relations.php` (`'features' => ['editions' => true]`). Read from the file, not
+     * the settings model, because Craft asks for editions() before the plugin instance exists.
+     */
+    public static function features(): array
+    {
+        return Craft::$app->getConfig()->getConfigFromFile('element-relations')['features'] ?? [];
+    }
+
+    /** Lite only until the `editions` feature flag is on; Pro has no features yet, this is the scaffolding. */
+    public static function editions(): array
+    {
+        return self::editionsFor(self::features());
+    }
+
+    public static function editionsFor(array $features): array
+    {
+        return !empty($features['editions']) ? [self::EDITION_LITE, self::EDITION_PRO] : [self::EDITION_LITE];
+    }
+
+    /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
+    public static function isPro(): bool
+    {
+        return in_array(self::EDITION_PRO, self::editions(), true) && self::getInstance()->is(self::EDITION_PRO);
+    }
     public bool $hasCpSettings = true;
     public bool $hasCpSection = false;
 
