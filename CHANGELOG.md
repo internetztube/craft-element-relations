@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Element exports (CSV/JSON/XML) include the relation count and the IDs of the relating elements instead of `{}`. [#60](https://github.com/internetztube/craft-element-relations/issues/60)
 - New integrations: Vizy (links, images and fields inside blocks), FreeLink, SEO (by Ether) social images, LinkMate, Navigation (nodes, shown as their menu), Wishlist (items, shown as their list), Formie (form redirect entries and redirect rules, element field defaults, notification attachments, submission field values).
 - SEOmatic: Twitter and Open Graph images are covered in addition to the SEO image, and global settings are detected with any number of images (previously only with exactly one).
-- `dev/dev.sh`: local development environment (Craft 5 on PostgreSQL or MySQL via `DB_DRIVER=mysql`) with every supported plugin installed, seeds and smoke tests for every integration (`dev/seed/`, `dev/smoke/`).
+- `dev/dev.sh`: local development environment (Craft 5 on PostgreSQL or MySQL via `DB_DRIVER=mysql`) with every supported plugin installed and a second site, seeds and smoke tests for every integration and for multi-site (`dev/seed/`, `dev/smoke/`).
 - GitHub Actions workflow running PHPStan and the smoke tests on PHP 8.2/8.3 × MySQL 8/PostgreSQL 14.
 
 ### Removed

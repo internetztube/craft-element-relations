@@ -37,8 +37,13 @@ function withWebRequest(callable $fn): mixed
     $response = Craft::$app->getResponse();
     Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true]);
     Craft::$app->set('response', ['class' => craft\web\Response::class]);
+    // Craft's index templates check the current user's permissions (editable sites, ...); a console request has none
+    Craft::$app->getUser()->setIdentity(craft\elements\User::find()->admin()->one());
     try {
         return $fn();
+    } catch (Throwable $e) {
+        fwrite(STDERR, "withWebRequest: " . get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n");
+        throw $e;
     } finally {
         Craft::$app->set('request', $request);
         Craft::$app->set('response', $response);
