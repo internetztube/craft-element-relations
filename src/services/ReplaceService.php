@@ -52,7 +52,8 @@ class ReplaceService
 
         $replaced = 0;
         $skipped = [];
-        $saved = []; // element ids already rewritten through another site
+        $saved = []; // element ids rewritten (in whichever site)
+        $pending = []; // "not rewritten" per element id; decided once every site has been seen
         foreach ($bySource as $key => $sourceRows) {
             [$id, $siteId] = array_map('intval', explode(':', $key));
             $type = $types[$id] ?? null;
@@ -77,23 +78,32 @@ class ReplaceService
                     : self::replaceInElement($element, $from, $to);
                 if ($done) {
                     $changed = true;
-                } elseif (isset($saved[$id])) {
-                    // data shared across sites (Formie forms, non-translatable fields) was swapped by the other site's
-                    // save and Craft fires no save event for the sibling site; only this site's cache rows are stale
-                    ExtractorService::refreshRelationsForElement($element);
                 } else {
-                    $skipped[] = $field ? "{$field->name}: $element" : (string)$element;
+                    $pending[$id][] = $field ? "{$field->name}: $element" : (string)$element;
                 }
             }
             if ($changed) {
                 if (Craft::$app->getElements()->saveElement($element)) {
-                    // the save event queues a refresh; do it now too, so the caller's index is consistent immediately
-                    ExtractorService::refreshRelationsForElement($element);
                     $replaced++;
-                    $saved[$id] = true;
+                    $saved[$id] = true; // refreshed in every site below (the save event's queued refresh comes later)
                 } else {
                     $skipped[] = (string)$element . ' (' . implode(' ', $element->getFirstErrors()) . ')';
                 }
+            }
+        }
+
+        // Data shared across sites (non-translatable fields, Formie forms) is swapped by whichever site got saved first;
+        // the other sites then hold no reference anymore and Craft fires no save event for them. So: an element saved
+        // in any site is refreshed in every site it exists in, and only elements saved nowhere count as skipped.
+        foreach ($pending as $id => $labels) {
+            if (!isset($saved[$id])) {
+                $skipped = [...$skipped, ...$labels];
+            }
+        }
+        foreach (array_keys($saved) as $id) {
+            $type = $types[$id] ?? null;
+            foreach ($type::find()->id($id)->site('*')->status(null)->drafts(null)->provisionalDrafts(null)->all() as $siteElement) {
+                ExtractorService::refreshRelationsForElement($siteElement);
             }
         }
 

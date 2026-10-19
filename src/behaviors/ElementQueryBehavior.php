@@ -51,6 +51,13 @@ class ElementQueryBehavior extends Behavior
     /** Runs after Craft created the sub query, which is rebuilt on every prepare (count, all, ...). */
     public function applyParams(): void
     {
+        if ($this->usesElement !== null || $this->unused) {
+            // Craft caches element index queries for an hour, invalidated by the element type's cache tags. These
+            // results also change when *other* elements are saved (a relation added somewhere, a source renamed or
+            // disabled), which those tags never cover, so never serve them from the query cache.
+            $this->owner->queryCacheDuration = null;
+            $this->owner->queryCacheDependency = null;
+        }
         if ($this->unused) {
             $this->owner->subQuery->andWhere(['not exists', (new Query())
                 ->select(new Expression('1'))

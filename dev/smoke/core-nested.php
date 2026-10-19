@@ -22,4 +22,8 @@ return function (array $ctx): void {
     checkRelation($target, 'Test Category', 'category');
     checkRelation($target, 'Test Tag', 'tag');
     checkRelation(User::find()->username('admin')->one(), 'Page via Users field', 'Users field');
+
+    // a global set exists in every site with one (non-translatable) value: rows per site, one shared reference
+    $footer = Craft::$app->getGlobals()->getSetByHandle('footer');
+    replaceRoundTrip($footer, $ctx['target'], 'Global set, all sites', fn($g, $t) => array_map('intval', $g->getFieldValue('relatedEntries')->ids()) === [$t->id]);
 };
