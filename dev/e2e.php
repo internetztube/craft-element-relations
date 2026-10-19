@@ -291,11 +291,15 @@ check(count(array_intersect(array_map('strval', $sources), $relating($from))) ==
 
 // --- every seeded usage through the wizard's path, one row at a time
 echo "Every usage through the wizard (Page C and the test asset)\n";
-$cacheFingerprint = fn() => md5(json_encode((new craft\db\Query())
-    ->select(['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'type', 'globalKey'])
-    ->from('{{%elementrelations_cache}}')
-    ->orderBy(['sourceElementId' => SORT_ASC, 'sourceSiteId' => SORT_ASC, 'targetElementId' => SORT_ASC, 'fieldId' => SORT_ASC, 'type' => SORT_ASC, 'globalKey' => SORT_ASC])
-    ->all()));
+// sorted in PHP: rows that tie on some columns (e.g. global usages per site) come back in any order on PostgreSQL
+$cacheFingerprint = function (): string {
+    $rows = array_map('json_encode', (new craft\db\Query())
+        ->select(['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'type', 'globalKey'])
+        ->from('{{%elementrelations_cache}}')
+        ->all());
+    sort($rows);
+    return md5(implode("\n", $rows));
+};
 $runQueue = function (): void {
     Craft::$app->getQueue()->run(); // the web requests queued their save-event refreshes
 };
