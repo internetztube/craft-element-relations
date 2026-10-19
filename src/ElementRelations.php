@@ -71,7 +71,12 @@ class ElementRelations extends Plugin
                 Usage::ATTR_WHERE => Html::encode(ElementSummary::where($element)),
                 Usage::ATTR_SITE => Html::encode(Craft::t('site', $element->getSite()->name)),
                 Usage::ATTR_FIELD => ElementSummary::viaHtml($element),
-                default => $event->html,
+                // a Usage index mixes element types: a column this type doesn't have (Authors on an asset) stays empty
+                // instead of Craft reading an unknown property
+                default => isset(Usage::$via["$element->id:$element->siteId"])
+                    && !isset($element::tableAttributes()[$event->attribute])
+                    && !str_contains($event->attribute, ':')
+                    ? '' : $event->html,
             };
         });
 

@@ -5,6 +5,7 @@ namespace internetztube\elementRelations\elements;
 use Craft;
 use craft\base\Element;
 use craft\elements\Entry;
+use craft\enums\CmsEdition;
 use internetztube\elementRelations\elements\db\UsageQuery;
 
 /**
@@ -26,8 +27,10 @@ abstract class Usage extends Element
     public const ATTR_FIELD = 'elementRelationsField';
 
     /**
-     * Filled by UsageQuery::populate(): "<elementId>:<siteId>" => list of ['fieldId' => int|null, 'type' => string]
-     * describing through which field (or feature) that element uses the queried target.
+     * Filled by UsageQuery::populate() for every element it loads: "<elementId>:<siteId>" => list of
+     * ['fieldId' => int|null, 'type' => string] describing through which field (or feature) that element uses the
+     * queried target (empty without a `usesElement` param). Also tells the attribute HTML hook which elements are
+     * being rendered in a Usage index.
      * @var array<string, array<int, array{fieldId: int|null, type: string}>>
      */
     public static array $via = [];
@@ -97,15 +100,29 @@ abstract class Usage extends Element
 
     protected static function defineTableAttributes(): array
     {
-        return [
+        $attributes = [
             self::ATTR_TYPE => ['label' => Craft::t('element-relations', 'field-column-type')],
             self::ATTR_WHERE => ['label' => Craft::t('element-relations', 'field-column-where')],
             self::ATTR_FIELD => ['label' => Craft::t('element-relations', 'field-column-field')],
             self::ATTR_SITE => ['label' => Craft::t('app', 'Site')],
+            // Craft's own attributes; a type without one (e.g. Authors on an asset) renders an empty cell, see ElementRelations::init()
+            'status' => ['label' => Craft::t('app', 'Status')],
+            'authors' => ['label' => Craft::t('app', 'Authors')],
+            'postDate' => ['label' => Craft::t('app', 'Post Date')],
+            'expiryDate' => ['label' => Craft::t('app', 'Expiry Date')],
+            'link' => ['label' => Craft::t('app', 'Link'), 'icon' => 'world'],
+            'slug' => ['label' => Craft::t('app', 'Slug')],
+            'uri' => ['label' => Craft::t('app', 'URI')],
+            'revisionCreator' => ['label' => Craft::t('app', 'Last Edited By')],
             'dateUpdated' => ['label' => Craft::t('app', 'Date Updated')],
             'dateCreated' => ['label' => Craft::t('app', 'Date Created')],
             'id' => ['label' => Craft::t('app', 'ID')],
+            'uid' => ['label' => Craft::t('app', 'UID')],
         ];
+        if (Craft::$app->edition === CmsEdition::Solo) { // like Entry
+            unset($attributes['authors'], $attributes['revisionCreator']);
+        }
+        return $attributes;
     }
 
     protected static function defineDefaultTableAttributes(string $source): array

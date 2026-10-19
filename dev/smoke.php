@@ -117,10 +117,19 @@ check(str_contains($preview, '12 total'), 'preview links to the field with the t
 check(str_contains($input, 'class="element-index') && str_contains($input, 'search-container') && str_contains($input, 'statusmenubtn'), "input renders Craft's element index with search and status menu");
 check(!str_contains($input, 'export-btn') || str_contains($input, 'export-btn" class="btn hidden"'), 'export button stays hidden');
 $js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
+$colOpts = html_entity_decode($input);
+check(str_contains($colOpts, '"attr":"status"') && str_contains($colOpts, '"attr":"postDate"') && str_contains($colOpts, '"attr":"link"'), 'the View menu offers Status, Post Date and Link as table columns');
 check(str_contains($js, 'Craft.createElementIndex') && str_contains($js, 'usesElement') && str_contains($js, '"static":true') && str_contains($js, '"canHaveDrafts":true') && str_contains($js, 'Usage'), 'the index JS is bound to the Usage type, read-only, filtered by usesElement');
 $a1 = Entry::find()->title('Page A1')->one();
 check($a1->getAttributeHtml(Usage::ATTR_TYPE) === 'Entry' && $a1->getAttributeHtml(Usage::ATTR_WHERE) === 'Pages › Page' && $a1->getAttributeHtml(Usage::ATTR_SITE) !== '', 'index columns Type / Where / Site come from the attribute HTML hook');
 check(str_contains($a1->getAttributeHtml('dateUpdated'), '<'), "Craft's own Date Updated column still works on the real element");
+$a1Usage = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
+$a1Usage->setAuthorIds([craft\elements\User::find()->admin()->one()->id]); // seeded entries have no author
+$authorsHtml = $a1Usage->getAttributeHtml('authors'); // Craft Solo has no Authors column
+check((Craft::$app->edition === craft\enums\CmsEdition::Solo ? $authorsHtml === '' : str_contains($authorsHtml, 'chip')) && str_contains($a1Usage->getAttributeHtml('status'), 'status-label') && $a1Usage->getAttributeHtml('postDate') !== '' && str_contains($a1Usage->getAttributeHtml('link'), 'href'), 'Authors / Status / Post Date / Link columns render on an entry loaded through Usage');
+$assetUsage = Asset::find()->volume('test')->one();
+Usage::$via["$assetUsage->id:$assetUsage->siteId"] ??= [];
+check($assetUsage->getAttributeHtml('authors') === '' && $assetUsage->getAttributeHtml('postDate') === '' && str_contains($assetUsage->getAttributeHtml('filename'), '.png'), 'columns an element type lacks render empty in a Usage index (asset: Authors, Post Date), its own still work (Filename)');
 $a1Loaded = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
 $via = $a1Loaded->getAttributeHtml(Usage::ATTR_FIELD);
 check(str_contains($via, 'Related Entries') && str_contains($via, '#fields-relatedEntries-field') && str_contains($via, $a1->getCpEditUrl()), 'Field column names the field and links to it on the edit page');

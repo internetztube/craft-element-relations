@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Requires Craft 4.3+ (or 5.x).
 
 ### Added
+- More table columns to pick from in the field's View menu: Status, Authors, Post Date, Expiry Date, Link, Slug, URI, Last Edited By, UID.
 - `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
 - `internetztube\elementRelations\elements\Usage`: a virtual element type whose query spans all element types, e.g. `Usage::find()->usesElement($asset)->search('contact')->all()` returns entries, products, menus, ... as their real classes.
 - `relationsModel.globalUsages`: non-element usages (plugin settings) as `GlobalUsage` models (`label`, `url`, `provider`). `isUsedInSeomaticGlobalSettings` is kept.
