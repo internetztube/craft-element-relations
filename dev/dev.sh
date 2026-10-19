@@ -5,7 +5,7 @@
 #   dev/dev.sh stop     stop server
 #   dev/dev.sh e2e      start the server and run dev/e2e.php (control panel over HTTP: login, edit page, index + replace endpoints)
 #   dev/dev.sh queue    run queued jobs (plugin refreshes its cache via queue)
-#   dev/dev.sh seed     create Pages section + "Page A1..A12" -> "Page B"
+#   dev/dev.sh seed     test fixtures (Pages section, "Page A1..A12" -> "Page B", one entry per integration) + demo site
 #   dev/dev.sh smoke    run dev/smoke.php assertions against the seeded project
 #   dev/dev.sh reset    drop DB and reinstall from scratch
 #   dev/dev.sh ci       scaffold + install + smoke against an already running DB (what GitHub Actions runs)
@@ -86,7 +86,8 @@ install_plugins() {
   for handle in $(php craft plugin/list | awk 'NF>5 && $(NF-1)=="No"{print $(NF-4)}'); do php craft plugin/install "$handle"; done
 }
 # seed twice: schema created in the first process is only fully usable in a fresh one (see ensureEntry in seed.php)
-seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php craft queue/release all && php craft element-relations/resave-relations && php craft queue/run; }
+# then the demo site next to the fixtures (dev/demo.php: schema and content in separate processes for the same reason)
+seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/demo.php" "$PROJECT_DIR" schema && php "$PLUGIN_DIR/dev/demo.php" "$PROJECT_DIR" content && php craft queue/release all && php craft element-relations/resave-relations && php craft queue/run; }
 # the tests switch the plugin edition in console processes; write the project config YAML back afterwards so the
 # control panel does not report pending changes
 syncpc() { (cd "$PROJECT_DIR" && php craft project-config/write >/dev/null 2>&1) || true; }

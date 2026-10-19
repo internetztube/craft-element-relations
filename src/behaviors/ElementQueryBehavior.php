@@ -60,9 +60,9 @@ class ElementQueryBehavior extends Behavior
         }
         if ($this->unused) {
             $this->owner->subQuery->andWhere(['not exists', (new Query())
-                ->select(new Expression('1'))
+                ->select(['elementrelations_cache.id'])
                 ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-                ->where('[[elementrelations_cache.targetElementId]] = [[elements.id]]'),
+                ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')]),
             ]);
         }
         if ($this->usesElement === null) {
@@ -75,11 +75,13 @@ class ElementQueryBehavior extends Behavior
         }
 
         $this->owner->subQuery->andWhere(['exists', (new Query())
-            ->select(new Expression('1'))
+            ->select(['elementrelations_cache.id'])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-            ->where('[[elementrelations_cache.sourcePrimaryOwnerId]] = [[elements.id]]')
-            ->andWhere('[[elementrelations_cache.sourceSiteId]] = [[elements_sites.siteId]]')
-            ->andWhere(['elementrelations_cache.targetElementId' => $targetIds]),
+            ->where([
+                'elementrelations_cache.sourcePrimaryOwnerId' => new Expression('[[elements.id]]'),
+                'elementrelations_cache.sourceSiteId' => new Expression('[[elements_sites.siteId]]'),
+                'elementrelations_cache.targetElementId' => $targetIds,
+            ]),
         ]);
     }
 }

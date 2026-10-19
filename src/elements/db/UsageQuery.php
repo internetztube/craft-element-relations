@@ -346,7 +346,7 @@ class UsageQuery extends ElementQuery
                     ->all();
                 foreach ($loaded as $element) {
                     $elements["$type:$siteId:$element->id"] = $element;
-                    Usage::$via["$element->id:$siteId"] ??= [];
+                    Usage::$via["$element->id:$siteId"] = []; // reset: an earlier list in this request may have used another target
                 }
             }
         }

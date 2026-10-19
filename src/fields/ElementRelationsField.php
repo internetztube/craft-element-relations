@@ -169,12 +169,19 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         ];
     }
 
-    /** Sort option for element indexes: number of relating elements (all sites). Yii passes an expression with parentheses through unquoted. */
+    /**
+     * Sort option for element indexes: number of relating elements (all sites). Craft only takes a string here (it
+     * appends the direction), so the subquery is built with the query builder and passed as its SQL.
+     */
     public function getSortOption(): array
     {
+        $count = (new \craft\db\Query())
+            ->select(['COUNT(*)'])
+            ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
+            ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')]);
         return [
             'label' => Craft::t('site', $this->name),
-            'orderBy' => '(SELECT COUNT(*) FROM {{%elementrelations_cache}} WHERE [[targetElementId]] = [[elements.id]])',
+            'orderBy' => '(' . $count->createCommand()->getRawSql() . ')',
             'attribute' => "field:$this->uid",
             'defaultDir' => 'desc',
         ];

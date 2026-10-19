@@ -211,7 +211,7 @@ Add to Field Layout
 
 ## Development
 
-`dev/dev.sh` spins up a throwaway Craft 5 project with every supported plugin and a second site, seeds test content and starts a server at http://localhost:8080/admin (admin / password).
+`dev/dev.sh` spins up a throwaway Craft 5 project with every supported plugin and a second site, seeds test content and starts a server at http://localhost:8080/admin (admin / password). Next to the test fixtures (section “Pages”) the seed builds a demo site for screenshots ([`dev/demo.php`](dev/demo.php)): “Transit”, a travel journal with articles, team, company pages, a homepage of content blocks, menus, forms, drafts and German translations, with photos by Frederic Köberl on [Unsplash](https://unsplash.com/@internetztube) (downloaded on the first seed; drawn pictures without network).
 
 ```sh
 dev/dev.sh                      # setup + serve (PostgreSQL)
