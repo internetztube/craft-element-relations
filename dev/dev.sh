@@ -3,6 +3,7 @@
 #   dev/dev.sh          setup (if needed) + start server in background
 #   dev/dev.sh serve    start server in background (http://localhost:8080/admin, admin / password)
 #   dev/dev.sh stop     stop server
+#   dev/dev.sh e2e      start the server and run dev/e2e.php (control panel over HTTP: login, edit page, index + replace endpoints)
 #   dev/dev.sh queue    run queued jobs (plugin refreshes its cache via queue)
 #   dev/dev.sh seed     create Pages section + "Page A1..A12" -> "Page B"
 #   dev/dev.sh smoke    run dev/smoke.php assertions against the seeded project
@@ -87,6 +88,7 @@ install_plugins() {
 # seed twice: schema created in the first process is only fully usable in a fresh one (see ensureEntry in seed.php)
 seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php "$PLUGIN_DIR/dev/seed.php" "$PROJECT_DIR" && php craft queue/release all && php craft element-relations/resave-relations && php craft queue/run; }
 smoke() { seed && php "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; }
+e2e()   { serve && php "$PLUGIN_DIR/dev/e2e.php" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; return $rc; }
 
 stop() { [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -f "$PIDFILE"; }
 
@@ -107,6 +109,7 @@ case "${1:-up}" in
   seed)  seed ;;
   smoke) smoke ;;
   reset) stop; db_drop; db_up; install; seed; serve ;;
-  ci)    scaffold; install; smoke ;;
+  e2e)   e2e ;;
+  ci)    scaffold; install; smoke; e2e ;;
   *)     sed -n "2,13p" "$0"; exit 1 ;;
 esac

@@ -31,4 +31,7 @@ return function (array $ctx): void {
     $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
     $counted = (new craft\db\Query())->select($sort['orderBy'])->from(['elements' => craft\db\Table::ELEMENTS])->where(['elements.id' => $asset->id])->scalar();
     check((int)$counted > (int)(new RelationsModel($asset->id, $asset->siteId))->getCountFast([]), 'the sort count includes the non-element usages');
+
+    replaceRoundTrip($entry, $asset, 'SEOmatic SEO image', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->seoImageIds) === [$t->id]);
+    replaceRoundTrip(Entry::find()->title('Page via SEOmatic (social)')->one(), $asset, 'SEOmatic Twitter/OG images', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->ogImageIds) === [$t->id]);
 };

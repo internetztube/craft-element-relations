@@ -7,16 +7,16 @@ use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\db\Query;
 use craft\db\Table;
-use craft\fields\BaseRelationField;
 use internetztube\elementRelations\models\RelationsModel;
+use internetztube\elementRelations\services\extractors\InterfaceElementReplacer;
+use internetztube\elementRelations\services\extractors\InterfaceFieldReplacer;
 
 /**
  * Pro: replaces every usage of one element by another of the same type, going through the relating elements' field
  * values and Craft's save path (so the cache, search index and revisions stay consistent).
  *
- * Handled: relational fields (Entries, Assets, Categories, Tags, Users, plugin fields extending BaseRelationField,
- * also inside Matrix/nested entries), CKEditor/Redactor reference tags, SEOmatic SEO/Twitter/OG images.
- * Everything else (link plugins, element-level usages such as user photos, plugin settings) is reported as "manual".
+ * Each extractor is also the replacer for its field or element type (InterfaceFieldReplacer / InterfaceElementReplacer),
+ * so whatever can be detected can be swapped. Usages without a replacer (plugin settings) are reported as "manual".
  */
 class ReplaceService
 {
@@ -52,6 +52,7 @@ class ReplaceService
 
         $replaced = 0;
         $skipped = [];
+        $saved = []; // element ids already rewritten through another site
         foreach ($bySource as $key => $sourceRows) {
             [$id, $siteId] = array_map('intval', explode(':', $key));
             $type = $types[$id] ?? null;
@@ -71,8 +72,15 @@ class ReplaceService
             $changed = false;
             foreach ($sourceRows as $row) {
                 $field = $row['fieldId'] ? Craft::$app->getFields()->getFieldById((int)$row['fieldId']) : null;
-                if ($field instanceof Field && self::replaceInField($field, $element, $from, $to)) {
+                $done = $field instanceof Field
+                    ? self::replaceInField($field, $element, $from, $to)
+                    : self::replaceInElement($element, $from, $to);
+                if ($done) {
                     $changed = true;
+                } elseif (isset($saved[$id])) {
+                    // data shared across sites (Formie forms, non-translatable fields) was swapped by the other site's
+                    // save and Craft fires no save event for the sibling site; only this site's cache rows are stale
+                    ExtractorService::refreshRelationsForElement($element);
                 } else {
                     $skipped[] = $field ? "{$field->name}: $element" : (string)$element;
                 }
@@ -82,6 +90,7 @@ class ReplaceService
                     // the save event queues a refresh; do it now too, so the caller's index is consistent immediately
                     ExtractorService::refreshRelationsForElement($element);
                     $replaced++;
+                    $saved[$id] = true;
                 } else {
                     $skipped[] = (string)$element . ' (' . implode(' ', $element->getFirstErrors()) . ')';
                 }
@@ -97,69 +106,36 @@ class ReplaceService
         return ['replaced' => $replaced, 'skipped' => array_values(array_unique($skipped))];
     }
 
-    /** Swaps `$from` for `$to` in the element's value of this field; false when the field type is not supported. */
+    /**
+     * Swaps `$from` for `$to` in the element's value of this field. The field extractors double as replacers
+     * (InterfaceFieldReplacer); the first one that recognises the field type decides. False = not supported / no change.
+     */
     public static function replaceInField(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): bool
     {
-        $handle = $field->handle;
-
-        if ($field instanceof BaseRelationField) {
-            $ids = array_map('intval', $element->getFieldValue($handle)->ids());
-            if (!in_array($from->id, $ids, true)) {
-                return false;
+        foreach (array_filter(ExtractorService::FIELD_EXTRACTORS, 'class_exists') as $extractor) {
+            if (!is_subclass_of($extractor, InterfaceFieldReplacer::class)) {
+                continue;
             }
-            $ids = array_values(array_unique(array_map(fn(int $id) => $id === $from->id ? $to->id : $id, $ids)));
-            $element->setFieldValue($handle, $ids);
-            return true;
+            $result = $extractor::replace($field, $element, $from, $to);
+            if ($result !== null) {
+                return $result;
+            }
         }
+        return false;
+    }
 
-        if (is_a($field, 'craft\ckeditor\Field') || is_a($field, 'craft\redactor\Field')) {
-            // Reference tags: {asset:12:url||https://fallback}, {entry:12@2:title}, ... The `||` fallback is the cached
-            // URL of the old element; Craft's HtmlField drops a tag with an empty fallback, so keep the old one when
-            // the replacement has no URL.
-            $raw = $element->getFieldValue($handle)?->getRawContent() ?? '';
-            $refHandle = preg_quote($from::refHandle(), '/');
-            $new = preg_replace_callback(
-                '/\{' . $refHandle . ':' . $from->id . '(@\d+)?(?::([\w.]+))?(?:\|\|([^}]*))?\}/',
-                function (array $m) use ($from, $to): string {
-                    $site = $m[1] ?? '';
-                    $property = isset($m[2]) && $m[2] !== '' ? ':' . $m[2] : '';
-                    $fallback = $m[3] ?? null;
-                    if ($fallback !== null && ($m[2] ?? '') === 'url') {
-                        $fallback = $to->getUrl() ?: $fallback;
-                    }
-                    return '{' . $from::refHandle() . ':' . $to->id . $site . $property . ($fallback !== null ? '||' . $fallback : '') . '}';
-                },
-                $raw,
-                -1,
-                $count,
-            );
-            if (!$count) {
-                return false;
+    /** Same for usages stored outside custom fields (user photo, navigation node, …), see InterfaceElementReplacer. */
+    public static function replaceInElement(ElementInterface $element, ElementInterface $from, ElementInterface $to): bool
+    {
+        foreach (array_filter(ExtractorService::ELEMENT_EXTRACTORS, 'class_exists') as $extractor) {
+            if (!is_subclass_of($extractor, InterfaceElementReplacer::class)) {
+                continue;
             }
-            $element->setFieldValue($handle, $new);
-            return true;
+            $result = $extractor::replace($element, $from, $to);
+            if ($result !== null) {
+                return $result;
+            }
         }
-
-        if (is_a($field, 'nystudio107\seomatic\fields\SeoSettings')) {
-            $value = $field->serializeValue($element->getFieldValue($handle), $element);
-            $count = 0;
-            foreach (['seoImageIds', 'twitterImageIds', 'ogImageIds'] as $key) {
-                $ids = (array)($value['metaBundleSettings'][$key] ?? []);
-                $value['metaBundleSettings'][$key] = array_values(array_unique(array_map(function ($id) use ($from, $to, &$count) {
-                    if ((int)$id === $from->id) {
-                        $count++;
-                        return (string)$to->id;
-                    }
-                    return $id;
-                }, $ids)));
-            }
-            if (!$count) {
-                return false;
-            }
-            $element->setFieldValue($handle, $value);
-            return true;
-        }
-
         return false;
     }
 }

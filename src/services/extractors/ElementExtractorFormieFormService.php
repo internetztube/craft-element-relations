@@ -21,7 +21,7 @@ use verbb\formie\elements\Submission;
  * Formie's own Craft fields (`verbb\formie\fields\Forms`/`Submissions` on entries) extend BaseRelationField and are
  * handled by the generic field extractors.
  */
-class ElementExtractorFormieFormService implements InterfaceElementExtractor
+class ElementExtractorFormieFormService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
     /**
      * @return ElementRelationsCacheRecord[]|false
@@ -93,5 +93,73 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor
             return [];
         }
         return $elementType::find()->id($ids)->status(null)->site('*')->preferSites([$siteId])->unique()->all();
+    }
+
+    /** The inverse of getRelations(): same places, ids swapped in place (the stored shape is kept). */
+    public static function replace(ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if ($element instanceof Form) {
+            $count = 0;
+            if ($element->redirectEntryId === $from->id) {
+                $element->redirectEntryId = $to->id;
+                $element->redirectEntrySiteId = $to->siteId;
+                $count++;
+            }
+            if ($settings = $element->getSettings()) {
+                foreach ($settings->redirectRules as &$rule) {
+                    if (isset($rule['redirectEntry'])) {
+                        $rule['redirectEntry'] = self::swap($rule['redirectEntry'], $from, $to, $count);
+                    }
+                }
+                unset($rule);
+            }
+            foreach ($element->getFieldsRecursively() as $field) {
+                if ($field instanceof ElementField) {
+                    $field->defaultValue = self::swap($field->defaultValue, $from, $to, $count);
+                    $field->sourceElements = self::swap($field->sourceElements, $from, $to, $count);
+                }
+            }
+            foreach ($element->getNotifications() ?? [] as $notification) {
+                $notification->attachAssets = self::swap($notification->attachAssets, $from, $to, $count);
+            }
+            return $count > 0;
+        }
+        if ($element instanceof Submission) {
+            if ($element->hasLockedContent()) {
+                return false; // encrypted values cannot be rewritten here
+            }
+            $count = 0;
+            foreach ($element->getFieldValuesForField(ElementField::class) as $key => $value) {
+                if (!($value instanceof ElementQueryInterface)) {
+                    continue;
+                }
+                $ids = self::swap(array_map('intval', (clone $value)->status(null)->ids()), $from, $to, $count);
+                if (in_array($to->id, $ids, true)) {
+                    $element->setFieldValue($key, $ids);
+                }
+            }
+            return $count > 0;
+        }
+        return null;
+    }
+
+    /** Swaps `$from` for `$to` in a reference of any shape find() reads; `$count` is bumped per swap. */
+    private static function swap(mixed $ref, ElementInterface $from, ElementInterface $to, int &$count): mixed
+    {
+        if (is_array($ref) && isset($ref['id'])) {
+            if ((int)$ref['id'] === $from->id) {
+                $count++;
+                return array_replace($ref, ['id' => $to->id], isset($ref['siteId']) ? ['siteId' => $to->siteId] : []);
+            }
+            return $ref;
+        }
+        if (is_array($ref)) {
+            return array_map(function ($item) use ($from, $to, &$count) { return self::swap($item, $from, $to, $count); }, $ref);
+        }
+        if ($ref && (int)$ref === $from->id) {
+            $count++;
+            return $to->id;
+        }
+        return $ref;
     }
 }

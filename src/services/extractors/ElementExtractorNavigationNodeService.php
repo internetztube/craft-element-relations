@@ -12,7 +12,7 @@ use verbb\navigation\elements\Node;
  * The relation is attributed to the node's menu by ExtractorService::getPrimaryOwnerId() (Navigation 4: node.menuId),
  * because a node's title defaults to the linked element's title, so "Page C" would be shown as used by "Page C".
  */
-class ElementExtractorNavigationNodeService implements InterfaceElementExtractor
+class ElementExtractorNavigationNodeService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
     /**
      * @return ElementRelationsCacheRecord|false
@@ -37,5 +37,19 @@ class ElementExtractorNavigationNodeService implements InterfaceElementExtractor
         ]);
         // Navigation 3 menus are not elements; keep the node itself as the source there.
         return $record;
+    }
+
+    public static function replace(ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!($element instanceof Node)) {
+            return null;
+        }
+        if ((int)$element->elementId !== $from->id) {
+            return false;
+        }
+        $element->elementId = $to->id;
+        $element->setElementSiteId($to->siteId); // persisted by Navigation's node site settings on save
+        $element->setElement($to);
+        return true;
     }
 }

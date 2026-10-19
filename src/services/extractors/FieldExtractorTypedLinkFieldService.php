@@ -7,7 +7,7 @@ use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use Craft;
 
-class FieldExtractorTypedLinkFieldService implements InterfaceFieldExtractor
+class FieldExtractorTypedLinkFieldService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
     /**
      * @param Field $field
@@ -42,5 +42,24 @@ class FieldExtractorTypedLinkFieldService implements InterfaceFieldExtractor
             'fieldId' => $field->id,
         ]);
         return [$record];
+    }
+
+    /**
+     * Serialized value: JSON of the record attributes (type, linkedId, linkedSiteId, linkedTitle, linkedUrl, payload).
+     * The cached title/URL are dropped so the plugin recomputes them for the new element.
+     */
+    public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!Craft::$app->plugins->isPluginEnabled('typedlinkfield') || !($field instanceof \lenz\linkfield\fields\LinkField)) {
+            return null;
+        }
+        $link = $element->getFieldValue($field->handle);
+        if (!($link instanceof \lenz\linkfield\models\element\ElementLink) || $link->linkedId !== $from->id) {
+            return false;
+        }
+        $value = \craft\helpers\Json::decode($field->serializeValue($link, $element));
+        unset($value['linkedTitle'], $value['linkedUrl']);
+        $element->setFieldValue($field->handle, ['linkedId' => $to->id] + $value);
+        return true;
     }
 }

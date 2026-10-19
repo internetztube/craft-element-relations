@@ -212,6 +212,13 @@ class ElementRelations extends Plugin
             ) {
                 return;
             }
+            if (ExtractorService::hasElementExtractor($element)) {
+                // their data is not per site (a Formie form's settings, a node's target) and Craft saves only one site
+                foreach (\craft\helpers\ElementHelper::supportedSitesForElement($element) as $site) {
+                    QueueElementsForRefreshService::registerForRefresh($element->id, (int)$site['siteId']);
+                }
+                return;
+            }
             QueueElementsForRefreshService::registerForRefresh($element->id, $element->siteId);
         });
 

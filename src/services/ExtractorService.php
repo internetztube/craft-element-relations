@@ -18,7 +18,7 @@ class ExtractorService
      * Each checks itself whether its plugin is installed, so listing one for a missing plugin is harmless.
      * @var class-string<InterfaceFieldExtractor>[]
      */
-    private const FIELD_EXTRACTORS = [
+    public const FIELD_EXTRACTORS = [
         // core relation fields (also picks up drafts of the targets)
         extractors\FieldExtractorBaseRelationService::class,
         // everything else Craft itself writes to the `relations` table (core Link field, plugin fields)
@@ -52,7 +52,7 @@ class ExtractorService
         'verbb\\formie\\elements\\Submission',
     ];
 
-    private const ELEMENT_EXTRACTORS = [
+    public const ELEMENT_EXTRACTORS = [
         extractors\ElementExtractorUserPhotoService::class,
         extractors\ElementExtractorNavigationNodeService::class,
         extractors\ElementExtractorWishlistItemService::class,

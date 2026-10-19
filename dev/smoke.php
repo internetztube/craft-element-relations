@@ -58,6 +58,47 @@ function relatingTitles(ElementInterface $element): array
     return $titles;
 }
 
+/** Runs the queued relation refreshes (a bootstrapped script never fires EVENT_AFTER_REQUEST by itself). */
+function flushQueue(): void
+{
+    Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
+    Craft::$app->getQueue()->run();
+}
+
+/**
+ * Round trip of the Pro replace feature on one relating element, the way the field's wizard calls it: `$from` is
+ * swapped for a temporary element of the same type in `$source` only, the relation must move, `$pointsTo($reloaded,
+ * $target)` must see the new reference in the plugin's own field value; then the swap is reverted and checked again.
+ * Every extractor's replacer gets exercised through this helper by its integration smoke.
+ */
+function replaceRoundTrip(ElementInterface $source, ElementInterface $from, string $what, callable $pointsTo): void
+{
+    $elements = Craft::$app->getElements();
+    if ($from instanceof Entry) {
+        $target = new Entry(['sectionId' => $from->sectionId, 'typeId' => $from->typeId, 'title' => "RT $what"]);
+    } elseif ($from instanceof Asset) {
+        $tmp = tempnam(sys_get_temp_dir(), 'er') . '.png';
+        file_put_contents($tmp, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+        $target = new Asset(['tempFilePath' => $tmp, 'filename' => 'rt.png', 'title' => "RT $what", 'newFolderId' => $from->folderId, 'volumeId' => $from->volumeId, 'avoidFilenameConflicts' => true]);
+        $target->setScenario(Asset::SCENARIO_CREATE);
+    } else {
+        throw new RuntimeException('replaceRoundTrip supports entries and assets as "from"');
+    }
+    $elements->saveElement($target) or throw new RuntimeException(json_encode($target->getErrors()));
+    $reload = fn() => $source::find()->id($source->id)->siteId($source->siteId)->status(null)->one();
+
+    $result = internetztube\elementRelations\services\ReplaceService::replace($from, $target, [$source->id]);
+    flushQueue();
+    check($result['replaced'] === 1 && !$result['skipped'], "$what: replace rewrites the element (" . json_encode($result) . ')');
+    check(in_array((string)$source, relatingTitles($target), true) && !in_array((string)$source, relatingTitles($from), true), "$what: the relation moved to the target");
+    check((bool)$pointsTo($reload(), $target), "$what: the field value points to the target");
+
+    $back = internetztube\elementRelations\services\ReplaceService::replace($target, $from, [$source->id]);
+    flushQueue();
+    check($back['replaced'] === 1 && in_array((string)$source, relatingTitles($from), true) && (bool)$pointsTo($reload(), $from), "$what: replacing back restores the original");
+    $elements->deleteElement($target, true);
+}
+
 /** Asserts that `$sourceTitle` is among the elements relating to `$target`. */
 function checkRelation(ElementInterface $target, string $sourceTitle, string $what): void
 {
@@ -66,7 +107,7 @@ function checkRelation(ElementInterface $target, string $sourceTitle, string $wh
 }
 
 // Leftovers of an aborted run (a FAIL exits before the cleanup at the end of each section)
-foreach ([...Entry::find()->title(['Page via replace*', 'Page via save event', 'ST *', 'DX *'])->status(null)->drafts(null)->provisionalDrafts(null)->all(), ...Asset::find()->filename('unused*')->all()] as $leftover) {
+foreach ([...Entry::find()->title(['Page via replace*', 'Page via save event', 'ST *', 'DX *', 'RT *', 'E2E *'])->status(null)->drafts(null)->provisionalDrafts(null)->all(), ...Asset::find()->filename(['unused*', 'rt*'])->all()] as $leftover) {
     Craft::$app->getElements()->deleteElement($leftover, true);
 }
 
@@ -219,6 +260,11 @@ Craft::$app->getQueue()->run();
 check(!in_array('Page via save event', relatingTitles($c), true) && in_array('Page via save event', relatingTitles($b), true), 'the refresh moves the relation from Page C to Page B');
 Craft::$app->getElements()->deleteElement($live, true);
 check(!in_array('Page via save event', relatingTitles($c), true), 'deleting the entry removes its relation');
+
+echo "Replace (Pro) on core fields\n";
+Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
+replaceRoundTrip(Entry::find()->title('Page A1')->one(), $b, 'Entries field', fn(Entry $e, $t) => array_map('intval', $e->getFieldValue('relatedEntries')->ids()) === [$t->id]);
+Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
 
 echo "Cache hygiene\n";
 $failedJobs = (new craft\db\Query())->select(['description', 'error'])->from('{{%queue}}')->where(['fail' => true])->all();

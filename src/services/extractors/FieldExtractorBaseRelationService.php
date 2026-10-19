@@ -8,7 +8,7 @@ use craft\elements\db\ElementQuery;
 use craft\fields\BaseRelationField;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
-class FieldExtractorBaseRelationService implements InterfaceFieldExtractor
+class FieldExtractorBaseRelationService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
     /**
      * @param Field $field
@@ -43,5 +43,18 @@ class FieldExtractorBaseRelationService implements InterfaceFieldExtractor
                 return $record;
             })
             ->all();
+    }
+
+    public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!($field instanceof BaseRelationField)) {
+            return null;
+        }
+        $ids = array_map('intval', $element->getFieldValue($field->handle)->status(null)->ids());
+        if (!in_array($from->id, $ids, true)) {
+            return false;
+        }
+        $element->setFieldValue($field->handle, array_values(array_unique(array_map(fn(int $id) => $id === $from->id ? $to->id : $id, $ids))));
+        return true;
     }
 }

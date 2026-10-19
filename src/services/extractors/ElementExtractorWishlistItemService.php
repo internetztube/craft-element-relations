@@ -11,7 +11,7 @@ use verbb\wishlist\elements\Item;
  * verbb/wishlist: an item stores the wished-for element (elementId, elementSiteId, elementClass).
  * The relation is attributed to the item's list: an item's title is the element's own title.
  */
-class ElementExtractorWishlistItemService implements InterfaceElementExtractor
+class ElementExtractorWishlistItemService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
     /**
      * @return ElementRelationsCacheRecord|false
@@ -33,5 +33,20 @@ class ElementExtractorWishlistItemService implements InterfaceElementExtractor
             'targetSiteId' => $target->siteId,
         ]);
         return $record;
+    }
+
+    public static function replace(ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!($element instanceof Item)) {
+            return null;
+        }
+        if ((int)$element->elementId !== $from->id) {
+            return false;
+        }
+        $element->elementId = $to->id;
+        $element->elementSiteId = $to->siteId;
+        $element->elementClass = $to::class;
+        $element->setElement($to);
+        return true;
     }
 }

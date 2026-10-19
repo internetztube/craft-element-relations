@@ -7,7 +7,7 @@ use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 use Craft;
 
-class FieldExtractorLinkItService implements InterfaceFieldExtractor
+class FieldExtractorLinkItService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
     /**
      * @param Field $field
@@ -37,5 +37,19 @@ class FieldExtractorLinkItService implements InterfaceFieldExtractor
             'fieldId' => $field->id,
         ]);
         return [$record];
+    }
+
+    /** Serialized value: ['type' => link class, 'value' => element id, 'customText', 'target']. */
+    public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!Craft::$app->plugins->isPluginEnabled('linkit') || !($field instanceof \presseddigital\linkit\fields\LinkitField)) {
+            return null;
+        }
+        $link = $element->getFieldValue($field->handle);
+        if (!($link instanceof \presseddigital\linkit\base\ElementLink) || (int)$link->value !== $from->id) {
+            return false;
+        }
+        $element->setFieldValue($field->handle, ['value' => (string)$to->id] + $field->serializeValue($link, $element));
+        return true;
     }
 }

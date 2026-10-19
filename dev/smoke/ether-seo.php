@@ -13,4 +13,7 @@ return function (array $ctx): void {
     checkRelation($ctx['asset'], 'Page via SEO', 'SEO (Ether) social image');
     check(array_map('intval', $rows('Page via SEO')) === [$ctx['asset']->id], 'SEO (Ether): one cache row although both networks use the asset');
     check($rows('Page via SEO (no image)') === [], 'SEO (Ether): no image relates to nothing');
+
+    $imageIds = fn($e) => array_map(fn($s) => (int)$s->imageId, $e->getFieldValue('etherSeo')->social);
+    replaceRoundTrip(Entry::find()->title('Page via SEO')->one(), $ctx['asset'], 'SEO (Ether) social images', fn($e, $t) => $imageIds($e) === ['twitter' => $t->id, 'facebook' => $t->id]);
 };

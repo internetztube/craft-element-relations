@@ -12,4 +12,6 @@ return function (array $ctx): void {
     $nested = Entry::find()->type('teaser')->ownerId($owner->id)->status(null)->one();
     $sourceIds = (new RelationsModel($ctx['target']->id, $ctx['target']->siteId))->getSourceElementIds([]);
     check($nested !== null && !in_array($nested->id, $sourceIds, true), 'nested entry itself is not a source (only the owner)');
+
+    replaceRoundTrip(\craft\elements\Entry::find()->title('Page via Matrix')->one(), $ctx['target'], 'Entries field inside a Matrix block', fn($e, $t) => array_map('intval', $e->getFieldValue('teasers')->one()->getFieldValue('relatedEntries')->ids()) === [$t->id]);
 };
