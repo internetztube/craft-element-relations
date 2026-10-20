@@ -12,7 +12,7 @@ The **Element Relations** field lists everything that links to the element it si
 
 ## Filter by element type
 
-When an element is used by several element types, a dropdown with counts per type joins Craft's own search, sorting, status menu and pagination.
+When an element is used by several element types, a dropdown with counts per type joins Craft's own search, sorting, status menu and pagination. Sorting and the filter offer Craft's own options and rules of the types in the list: Section, Entry Type, Post Date, Author, Filename, File Type, Group, …
 
 ![Filter by element type](screenshots/type-menu.jpg)
 

@@ -22,10 +22,8 @@ class FieldExtractorFreeLinkService implements InterfaceFieldExtractor, Interfac
             return false;
         }
 
+        /** @var \justinholtweb\freelink\models\LinkCollection $value the field's normalized value */
         $value = $element->{$field->handle};
-        if (!($value instanceof \justinholtweb\freelink\models\LinkCollection)) {
-            return false;
-        }
 
         $records = [];
         foreach ($value->getAll() as $link) {
@@ -55,10 +53,8 @@ class FieldExtractorFreeLinkService implements InterfaceFieldExtractor, Interfac
         if (!($field instanceof \justinholtweb\freelink\fields\FreeLinkField)) {
             return null;
         }
+        /** @var \justinholtweb\freelink\models\LinkCollection $value the field's normalized value */
         $value = $element->getFieldValue($field->handle);
-        if (!($value instanceof \justinholtweb\freelink\models\LinkCollection)) {
-            return false;
-        }
         $count = 0;
         foreach ($value->getAll() as $link) {
             if ($link instanceof \justinholtweb\freelink\base\ElementLink && $link->targetId === $from->id && is_a($from, $link::elementType())) {

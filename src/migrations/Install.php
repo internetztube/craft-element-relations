@@ -84,6 +84,8 @@ class Install extends Migration
 
     public function safeDown(): bool
     {
+        // the changes first: their foreign key on the replacements would block dropping those
+        $this->dropTableIfExists('{{%elementrelations_replacement_changes}}');
         $this->dropTableIfExists('{{%elementrelations_replacements}}');
         $table = '{{%elementrelations_cache}}';
         if ($this->db->tableExists($table)) {

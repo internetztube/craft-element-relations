@@ -20,7 +20,7 @@ return function (array $ctx): void {
     };
     /** Runs `php craft <route> <args>` in a subprocess, like a deploy script, and returns [exit code, output]. */
     $run = function (string $route, array $args = []): array {
-        $command = [PHP_BINARY, CRAFT_BASE_PATH . '/craft', $route, '--color=0'];
+        $command = [...phpCommand(), CRAFT_BASE_PATH . '/craft', $route, '--color=0'];
         foreach ($args as $name => $value) {
             $command[] = is_int($name) ? (string)$value : ($value === true ? "--$name" : "--$name=$value");
         }
@@ -54,7 +54,7 @@ return function (array $ctx): void {
     $flush();
 
     [$code, $out] = $run('element-relations/replace', [$old1->id, $new1->id, 'dry-run' => true]);
-    check($code === ExitCode::OK && str_contains($out, 'would change 2 usages') && str_contains($out, 'CLI source') && str_contains($out, 'CLI other source'), 'dry run lists both usages (' . trim(strtok($out, "\n")) . ')');
+    check($code === ExitCode::OK && str_contains($out, 'would change 2 elements') && str_contains($out, 'CLI source') && str_contains($out, 'CLI other source'), 'dry run lists both usages (' . trim(strtok($out, "\n")) . ')');
     check($ids($source) === [$old1->id, $old2->id], 'dry run changes nothing');
 
     [$code, $out] = $run('element-relations/replace', [$old1->id, $new1->id, 'usages' => (string)$source->id]);
@@ -82,6 +82,49 @@ return function (array $ctx): void {
     unlink($csv);
     [$code] = $run('element-relations/replace', [$old1->id, $old1->id]);
     check($code !== ExitCode::OK, 'replacing an element by itself fails');
+
+    // what a script gets wrong: each answers with its own exit code and a message, and changes nothing
+    $before = [$ids($source), $ids($other)];
+    [$code, $out] = $run('element-relations/replace', [$new1->id, $old1->id, 'usages' => ',']);
+    check($code === ExitCode::USAGE && str_contains($out, '--usages lists no ids'), "--usages without ids: exit code $code");
+    [$code, $out] = $run('element-relations/replace/map', ['/nonexistent/pairs.csv']);
+    check($code === ExitCode::NOINPUT && str_contains($out, 'Cannot read'), "map of a missing file: exit code $code");
+    $empty = tempnam(sys_get_temp_dir(), 'er') . '.csv';
+    file_put_contents($empty, "from,to
+# nothing yet
+");
+    [$code, $out] = $run('element-relations/replace/map', [$empty]);
+    unlink($empty);
+    check($code === ExitCode::DATAERR && str_contains($out, 'no "from,to" pairs'), "map of a file without pairs: exit code $code");
+    [$code, $out] = $run('element-relations/replace', [$new1->id, $old1->id, 'site' => 'nosuchsite']);
+    check($code !== ExitCode::OK && str_contains($out, 'Unknown site'), "an unknown site handle: exit code $code");
+    [$code, $out] = $run('element-relations/replace', [$new1->id, $old1->id, 'site' => (string)$app->getSites()->getPrimarySite()->id, 'usages' => (string)$source->id, 'dry-run' => true]);
+    check($code === ExitCode::OK && str_contains($out, 'would change 1 element') && str_contains($out, 'CLI source') && !str_contains($out, 'CLI other source'), 'a site by id and --usages in a dry run: only that element is listed');
+    [$code, $out] = $run('element-relations/replace/rollback', [999999]);
+    check($code !== ExitCode::OK && str_contains($out, Craft::t('element-relations', 'rollback-not-possible')), "rolling back an unknown replacement: exit code $code");
+    [$code, $out] = $run('element-relations/replace/rollback', [(int)$operation?->id]);
+    check($code !== ExitCode::OK && str_contains($out, Craft::t('element-relations', 'rollback-not-possible')), "rolling back one already rolled back: exit code $code");
+    [$code, $out] = $run('element-relations/replace/resume', [(int)$operation?->id]);
+    check($code !== ExitCode::OK && str_contains($out, Craft::t('element-relations', 'resume-not-needed')), "resuming one that is not running: exit code $code");
+    check([$ids($source), $ids($other)] === $before, 'none of them changed anything');
+
+    // resume: a queued replacement whose job is gone continues from the command line
+    $queued = internetztube\elementRelations\services\ReplaceService::replace($new1, $old1, [$other->id], queue: true);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute(); // the job disappears
+    [$code, $out] = $run('element-relations/replace/resume', [(int)$queued['operationId']]);
+    $flush();
+    check($code === ExitCode::OK && str_contains($out, Craft::t('element-relations', 'resume-done')) && $ids($other) === [$old1->id] && ReplacementRecord::findOne((int)$queued['operationId'])?->status === 'applied', 'resume queues the job again and it finishes (' . trim($out) . ')');
+
+    // the options are per action; history before any replacement says there is none (in a transaction rolled back)
+    [$controller] = $app->createController('element-relations/replace');
+    check(in_array('usages', $controller->options('index'), true) && !in_array('usages', $controller->options('help'), true) && in_array('limit', $controller->options('history'), true), 'each command takes its own options only');
+    $transaction = $app->getDb()->beginTransaction();
+    ReplacementRecord::deleteAll();
+    ob_start();
+    $code = $controller->runAction('history');
+    ob_end_clean();
+    $transaction->rollBack();
+    check($code === ExitCode::OK && ReplacementRecord::find()->exists(), 'history without any replacement says so and succeeds');
 
     // cleanup
     foreach (ReplacementRecord::find()->where(['fromId' => [$old1->id, $old2->id]])->all() as $record) {

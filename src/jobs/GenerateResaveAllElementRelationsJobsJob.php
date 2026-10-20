@@ -28,8 +28,9 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
             ])
             ->from(['elements_sites' => Table::ELEMENTS_SITES])
             ->innerJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elements_sites.elementId]]")
-            ->where(['is', 'elements.dateDeleted', null])
-            ->andWhere(['is', 'elements.revisionId', null]);
+            // trashed elements too: they keep their usages (restoring one needs no refresh); ResaveElementRelationsJob
+            // leaves out the nested ones that were removed on their own (a Matrix block taken out of its field)
+            ->where(['is', 'elements.revisionId', null]);
 
         $batchSize = ElementRelations::$plugin->getSettings()->bulkRefreshBatchSize;
 

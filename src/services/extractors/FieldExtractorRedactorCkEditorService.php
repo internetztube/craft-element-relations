@@ -14,10 +14,7 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, 
     /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
-        if (!(Craft::$app->plugins->isPluginEnabled('redactor') || Craft::$app->plugins->isPluginEnabled('ckeditor'))) {
-            return false;
-        }
-        
+        // a disabled plugin's fields are Craft's MissingField, so the type check covers that too
         if (!($field instanceof \craft\redactor\Field) && !($field instanceof \craft\ckeditor\Field)) {
             return false;
         }

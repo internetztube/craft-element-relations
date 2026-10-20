@@ -28,6 +28,19 @@ return function (array $ctx): void {
     $bundle->metaBundleSettings->twitterImageIds = [999999, $asset->id];
     $bundles->updateMetaBundle($bundle, $siteId);
     check((new RelationsModel($asset->id, $asset->siteId))->getIsUsedInSeomaticGlobalSettings(), 'adding it back restores the usage');
+    // a section's Content SEO settings (a content meta bundle) are a usage too, named after the section
+    $pages = Craft::$app->getEntries()->getSectionByHandle('pages');
+    $content = $bundles->getMetaBundleBySourceId('section', (int)$pages->id, $siteId) ?? throw new RuntimeException('no content bundle for Pages');
+    $imagesBefore = $content->metaBundleSettings->seoImageIds;
+    $content->metaBundleSettings->seoImageIds = [$asset->id];
+    $bundles->updateMetaBundle($content, $siteId);
+    $contentUsages = array_values(array_filter((new RelationsModel($asset->id, $asset->siteId))->getGlobalUsages(), fn($u) => str_contains($u->label, (string)$pages->name)));
+    check($contentUsages && str_contains($contentUsages[0]->label, Craft::t('element-relations', 'seomatic-content', ['name' => $pages->name])) && str_contains((string)$contentUsages[0]->getCpEditUrl(), "seomatic/edit-content/general/section/$pages->handle"), "a section's Content SEO image is listed under the section, linking its settings (" . ($contentUsages[0]->label ?? 'none') . ')');
+    $content->metaBundleSettings->seoImageIds = $imagesBefore;
+    $bundles->updateMetaBundle($content, $siteId);
+    check(!array_filter((new RelationsModel($asset->id, $asset->siteId))->getGlobalUsages(), fn($u) => str_contains($u->label, (string)$pages->name)), 'and is gone when the image is removed there');
+    $relationsField = Craft::$app->getFields()->getFieldByHandle('relations');
+    check(str_contains($relationsField->getPreviewHtml(new RelationsModel($asset->id, $asset->siteId), $asset), Craft::t('element-relations', 'field-value-seomatic-global')), 'the index column notes the use in the global settings');
     $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
     $counted = (new craft\db\Query())->select($sort['orderBy'])->from(['elements' => craft\db\Table::ELEMENTS])->where(['elements.id' => $asset->id])->scalar();
     check((int)$counted > (int)(new RelationsModel($asset->id, $asset->siteId))->getCountFast([]), 'the sort count includes the non-element usages');

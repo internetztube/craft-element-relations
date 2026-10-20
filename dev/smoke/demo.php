@@ -10,12 +10,19 @@ use internetztube\elementRelations\elements\Usage;
 use internetztube\elementRelations\models\RelationsModel;
 
 return function (array $ctx): void {
-    $usages = function (craft\base\ElementInterface $of): array {
+    // one row per element (in the site it is shown in): "title:site[:draft]" => its Field column, fields sorted
+    // (their order differs between databases); $siteRows: the same keys => the Site column
+    $siteRows = [];
+    $usages = function (craft\base\ElementInterface $of) use (&$siteRows): array {
         $query = Usage::find()->allSites()->status(null)->drafts(null);
         Craft::configure($query, ['usesElement' => $of->id]);
         $rows = [];
         foreach ($query->all() as $e) {
-            $rows["$e:{$e->getSite()->handle}" . ($e->getIsDraft() ? ':draft' : '')] = strip_tags($e->getAttributeHtml(Usage::ATTR_FIELD));
+            $fields = explode(', ', strip_tags($e->getAttributeHtml(Usage::ATTR_FIELD)));
+            sort($fields);
+            $key = "$e:{$e->getSite()->handle}" . ($e->getIsDraft() ? ':draft' : '');
+            $rows[$key] = implode(', ', $fields);
+            $siteRows[$key] = strip_tags($e->getAttributeHtml(Usage::ATTR_SITE));
         }
         return $rows;
     };
@@ -23,7 +30,7 @@ return function (array $ctx): void {
     $guide = Asset::find()->filename('rail-pass-guide-2026.pdf')->one();
     check($skyline && $guide, 'demo: images and documents exist');
     $skylineRows = $usages($skyline);
-    check(($skylineRows['Homepage:default'] ?? null) === 'Hero image' && ($skylineRows['Startseite:de'] ?? null) === 'Hero image', 'demo: the skyline photo is the homepage hero, in both sites (' . json_encode($skylineRows) . ')');
+    check(($skylineRows['Homepage:default'] ?? null) === 'Hero image' && !isset($skylineRows['Startseite:de']) && ($siteRows['Homepage:default'] ?? null) === 'English, German', 'demo: the skyline photo is the homepage hero, listed once with both sites (' . json_encode($skylineRows) . ')');
     check(($skylineRows['How to read a station:default'] ?? null) === 'Body', 'demo: …embedded in an article body');
     $guideRows = $usages($guide);
     check(($guideRows['Homepage:default'] ?? null) === 'Link' && isset($guideRows['Footer:default'], $guideRows['Newsletter:default'], $guideRows["Steel, glass and a bird's nest:default"]), 'demo: the rail pass guide is used by the homepage link, the footer menu, a form and an article (' . json_encode($guideRows) . ')');
@@ -88,7 +95,7 @@ return function (array $ctx): void {
     $notes = Asset::find()->filename('station-notes.jpg')->one();
     $noteRows = $usages($notes);
     $noteIds = (new RelationsModel($notes->id, $notes->siteId))->getSourceElementIds();
-    check(count($noteIds) === 90 && count($noteRows) === 90 * count(Craft::$app->getSites()->getAllSiteIds()), 'demo: 90 station notes share one image, ' . count($noteRows) . ' rows in its list (pages of 20)');
+    check(count($noteIds) === 90 && count($noteRows) === 90, 'demo: 90 station notes share one image, ' . count($noteRows) . ' rows in its list, one per note whatever its sites (pages of 20)');
     foreach (['Beijing', 'Hong Kong', 'Taipei'] as $city) {
         $destination = Entry::find()->section('destinations')->title($city)->one();
         $notesThere = array_filter(array_keys($usages($destination)), fn(string $row) => str_starts_with($row, 'Station notes:') && str_ends_with($row, ':default'));

@@ -15,6 +15,8 @@ return function (array $ctx): void {
     $elements->saveElement($target) or throw new RuntimeException(json_encode($target->getErrors()));
     $reload = fn() => ListElement::find()->id($list->id)->status(null)->one();
 
+    $item = $reload()->getItem($from) ?? throw new RuntimeException('no item');
+    check(ReplaceService::replaceInElement($item, $target, $from) === false, 'Wishlist: nothing to replace in an item that links another element');
     $result = ReplaceService::replace($from, $target, [$list->id]);
     flushQueue();
     check($result['replaced'] === 1 && !$result['skipped'], 'Wishlist: replace rewrites the item (' . json_encode($result) . ')');

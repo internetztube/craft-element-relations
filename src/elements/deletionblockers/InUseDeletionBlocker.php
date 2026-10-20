@@ -79,7 +79,8 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
     /** The live usages, as the field lists them (Craft's index in a pane, no actions). */
     public function getDetails(): ?string
     {
-        return Cp::elementIndexHtml(Usage::class, [
+        Usage::$listedTypes = Usage::typesUsing(array_map(fn(ElementInterface $element): int => (int)$element->id, $this->inUse));
+        $html = Cp::elementIndexHtml(Usage::class, [
             'context' => 'pane',
             'sources' => false,
             'showSiteMenu' => false,
@@ -92,6 +93,8 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
                 ],
             ],
         ]);
+        Usage::$listedTypes = null;
+        return $html;
     }
 
     /** @return list<array<string, mixed>> */
@@ -113,7 +116,7 @@ slideout.on('submit', (event) => {
     submitted = true;
     const operationId = event.response && event.response.data && event.response.data.operationId;
     if (!operationId) {
-        resolve();
+        reject(); // nothing was replaced, the usages are still there
         return;
     }
     Craft.cp.runQueue?.();

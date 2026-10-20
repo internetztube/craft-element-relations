@@ -121,10 +121,13 @@ class RelationsModel
     public function getCountFast(array|int|null $siteIds = null): int
     {
         $siteIds = $this->normalizeSiteIds($siteIds);
+        if (!$siteIds) {
+            return $this->getSourceOwnerCount(); // every site: each element once, as the field's list shows them
+        }
         $rows = array_filter(
             $this->getFastCountQueryResult(),
             // loose: site ids may come from templates as strings
-            fn(array $row): bool => empty($siteIds) || in_array($row['siteId'], $siteIds),
+            fn(array $row): bool => in_array($row['siteId'], $siteIds),
         );
         return array_sum(array_column($rows, 'count'));
     }
@@ -223,11 +226,17 @@ class RelationsModel
      */
     public function getCountsByType(): array
     {
+        // elements per type, each once whatever its sites (as the list shows them)
+        /** @var list<array{type: string, count: int|string}> $rows */
+        $rows = $this->fastSubQuery()
+            ->select(['type' => '[[elements.type]]', 'count' => 'COUNT(DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]])'])
+            ->groupBy(['[[elements.type]]'])
+            ->all();
         $counts = [];
-        foreach ($this->getFastCountQueryResult() as $row) {
+        foreach ($rows as $row) {
             // element types of uninstalled plugins stay in the cache until their elements are deleted
             if (is_subclass_of($row['type'], ElementInterface::class)) {
-                $counts[$row['type']] = ($counts[$row['type']] ?? 0) + $row['count'];
+                $counts[$row['type']] = (int)$row['count'];
             }
         }
         arsort($counts);
@@ -324,7 +333,7 @@ class RelationsModel
                 $query->status($status);
             }
             // the site of the relating element; `usesElement` matches the cache rows of that site
-            empty($siteIds) ? $query->site('*') : $query->siteId($siteIds);
+            empty($siteIds) ? $query->site('*')->unique() : $query->siteId($siteIds); // every site: each element once
 
             if ($search) {
                 $query->search($search);
@@ -427,6 +436,8 @@ class RelationsModel
             ->leftJoin(['drafts' => Table::DRAFTS], '[[drafts.id]] = [[elements.draftId]]')
             ->where(['[[elementrelations_cache.targetElementId]]' => $this->elementId])
             ->andWhere(['[[elements.dateDeleted]]' => null])
+            // elements of a type Craft no longer knows (a plugin removed or disabled) are listed nowhere, so not counted
+            ->andWhere(['[[elements.type]]' => Craft::$app->getElements()->getAllElementTypes()])
             ->andWhere(['[[elements.archived]]' => 0])
             ->andWhere(['[[elements.revisionId]]' => null])
             ->andWhere(['or', ['[[drafts.id]]' => null], ['<>', '[[drafts.provisional]]', 1]]);

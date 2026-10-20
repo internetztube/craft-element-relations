@@ -34,8 +34,8 @@
                 {# Craft's index ticks within one page; the rest of the (filtered) list is resolved on the server #}
                 {{ hiddenInput('criteria', criteria|json_encode) }}
                 <div class="element-relations-wizard__scope">
-                    <label><input type="radio" name="scope" value="ticked" data-scope checked> {{ 'wizard-scope-ticked'|t('element-relations', {count: usages|length}) }}</label>
-                    <label><input type="radio" name="scope" value="list" data-scope> {{ 'wizard-scope-list'|t('element-relations', {count: listTotal}) }}</label>
+                    <label><input type="radio" name="scope" value="ticked" data-scope{% if not allTicked %} checked{% endif %}> {{ 'wizard-scope-ticked'|t('element-relations', {count: usages|length}) }}</label>
+                    <label><input type="radio" name="scope" value="list" data-scope{% if allTicked %} checked{% endif %}> {{ 'wizard-scope-list'|t('element-relations', {count: listTotal}) }}</label>
                 </div>
             {% endif %}
             <p class="light" data-ticked>{{ 'wizard-step2-hint'|t('element-relations', {from: fromTitle}) }}</p>

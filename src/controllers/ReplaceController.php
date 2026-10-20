@@ -26,7 +26,7 @@ class ReplaceController extends Controller
      * Index criteria the wizard's "All … in the list" keeps: the field's filters (type, site, status, drafts, search)
      * and the filter HUD's condition.
      */
-    public const LIST_CRITERIA = ['elementTypes', 'inSites', 'status', 'search', 'drafts', 'condition'];
+    public const LIST_CRITERIA = ['elementTypes', 'inSites', 'status', 'search', 'drafts', 'filterConfig'];
 
     public function beforeAction($action): bool
     {
@@ -107,9 +107,12 @@ class ReplaceController extends Controller
         $from = $elements->getElementById((int)$operation->fromId, null, (int)$operation->siteId);
         $to = $from ? $elements->getElementById((int)$operation->toId, $from::class, (int)$operation->siteId) : null;
         $message = match ($operation->status) {
-            ReplacementRecord::STATUS_APPLIED => ($result['replaced'] ?? 0) === 0 && empty($result['skipped'])
+            // a rollback that could do nothing leaves the replacement applied; its reasons are the answer to "Undo"
+            ReplacementRecord::STATUS_APPLIED => isset($result['rollbackSkipped'])
+                ? self::rollbackMessage(0, 0, array_values(array_map('strval', $result['rollbackSkipped'])))
+                : (($result['replaced'] ?? 0) === 0 && empty($result['skipped'])
                 ? Craft::t('element-relations', 'replace-nothing-done', ['from' => (string)$from])
-                : self::resultMessage(['replaced' => (int)($result['replaced'] ?? 0), 'skipped' => array_values(array_map('strval', (array)($result['skipped'] ?? []))), 'withoutRevision' => (int)($result['withoutRevision'] ?? 0)], (string)$from, (string)$to),
+                : self::resultMessage(['replaced' => (int)($result['replaced'] ?? 0), 'skipped' => array_values(array_map('strval', (array)($result['skipped'] ?? []))), 'withoutRevision' => (int)($result['withoutRevision'] ?? 0)], (string)$from, (string)$to)),
             ReplacementRecord::STATUS_ROLLED_BACK => self::rollbackMessage((int)($result['restored'] ?? 0), (int)($result['reverted'] ?? 0), array_values(array_map('strval', (array)($result['rollbackSkipped'] ?? [])))),
             ReplacementRecord::STATUS_FAILED => implode(' ', array_map('strval', (array)($result['skipped'] ?? []))),
             default => null,
@@ -152,6 +155,8 @@ class ReplaceController extends Controller
         $sourceIds = $everywhere ? null : $this->ids($this->request->getQueryParam('sourceIds', []));
         $criteria = $this->criteria($this->request->getQueryParam('criteria'));
         $listRows = $sourceIds ? $this->listRows($from, $criteria) : [];
+        $listIds = array_values(array_unique($listRows));
+        $usages = $sourceIds ? $this->wizardUsages($from, $sourceIds) : [];
         return $this->asCpScreen()
             ->title(Craft::t('element-relations', 'wizard-title', ['element' => (string)$from]))
             ->action('element-relations/replace/replace')
@@ -160,14 +165,16 @@ class ReplaceController extends Controller
                 'from' => $from,
                 'siteId' => $siteId,
                 'everywhere' => $everywhere,
-                'usages' => $sourceIds ? $this->wizardUsages($from, $sourceIds) : [],
-                'total' => $everywhere ? (new RelationsModel((int)$from->id, (int)$from->siteId))->getSourceOwnerCount() : count($sourceIds ?? []),
-                // every site the usages are in is replaced (a page in English and German, both)
-                'sites' => $this->wizardSites($from, $sourceIds),
-                // more in the list than ticked (other pages): offer all of them
-                'listTotal' => count(array_unique($listRows)) > count($sourceIds ?? []) ? count(array_unique($listRows)) : 0,
+                'usages' => $usages,
+                'total' => $everywhere ? (new RelationsModel((int)$from->id, (int)$from->siteId))->getSourceOwnerCount() : count($usages),
+                // every site the elements use it in is replaced (a page in English and German, both); for the whole
+                // list, the list's elements
+                'sites' => $this->wizardSites($from, count($listIds) > count($usages) ? $listIds : $sourceIds),
+                // more in the list than ticked (other pages): offer all of them; preselected when the whole page was ticked
+                'listTotal' => count($listIds) > count($usages) ? count($listIds) : 0,
+                'allTicked' => $this->request->getQueryParam('allTicked') === '1',
                 'criteria' => $criteria,
-                'revisionHint' => \internetztube\elementRelations\fields\ElementRelationsField::revisionHintFor($from, $sourceIds),
+                'revisionHint' => \internetztube\elementRelations\fields\ElementRelationsField::revisionHintFor($from, count($listIds) > count($usages) ? $listIds : $sourceIds),
             ]);
     }
 
@@ -193,9 +200,11 @@ class ReplaceController extends Controller
     /** @param list<string> $skipped */
     public static function rollbackMessage(int $restored, int $reverted, array $skipped): string
     {
-        $message = $reverted
-            ? Craft::t('element-relations', 'rollback-reverted', ['count' => $restored, 'reverted' => $reverted])
-            : Craft::t('element-relations', 'rollback-done', ['count' => $restored]);
+        $message = match (true) {
+            $reverted > 0 => Craft::t('element-relations', 'rollback-reverted', ['count' => $restored, 'reverted' => $reverted]),
+            $restored === 0 && $skipped !== [] => Craft::t('element-relations', 'rollback-nothing'),
+            default => Craft::t('element-relations', 'rollback-done', ['count' => $restored]),
+        };
         if ($skipped) {
             $message .= ' ' . Craft::t('element-relations', 'replace-skipped', ['count' => count($skipped), 'list' => implode(', ', $skipped)]);
         }
@@ -226,18 +235,16 @@ class ReplaceController extends Controller
         $query = Usage::find()->id($ids)->allSites()->status(null)->drafts(null)->orderBy(['elements.dateUpdated' => SORT_DESC]);
         Craft::configure($query, ['usesElement' => $from->id]); // behavior param, see ElementQueryBehavior
         $rows = [];
-        foreach ($query->all() as $element) {
-            $id = (int)$element->id;
-            $rows[$id] ??= [
-                'id' => $id,
+        foreach ($query->all() as $element) { // one per element; its Site column names every site it uses $from in
+            $rows[] = [
+                'id' => (int)$element->id,
                 'element' => $element,
                 'where' => strip_tags($element->getAttributeHtml(Usage::ATTR_WHERE)),
                 'field' => strip_tags($element->getAttributeHtml(Usage::ATTR_FIELD)),
-                'sites' => [],
+                'sites' => Craft::$app->getIsMultiSite() ? explode(', ', html_entity_decode(strip_tags($element->getAttributeHtml(Usage::ATTR_SITE)))) : [],
             ];
-            $rows[$id]['sites'][] = $element->getSite()->getName();
         }
-        return array_values($rows);
+        return $rows;
     }
 
     /**
@@ -283,20 +290,18 @@ class ReplaceController extends Controller
      */
     private function listRows(ElementInterface $from, array $criteria): array
     {
-        $condition = $criteria['condition'] ?? null;
-        unset($criteria['condition']);
+        $filter = $criteria['filterConfig'] ?? null;
+        unset($criteria['filterConfig']);
         $query = Usage::find()->allSites()->status(null);
         Craft::configure($query, $criteria + ['usesElement' => $from->id]); // usesElement: behavior param
-        if (is_array($condition) && !empty($condition['conditionRules'])) {
-            // Usage's condition is Craft's plain ElementCondition (it defines no own)
-            $condition = Craft::$app->getConditions()->createCondition([
-                'class' => \craft\elements\conditions\ElementCondition::class,
-                'elementType' => Usage::class,
-                'conditionRules' => $condition['conditionRules'],
-            ]);
-            if ($condition instanceof \craft\elements\conditions\ElementConditionInterface) {
-                $condition->modifyQuery($query);
-            }
+        if (is_array($filter) && !empty($filter['conditionRules']) && is_array($filter['conditionRules'])) {
+            // the list's own condition (UsageCondition), which knows the stock rules of the types in this list; Craft's
+            // plain ElementCondition would drop them without a word
+            Usage::$listedTypes = Usage::typesUsing([(int)$from->id]);
+            $condition = Usage::createCondition();
+            $condition->setConditionRules($filter['conditionRules']);
+            $condition->modifyQuery($query);
+            Usage::$listedTypes = null;
         }
         return array_values(array_map(intval(...), $query->ids()));
     }

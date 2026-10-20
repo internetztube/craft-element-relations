@@ -52,7 +52,7 @@ class InUseGuard
         }
         $message = self::check($element, (int)$element->siteId, 'in-use-delete-site');
         if ($message !== null) {
-            throw new \yii\base\UserException($message);
+            throw new \yii\web\BadRequestHttpException($message); // a 400 with the reason, not a server error
         }
     }
 
@@ -99,8 +99,10 @@ class InUseGuard
             if (!$element instanceof ElementInterface || !self::guards($element)) {
                 continue;
             }
-            $message = $forSite
-                ? self::check($element, (int)$element->siteId, 'in-use-delete-site')
+            // Craft's "Set status → Disabled" disables only the current site of a multi-site element
+            $oneSite = $forSite || ($disable && count(\craft\helpers\ElementHelper::supportedSitesForElement($element)) > 1);
+            $message = $oneSite
+                ? self::check($element, (int)$element->siteId, $forSite ? 'in-use-delete-site' : 'in-use-disable-site')
                 : self::check($element, null, $disable ? 'in-use-disable' : 'in-use-delete');
             if ($message !== null) {
                 $event->isValid = false;
@@ -124,7 +126,9 @@ class InUseGuard
         $multiSite = Craft::$app->getIsMultiSite();
         $titles = [];
         foreach ($model->getElementsIterator($siteIds, self::NAMED) as $usage) {
-            $titles[] = '“' . $usage . '”' . ($multiSite ? ' (' . $usage->getSite()->getName() . ')' : '');
+            // each element once; the sites it uses the element in, from the cache
+            $sites = $siteId === null ? self::siteNames($model->getElementId(), (int)$usage->id) : [$usage->getSite()->getName()];
+            $titles[] = '“' . $usage . '”' . ($multiSite ? ' (' . implode(', ', $sites) . ')' : '');
         }
         $global = $siteId === null ? $model->getGlobalUsages() : [];
         foreach (array_slice($global, 0, max(0, self::NAMED - count($titles))) as $usage) {
@@ -137,6 +141,24 @@ class InUseGuard
     private static function guards(ElementInterface $element): bool
     {
         return ElementRelations::isPro() && ElementRelations::guardsInUse() && self::counts($element);
+    }
+
+    /**
+     * The names of the sites $ownerId uses $targetId in, in the sites' order.
+     * ponytail: the cache row, not the owner's status per site; an owner disabled in one site still names it
+     * @return list<string>
+     */
+    private static function siteNames(int $targetId, int $ownerId): array
+    {
+        $siteIds = array_map(intval(...), (new \craft\db\Query())->select(['sourceSiteId'])->distinct()
+            ->from('{{%elementrelations_cache}}')->where(['targetElementId' => $targetId, 'sourcePrimaryOwnerId' => $ownerId])->column());
+        $names = [];
+        foreach (Craft::$app->getSites()->getAllSites() as $site) {
+            if (in_array((int)$site->id, $siteIds, true)) {
+                $names[] = $site->getName();
+            }
+        }
+        return $names;
     }
 
     /** Whether the element's live usages matter at all: the live element itself, and it has any usage. */
@@ -156,26 +178,33 @@ class InUseGuard
     }
 
     /**
-     * What a save changes about the element being live: disabled everywhere, disabled for this site, expired or
-     * scheduled (entries). Null when it stays live or was not live before.
+     * What a save changes about the element being live: disabled everywhere, disabled for a site, expired or
+     * scheduled (entries). Null when it stays live everywhere it was live.
      * @return array{why: string, attribute: string, siteId: int|null}|null
      */
     private static function goesOffline(ElementInterface $element): ?array
     {
+        $live = [Element::STATUS_ENABLED, \craft\elements\Entry::STATUS_LIVE];
         $before = $element::find()->id($element->id)->siteId($element->siteId)->status(null)->one();
-        if (!$before instanceof ElementInterface || !in_array($before->getStatus(), [Element::STATUS_ENABLED, \craft\elements\Entry::STATUS_LIVE], true)) {
-            return null;
-        }
-        if (in_array($element->getStatus(), [Element::STATUS_ENABLED, \craft\elements\Entry::STATUS_LIVE], true)) {
-            return null;
-        }
-        if (!$element->enabled) {
+        $wasLive = $before instanceof ElementInterface && in_array($before->getStatus(), $live, true);
+        if ($wasLive && !$element->enabled) {
             return ['why' => 'disable', 'attribute' => 'enabled', 'siteId' => null];
         }
-        if (!$element->getEnabledForSite()) {
-            return ['why' => 'disable-site', 'attribute' => 'enabled', 'siteId' => (int)$element->siteId];
+        // the edit page's sidebar can switch any site off, not just the one being edited (which may stay live)
+        foreach (\craft\helpers\ElementHelper::supportedSitesForElement($element) as $site) {
+            $siteId = (int)$site['siteId'];
+            if ($element->getEnabledForSite($siteId) !== false) {
+                continue;
+            }
+            $stored = $siteId === (int)$element->siteId ? $before : $element::find()->id($element->id)->siteId($siteId)->status(null)->one();
+            if ($stored instanceof ElementInterface && in_array($stored->getStatus(), $live, true)) {
+                return ['why' => 'disable-site', 'attribute' => 'enabled', 'siteId' => $siteId];
+            }
         }
         $status = $element->getStatus();
+        if (!$wasLive || in_array($status, $live, true)) {
+            return null;
+        }
         return [
             'why' => $status === \craft\elements\Entry::STATUS_PENDING ? 'schedule' : 'expire',
             'attribute' => $status === \craft\elements\Entry::STATUS_PENDING ? 'postDate' : 'expiryDate',

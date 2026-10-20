@@ -55,10 +55,12 @@ return function (array $ctx): void {
     // Craft builds the GraphQL types once per process for one schema (as in a request) and cannot rebuild them for
     // another one, so every query runs in its own process, like a request with that schema
     $execute = function (GqlSchema $schema, string $query, array $variables = []): array {
-        $code = 'require $argv[1] . "/bootstrap.php"; require CRAFT_VENDOR_PATH . "/craftcms/cms/bootstrap/console.php";'
+        // `php -r` runs no auto_prepend_file: load it here, so these queries count towards the coverage (dev.sh coverage)
+        $code = 'if ($prepend = ini_get("auto_prepend_file")) { require $prepend; }'
+            . 'require $argv[1] . "/bootstrap.php"; require CRAFT_VENDOR_PATH . "/craftcms/cms/bootstrap/console.php";'
             . '$in = json_decode(stream_get_contents(STDIN), true);'
             . 'echo json_encode(Craft::$app->getGql()->executeQuery(new craft\\models\\GqlSchema($in[0]), $in[1], $in[2]));';
-        $process = proc_open([PHP_BINARY, '-r', $code, CRAFT_BASE_PATH], [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
+        $process = proc_open([...phpCommand(), '-r', $code, CRAFT_BASE_PATH], [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
         fwrite($pipes[0], json_encode([['uid' => $schema->uid, 'scope' => $schema->scope], $query, $variables ?: null]));
         fclose($pipes[0]);
         $output = stream_get_contents($pipes[1]);
@@ -179,6 +181,12 @@ return function (array $ctx): void {
         $result = $execute($noInactive, 'query($id: [QueryArgument]) { entry(id: $id) { ... on page_Entry { relations { ' . $field . ' } } } }', ['id' => $target->id]);
         check(str_contains(json_encode($result['errors'] ?? []), 'non-enabled elements'), "schema without inactive scope: $field is refused");
     }
+
+    // never more elements than Craft's maxGraphqlResults, asked for more or not at all (the env var sets it for the query's process)
+    putenv('CRAFT_MAX_GRAPHQL_RESULTS=2');
+    $capped = $run($full, 'query($id: [QueryArgument]) { entry(id: $id) { ... on page_Entry { relations { count more: elements(limit: 10) { id } all: elements { id } } } } }', ['id' => $target->id])['entry']['relations'] ?? [];
+    putenv('CRAFT_MAX_GRAPHQL_RESULTS');
+    check(count($capped['more'] ?? []) === 2 && count($capped['all'] ?? []) === 2 && ($capped['count'] ?? 0) > 2, 'elements never returns more than maxGraphqlResults (2), count still counts all (' . ($capped['count'] ?? '?') . ')');
 
     $cleanup();
 };

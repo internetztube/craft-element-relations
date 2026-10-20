@@ -8,7 +8,7 @@ More in the [tour](docs/README.md).
 
 ## Features
 
-- **One list, every element type.** The field is Craft's own element index: search, sort, status and Drafts filter, table or card view, chips that link to the edit pages. Type and site dropdowns with counts, plus columns for where the element lives, the field that holds the link (and whether it sits in a disabled Matrix block) and the site.
+- **One list, every element type.** The field is Craft's own element index: search, sort, status and Drafts filter, table or card view, chips that link to the edit pages. Craft's own sort options and filter rules of the element types in the list (Section, Post Date, Author, Filename, Group, …), type and site dropdowns with counts, plus columns for where the element lives, the field that holds the link (and whether it sits in a disabled Matrix block) and the site.
 - **Everything that can link to an element.** Anything Craft stores in its relations table works out of the box. Rich text, link fields and plugins that store references elsewhere are read by dedicated extractors (see [Supported fields and plugins](#supported-fields-and-plugins)).
 - **Plugin settings, too.** Usages that are not elements, such as SEOmatic's global or per-section SEO image, are listed below the field.
 - **Templates, GraphQL and element queries.** `isInUse`, counts and the relating elements in Twig and GraphQL; `usesElement` on any element query.
@@ -44,7 +44,7 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to ove
 | `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole relations cache is rebuilt. |
 | `features.editions` | `false` | Offer the Lite and Pro editions. |
 
-Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers more columns), Show the status menu, Elements per page.
+Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers every column of the element types in the list), Show the status menu, Elements per page.
 
 The cache can be rebuilt any time under Utilities → Element Relations or with `php craft element-relations/resave-relations`.
 
@@ -100,7 +100,7 @@ A complete example site using all of this (destination pages listing their stori
 
 For elements with thousands of usages use `count`/`isInUse` (one SQL query each), pass a `limit` to `elements`, or walk them with `elementsIterator` (batches); `elements` without a limit loads every relating element.
 
-`siteIds`: omitted = the element's site, `[]` = all sites. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.
+`siteIds`: omitted = the element's site, `[]` = all sites. With `[]` an element used in two sites counts once and `elements` returns it once (in the first site it is used in); drafts never count on the front end unless `drafts: null`. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.
 
 ### Element queries
 

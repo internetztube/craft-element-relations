@@ -15,18 +15,18 @@ return function (array $ctx): void {
         $own = (int)$type::find()->usesElement($target)->status(null)->drafts(null)->site('*')->count();
         check($unified === $own, "elementTypes($type) → $unified (own query: $own)");
     }
-    $viaCriteria = Craft::configure(Usage::find(), ['usesElement' => $target->id, 'elementTypes' => Entry::class, 'status' => null, 'site' => '*']);
+    $viaCriteria = Craft::configure(Usage::find(), ['usesElement' => $target->id, 'elementTypes' => Entry::class, 'status' => null, 'drafts' => null, 'site' => '*']); // the counts include saved drafts
     check((int)$viaCriteria->count() === ($counts[Entry::class] ?? 0), 'elementTypes works as index criteria');
 
     // sites: what the site dropdown sets on the index criteria (with allSites, which the field's index always has)
     $siteCounts = $model->getCountsBySite();
-    check(array_sum($siteCounts) === $model->getCountFast([]), 'getCountsBySite() sums up to countFast (' . json_encode($siteCounts) . ')');
+    check(array_sum($counts) === $model->getCountFast([]) && max($siteCounts) <= $model->getCountFast([]) && array_sum($siteCounts) >= $model->getCountFast([]), 'the type counts sum up to countFast([]), elements; a site count is at most that (an element in two sites counts in both) (' . json_encode($siteCounts) . ')');
     foreach ($siteCounts as $siteId => $count) {
         $listed = Craft::configure(Usage::find(), ['usesElement' => $target->id, 'allSites' => true, 'inSites' => (string)$siteId, 'status' => null, 'drafts' => null])->all();
         check(count($listed) === $count && !array_filter($listed, fn($element) => (int)$element->siteId !== $siteId), "inSites($siteId) lists only that site's $count usages");
     }
     $all = (int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'allSites' => true, 'inSites' => null, 'status' => null, 'drafts' => null])->count();
-    check($all === array_sum($siteCounts), 'inSites null ("All sites") lists every site');
+    check($all === $model->getCountFast([]), 'inSites null ("All sites") lists every element once');
 
     $field = Craft::$app->getFields()->getFieldByHandle('relations');
     $html = withWebRequest(fn() => $field->getInputHtml($model, $target));

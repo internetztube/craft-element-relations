@@ -25,6 +25,8 @@ use yii\base\Event;
 final class RollbackRun
 {
     private int $restored = 0;
+    /** @var array<int, true> top-level owners this rollback swapped back or reverted (or found back) in any site */
+    private array $doneOwners = [];
     /** owner groups done so far, for the progress the field shows */
     private int $processed = 0;
     /** all owner groups (counted once) */
@@ -70,6 +72,7 @@ final class RollbackRun
         $run->skipped = $skipped;
         $run->processed = is_numeric($state['processed'] ?? null) ? (int)$state['processed'] : 0;
         $run->total = is_numeric($state['total'] ?? null) ? (int)$state['total'] : null;
+        $run->doneOwners = array_fill_keys(array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, (array)($state['doneOwners'] ?? [])), true);
         return $run;
     }
 
@@ -121,6 +124,7 @@ final class RollbackRun
         ReplaceService::guaranteeRevision($owner, $currentBefore, $this->notes ?? '', $this->userId);
         ReplaceService::refreshOwnerTree($owner['ownerId']);
         $this->reverted++;
+        $this->doneOwners[(int)$owner['ownerId']] = true;
         return true;
     }
 
@@ -140,6 +144,7 @@ final class RollbackRun
         $revisionBefore = $owner ? ReplaceService::currentRevisionId($owner) : null;
         $ownerChanged = false;
         $saved = [];
+        $groupDone = false; // a usage (this owner in this site) counts once, like the replacement counted it
         foreach ($byElement as $id => $changes) {
             $siteId = $changes[0]['siteId'];
             $element = ReplaceService::load($types[$id] ?? null, $id, $siteId);
@@ -172,7 +177,7 @@ final class RollbackRun
                 }
                 if ($ok) {
                     $changed = true;
-                } elseif ($this->isBack($element, $field, $change)) {
+                } elseif ($this->isBack($element, $field, $change, $this->from, $this->to)) {
                     $alreadyBack = true; // rolled back before the job broke off
                 } else {
                     $this->skipped[] = ReplaceService::label($element, $this->user, $field) . ' (' . Craft::t('element-relations', 'rollback-changed-since') . ')';
@@ -180,7 +185,7 @@ final class RollbackRun
             }
             if (!$changed) {
                 if ($alreadyBack) {
-                    $this->restored++;
+                    $groupDone = true;
                 }
                 continue;
             }
@@ -191,12 +196,16 @@ final class RollbackRun
                 $element->setRevisionCreatorId($this->userId);
             }
             if ($elementsService->saveElement($element)) {
-                $this->restored++;
+                $groupDone = true;
                 $saved[] = $id;
                 $ownerChanged = true;
             } else {
                 $this->skipped[] = ReplaceService::label($element, $this->user) . ' (' . implode(' ', $element->getFirstErrors()) . ')';
             }
+        }
+        if ($groupDone) {
+            $this->restored++;
+            $this->doneOwners[(int)explode(':', $group['key'])[0]] = true;
         }
         if ($owner && $ownerChanged && $this->notes) {
             ReplaceService::guaranteeRevision($owner, $revisionBefore, $this->notes, $this->userId);
@@ -209,35 +218,41 @@ final class RollbackRun
      * the replacement added) the original instead of the replacement.
      * @param Change $change
      */
-    private function isBack(ElementInterface $element, ?Field $field, array $change): bool
+    private function isBack(ElementInterface $element, ?Field $field, array $change, ElementInterface $from, ElementInterface $to): bool
     {
-        if (!$this->from || !$this->to) {
-            return false;
-        }
         if ($field && $change['preHadTo']) {
             return json_encode(ReplaceService::serializedFieldValue($field, $element)) === json_encode($change['before']);
         }
         $targets = ExtractorService::targetIds($element, $field);
-        return in_array($this->from->id, $targets, true) && !in_array($this->to->id, $targets, true);
+        return in_array($from->id, $targets, true) && !in_array($to->id, $targets, true);
     }
 
     /** Saves the state between batches. */
     public function persist(): void
     {
-        $this->operation->state = json_encode(['restored' => $this->restored, 'reverted' => $this->reverted, 'skipped' => $this->skipped, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation)), 'mode' => $this->mode, 'userId' => $this->userId]) ?: null;
+        $this->operation->state = json_encode(['restored' => $this->restored, 'reverted' => $this->reverted, 'skipped' => $this->skipped, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation)), 'mode' => $this->mode, 'userId' => $this->userId, 'doneOwners' => array_keys($this->doneOwners)]) ?: null;
         $this->operation->save(false);
     }
 
     /** @return array{restored: int, skipped: list<string>, reverted: int} */
     public function finish(): array
     {
+        // measured, not tallied per site: the owners this rollback changed (reverted ones included) that the list shows
+        // again (ReplaceService::elementCount()); someone else's edits meanwhile are not among them
+        if ($this->from) {
+            $this->restored = ReplaceService::elementCount((int)$this->from->id, array_keys($this->doneOwners));
+        }
         $skipped = array_values(array_unique($this->skipped));
-        $this->operation->status = ReplacementRecord::STATUS_ROLLED_BACK;
+        // nothing could be rolled back (no permission, changed since, …): the replacement stays applied, so someone who
+        // may can still roll it back
+        $back = $this->from ? $this->restored : $this->restored + $this->reverted;
+        $this->operation->status = $back === 0 && $skipped ? ReplacementRecord::STATUS_APPLIED : ReplacementRecord::STATUS_ROLLED_BACK;
         $this->operation->state = null;
         $this->operation->result = json_encode([...$this->operation->getResult(), 'restored' => $this->restored, 'reverted' => $this->reverted, 'rollbackMode' => $this->mode, 'rollbackSkipped' => $skipped]) ?: null;
         $this->operation->save(false);
         Craft::info(sprintf('Rolled back replacement #%d (%s): %d swapped back, %d reverted to revisions%s', $this->operation->id, $this->mode, $this->restored, $this->reverted, $skipped ? '; skipped: ' . implode(', ', array_slice($skipped, 0, 50)) : ''), 'element-relations');
-        $result = ['restored' => $this->restored + $this->reverted, 'skipped' => $skipped, 'reverted' => $this->reverted];
+        // restored is every element back, reverted ones included; reverted says how many of them by revision
+        $result = ['restored' => $back, 'skipped' => $skipped, 'reverted' => $this->reverted];
         if ($this->from && $this->to && Event::hasHandlers(ReplaceService::class, ReplaceService::EVENT_AFTER_ROLLBACK)) {
             Event::trigger(ReplaceService::class, ReplaceService::EVENT_AFTER_ROLLBACK, new ReplaceEvent(['from' => $this->from, 'to' => $this->to, 'result' => $result, 'operation' => $this->operation]));
         }

@@ -60,12 +60,18 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: intl, pdo_mysql, pdo_pgsql, gd, bcmath, zip, mbstring
           ini-values: memory_limit=1G
-          coverage: none
+          coverage: pcov
       - name: Cache Composer packages
         uses: actions/cache@v4
         with:
           path: ~/.cache/composer
           key: composer-${{ runner.os }}-php${{ matrix.php }}-${{ hashFiles('plugin/dev/plugins.txt', 'plugin/composer.json') }}
           restore-keys: composer-${{ runner.os }}-php${{ matrix.php }}-
-      - name: Install Craft, plugins, seed and run the smoke test
-        run: plugin/dev/dev.sh ci
+      - name: Install Craft and the plugins, seed, run smoke, e2e and the Chrome suite with line coverage of src/
+        run: plugin/dev/dev.sh coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.db }}-php${{ matrix.php }}
+          path: craft/storage/coverage/html
+          if-no-files-found: ignore

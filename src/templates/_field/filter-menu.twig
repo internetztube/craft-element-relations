@@ -1,7 +1,7 @@
 {# A dropdown in the toolbar of the field's index (ElementRelationsField::$toolbarMenus: the element types, the sites),
    in Craft's menu button markup, placed after the status menu by the script below. Choosing an option sets the index
    criteria param `param` (UsageQuery::$elementTypes, ::$inSites); the first option ("All …") clears it. #}
-{% set total = menu.options|map(o => o.count)|reduce((carry, n) => carry + n, 0) %}
+{% set total = menu.total %}
 <div class="element-relations-menu" data-element-relations-menu="{{ id }}" data-param="{{ menu.param }}">
     <button type="button" class="btn menubtn" aria-label="{{ menu.label }}">{{ menu.allLabel }}</button>
     <div class="menu">

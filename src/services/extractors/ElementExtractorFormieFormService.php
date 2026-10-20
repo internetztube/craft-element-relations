@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace internetztube\elementRelations\services\extractors;
 
-use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
 use craft\elements\db\ElementQueryInterface;
@@ -33,9 +32,7 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
     /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
-        if (!Craft::$app->getPlugins()->isPluginEnabled('formie')) {
-            return false;
-        }
+        // a disabled plugin's elements are never loaded (Craft treats their type as missing)
         if ($element instanceof Form) {
             $targets = self::formTargets($element);
         } elseif ($element instanceof Submission && !$element->hasLockedContent()) {

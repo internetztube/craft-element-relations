@@ -31,10 +31,8 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
             return false;
         }
 
+        /** @var \verbb\vizy\models\NodeCollection $value the field's normalized value */
         $value = $element->getFieldValue($field->handle);
-        if (!($value instanceof \verbb\vizy\models\NodeCollection)) {
-            return false;
-        }
 
         $targets = [];
         foreach ($value->getRawNodes() as $node) {
@@ -84,10 +82,8 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         if (!Craft::$app->getPlugins()->isPluginEnabled('vizy') || !($field instanceof \verbb\vizy\fields\VizyField)) {
             return null;
         }
+        /** @var \verbb\vizy\models\NodeCollection $value the field's normalized value */
         $value = $element->getFieldValue($field->handle);
-        if (!($value instanceof \verbb\vizy\models\NodeCollection)) {
-            return false;
-        }
 
         /** @var string $json */
         $json = $field->serializeValue($value, $element);

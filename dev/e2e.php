@@ -194,6 +194,27 @@ foreach ($sources as $kind => $source) {
     check(isset($rows[$source->id]), "$kind source is listed under its own (owner) id");
 }
 
+// --- Craft's own filter rules and sort options of the types in the list, through the index endpoint
+[$status, $body, $json] = $http->action('element-indexes/get-elements', [
+    'elementType' => Usage::class, 'context' => 'embedded-index', 'source' => '*',
+    'criteria' => ['usesElement' => $from->id, 'allSites' => 1, 'siteId' => $from->siteId],
+    'condition' => ['class' => internetztube\elementRelations\elements\conditions\UsageCondition::class, 'elementType' => Usage::class, 'conditionRules' => [
+        ['class' => craft\elements\conditions\entries\SectionConditionRule::class, 'operator' => 'in', 'values' => [$section->uid]],
+    ]],
+    'viewState' => ['mode' => 'table', 'static' => false, 'order' => 'postDate', 'sort' => 'desc'],
+]);
+preg_match_all('/<tr data-id="(\d+)"/', $json['html'] ?? '', $m);
+check($status === 200 && count(array_unique($m[1])) === count($rows), "index: Craft's Section rule and sorting by Post Date work on the list (HTTP $status: " . substr($body, 0, 160) . ')');
+[$status, , $json] = $http->action('element-indexes/get-elements', [
+    'elementType' => Usage::class, 'context' => 'embedded-index', 'source' => '*',
+    'criteria' => ['usesElement' => $from->id, 'allSites' => 1, 'siteId' => $from->siteId],
+    'condition' => ['class' => internetztube\elementRelations\elements\conditions\UsageCondition::class, 'elementType' => Usage::class, 'conditionRules' => [
+        ['class' => craft\elements\conditions\entries\SectionConditionRule::class, 'operator' => 'in', 'values' => [Craft::$app->getEntries()->getSectionByHandle('journal')->uid]],
+    ]],
+    'viewState' => ['mode' => 'table', 'static' => false],
+]);
+check($status === 200 && !str_contains($json['html'] ?? '', '<tr data-id='), "index: a Section rule for another section matches nothing (HTTP $status)");
+
 // --- the index must never serve stale results: Craft caches index queries per element type, and these lists
 // change when *other* elements are saved
 echo "Index freshness (Craft's index query cache)\n";
@@ -390,9 +411,12 @@ if ($notes && $notesTo) {
     $firstPage = array_slice(array_keys($listUsages($notes)), 0, 20);
     $all = count((new internetztube\elementRelations\models\RelationsModel($notes->id, $notes->siteId))->getSourceElementIds());
     [$status, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}']));
-    check($status === 200 && str_contains($wizardHtml, 'value="list"') && str_contains($wizardHtml, "All $all usages in the list"), "a ticked page of 20: the wizard offers all $all in the list");
+    check($status === 200 && str_contains($wizardHtml, 'value="list"') && str_contains($wizardHtml, "All $all elements in the list, ticked or not"), "a ticked page of 20: the wizard offers all $all elements in the list");
+    check(preg_match('/value="list" data-scope>/', $wizardHtml) === 1 && str_contains($wizardHtml, 'The ' . count($firstPage) . ' elements you ticked') && str_contains($wizardHtml, "All $all elements in the list, ticked or not"), 'the ticked ones are preselected; both options count elements and usages (an element in one site) exactly');
+    [, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}', 'allTicked' => 1]));
+    check(preg_match('/value="list" data-scope checked>/', $wizardHtml) === 1, 'the whole page ticked: "all in the list" is preselected');
     if (Craft::$app->getIsMultiSite()) {
-        check(str_contains($wizardHtml, 'In every site they are used in'), 'the review says the replacement covers every site the usages are in');
+        check(str_contains($wizardHtml, 'In every site they use it'), 'the review says the replacement covers every site the elements use it in');
     }
     [$status, $body, $json] = $replaceAndRun(['fromId' => $notes->id, 'toId' => $notesTo->id, 'siteId' => $notes->siteId, 'scope' => 'list', 'criteria' => '{}']);
     check($status === 200 && ($json['replaced'] ?? 0) === $all && $all > 20, "all in the list: $all replaced, not just the ticked page (" . substr($body, 0, 160) . ')');
@@ -485,6 +509,13 @@ check($status === 200 && !empty($json['operationId']), 'a replacement for the hi
 $operationId = $json['operationId'];
 [$status, $html] = $http->page('/admin/utilities/element-relations');
 check($status === 200 && str_contains($html, 'id="element-relations-history"'), 'the utility renders the history table');
+$jobsBefore = (int)(new craft\db\Query())->from(craft\db\Table::QUEUE)->count();
+[$status, $rebuildHtml] = $http->request('POST', '/admin/utilities/element-relations', [], false);
+$jobsAfter = (int)(new craft\db\Query())->from(craft\db\Table::QUEUE)->count();
+check($status === 200 && $jobsAfter === $jobsBefore + 1 && str_contains($rebuildHtml, json_encode(Craft::t('element-relations', 'utility-form-rebuild-cache-success-notice'))), "the utility's button queues the full rebuild and says so (HTTP $status)");
+$flush();
+[$status, $settingsHtml] = $http->page('/admin/settings/plugins/element-relations');
+check($status === 200 && str_contains($settingsHtml, 'bulkRefreshBatchSize'), "the plugin's settings page shows its settings (HTTP $status)");
 check(preg_match('#<tr data-operation-id="' . $operationId . '">(.*?)</tr>#s', $html, $row) === 1, 'the operation is listed');
 check(str_contains($row[1], 'E2E history from') && str_contains($row[1], 'E2E history to') && str_contains($row[1], 'admin'), 'its row shows what was replaced with what, and by whom');
 check(str_contains($row[1], 'element-relations/replace/rollback') && str_contains($row[1], 'name="operationId" value="' . $operationId . '"'), 'its row has a Roll back form');
@@ -568,6 +599,18 @@ $notUsed = $article('E2E not in use');
 $byDisabledOnly = $article('E2E used by a disabled entry only');
 $article('E2E disabled source', ['relatedArticles' => [$byDisabledOnly->id]], false);
 $flush();
+// a section whose entries choose their sites, for “Delete for site” (before the first permission save: Craft knows
+// the permissions of the sections that existed then)
+$entriesService = Craft::$app->getEntries();
+$perSiteSection = $entriesService->getSectionByHandle('e2ePerSite') ?? new craft\models\Section([
+    'name' => 'E2E per site', 'handle' => 'e2ePerSite', 'type' => craft\models\Section::TYPE_CHANNEL, 'propagationMethod' => craft\enums\PropagationMethod::Custom,
+    'siteSettings' => array_map(fn($site) => new craft\models\Section_SiteSettings(['siteId' => $site->id, 'hasUrls' => false]), Craft::$app->getSites()->getAllSites()),
+]);
+if (!$perSiteSection->id) {
+    $perSiteSection->setEntryTypes([$entriesService->getEntryTypeById($articleTypeId)]);
+    $entriesService->saveSection($perSiteSection) or throw new RuntimeException(json_encode($perSiteSection->getErrors()));
+    Craft::$app->getProjectConfig()->saveModifiedConfigData(); // for the web process
+}
 // an editor who may edit and delete these entries, but not elements in use
 foreach (craft\elements\User::find()->username('e2e-editor')->status(null)->all() as $old) {
     $elements->deleteElement($old, true);
@@ -579,6 +622,7 @@ $editorPermissions = [
     'accessCp',
     ...array_map(fn($site) => "editSite:$site->uid", Craft::$app->getSites()->getAllSites()),
     ...array_map(fn($p) => "$p:$journal->uid", ['viewEntries', 'createEntries', 'saveEntries', 'deleteEntries', 'viewPeerEntries', 'savePeerEntries', 'deletePeerEntries']),
+    ...array_map(fn($p) => "$p:$perSiteSection->uid", ['viewEntries', 'saveEntries', 'deleteEntries', 'viewPeerEntries', 'savePeerEntries', 'deletePeerEntries', 'deleteEntriesForSite', 'deletePeerEntriesForSite']),
 ];
 Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, $editorPermissions);
 $editorHttp = new Http($base);
@@ -621,10 +665,46 @@ if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
     [$status, , $json] = $dialog('delete');
     check(($json['showAsFailure'] ?? false) === true && $stillThere($inUse), "delete dialog: deleting anyway is refused (HTTP $status: " . ($json['message'] ?? '') . ')');
 }
+[$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'enabled'], $inUse);
+check($status === 200 && $isLive($inUse), "index: an action that takes nothing offline (Set status → Enabled) is not in the way (HTTP $status)");
 [$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $byDisabledOnly);
 check($status === 200 && !$isLive($byDisabledOnly), "only live usages count: one used by a disabled entry can be disabled (HTTP $status)");
 [$status] = $editorHttp->action('elements/delete', ['elementId' => $notUsed->id, 'siteId' => $notUsed->siteId]);
 check($status === 200 && !$stillThere($notUsed), "an element nobody uses can be deleted (HTTP $status)");
+$alsoNotUsed = $article('E2E not in use either');
+[$status] = $indexAction(craft\elements\actions\Delete::class, [], $alsoNotUsed);
+check($status === 200 && !$stillThere($alsoNotUsed), "index: the Delete action on elements nobody uses is not in the way (HTTP $status)");
+// saves that keep it live, or bring it back, are never in the way
+[$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'title' => 'E2E in use']);
+check($status === 200 && $isLive($inUse), "edit page: saving an element in use that stays live is not in the way (HTTP $status)");
+$inUse->enabled = false;
+$elements->saveElement($inUse); // the console is never guarded
+[$status] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'enabled' => true]);
+check($status === 200 && $isLive($inUse), "edit page: enabling it again is not in the way (HTTP $status)");
+// the edit page's sidebar switches off another site than the one being edited: that site is named
+$allSites = Craft::$app->getSites()->getAllSites();
+[$firstSite, $lastSite] = [$allSites[0], end($allSites)];
+[$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $lastSite->id, 'enabledForSite' => [$firstSite->id => false, $lastSite->id => true]]);
+$errors = json_encode($json['errors']['enabled'] ?? [], JSON_UNESCAPED_UNICODE);
+check($status === 400 && str_contains($errors, 'can’t be disabled for ' . $firstSite->getName()) && $isLive($inUse), "edit page in $lastSite->name: switching off $firstSite->name is refused, naming that site (HTTP $status: " . substr($errors, 0, 160) . ')');
+// "Delete for site": a section whose entries choose their sites
+$perSite = new Entry(['sectionId' => $perSiteSection->id, 'typeId' => $articleTypeId, 'title' => 'E2E per site', 'siteId' => $allSites[0]->id]);
+$perSite->setEnabledForSite(array_fill_keys(array_map(fn($site) => (int)$site->id, $allSites), true));
+$elements->saveElement($perSite) or throw new RuntimeException(json_encode($perSite->getErrors()));
+$pagesSection = $entriesService->getSectionByHandle('pages');
+$perSiteSource = new Entry(['sectionId' => $pagesSection->id, 'typeId' => $pagesSection->getEntryTypes()[0]->id, 'title' => 'E2E per site source', 'siteId' => $allSites[0]->id]);
+$perSiteSource->setFieldValue('relatedEntries', [$perSite->id]);
+$elements->saveElement($perSiteSource) or throw new RuntimeException(json_encode($perSiteSource->getErrors()));
+$flush();
+[$status, $body, $json] = $editorHttp->action('elements/delete-for-site', ['elementId' => $perSite->id, 'siteId' => $allSites[0]->id]);
+$inSite = fn(): bool => (bool)Entry::find()->id($perSite->id)->siteId($allSites[0]->id)->status(null)->exists();
+check($status === 400 && str_contains($body . json_encode($json, JSON_UNESCAPED_UNICODE), 'can’t be deleted for') && $inSite(), "edit page: “Delete for site” is refused while that site uses it (HTTP $status: " . substr((string)($json['message'] ?? $body), 0, 200) . ')');
+$elements->deleteElement($perSiteSource, true);
+$flush();
+[$status] = $editorHttp->action('elements/delete-for-site', ['elementId' => $perSite->id, 'siteId' => $allSites[0]->id]);
+check($status === 200 && !$inSite(), "and allowed once nothing uses it there (HTTP $status)");
+$elements->deleteElement($perSite, true);
+$entriesService->deleteSection($perSiteSection);
 // with the permission
 Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, [...$editorPermissions, ElementRelations::PERMISSION_IN_USE]);
 [$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
@@ -638,6 +718,75 @@ if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
 }
 $inUse->enabled = true;
 $elements->saveElement($inUse);
+// --- the replace endpoints refuse what a user may not do, and what makes no sense
+echo "Replace endpoints: refusals\n";
+Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, $editorPermissions);
+$refuseFrom = $article('E2E refuse from');
+$refuseTo = $article('E2E refuse to');
+$refuseSource = $article('E2E refuse source', ['relatedArticles' => [$refuseFrom->id]]);
+$flush();
+$replaceParams = ['fromId' => $refuseFrom->id, 'toId' => $refuseTo->id, 'siteId' => $refuseFrom->siteId, 'sourceIds' => [$refuseSource->id]];
+[$status] = $editorHttp->action('element-relations/replace/replace', $replaceParams);
+check($status === 403, "without the replace permission: the replace endpoint is forbidden (HTTP $status)");
+[$status, $body] = $editorHttp->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $refuseFrom->id, 'siteId' => $refuseFrom->siteId, 'sourceIds' => [$refuseSource->id]]));
+check($status === 403 && str_contains($body, 'not permitted to replace'), "…and so is the wizard (HTTP $status)");
+[$status] = $editorHttp->action('element-relations/replace/rollback', ['operationId' => 1]);
+check($status === 403, "without the rollback permission: the rollback endpoint is forbidden (HTTP $status)");
+[$status, , $json] = $http->action('element-relations/replace/replace', ['toId' => []] + $replaceParams);
+check($status === 400 && ($json['message'] ?? '') === Craft::t('element-relations', 'replace-choose-replacement'), "without a replacement: “{$json['message']}”");
+[$status, $body] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => 999999999, 'siteId' => $refuseFrom->siteId, 'sourceIds' => [$refuseSource->id]]));
+check($status === 403 && str_contains($body, 'Unknown element'), "the wizard for an unknown element is forbidden (HTTP $status)");
+// a list narrowed by a filter rule (Section: not this one): nothing of it is in that list, nothing is replaced
+$otherSection = Craft::$app->getEntries()->getSectionByHandle('pages');
+$notJournal = ['conditionRules' => [['class' => craft\elements\conditions\entries\SectionConditionRule::class, 'operator' => 'in', 'values' => [$otherSection->uid]]]];
+[$status, , $json] = $http->action('element-relations/replace/replace', ['scope' => 'list', 'criteria' => json_encode(['filterConfig' => $notJournal])] + $replaceParams);
+check($status === 400 && ($json['message'] ?? '') === Craft::t('element-relations', 'replace-nothing-selected') && in_array('E2E refuse source', $relating($refuseFrom), true), "a list filtered to another section has none of these: “{$json['message']}”, nothing changes");
+// an admin's replacement: the editor may neither follow it nor roll it back, even with both permissions
+[$status, , $json] = $http->action('element-relations/replace/replace', $replaceParams);
+$adminsId = (int)($json['operationId'] ?? 0);
+$runReplaceJob($adminsId);
+Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, [...$editorPermissions, ElementRelations::PERMISSION_REPLACE, ElementRelations::PERMISSION_ROLLBACK]);
+[$status] = $editorHttp->action('element-relations/replace/status', ['operationId' => $adminsId]);
+check($status === 403, "someone else's replacement: its status is not shown to an editor (HTTP $status)");
+$hidden = Entry::find()->section('pages')->one() ?? throw new RuntimeException('no test page');
+[$status, $body] = $editorHttp->action('element-relations/replace/replace', ['toId' => [$hidden->id]] + $replaceParams);
+check($status === 403 && str_contains($body, 'not permitted to view one of the elements'), "a replacement the editor may not view is forbidden (HTTP $status)");
+[$status] = $editorHttp->action('element-relations/replace/rollback', ['operationId' => $adminsId]);
+check($status === 403, "…nor can the editor roll it back (HTTP $status)");
+[$status, , $json] = $http->action('element-relations/replace/resume', ['operationId' => $adminsId]);
+check($status === 400 && ($json['message'] ?? '') === Craft::t('element-relations', 'resume-not-needed'), "resuming one that is done: “{$json['message']}”");
+// what the status says about elements that were skipped, for a replacement and its rollback
+$withSkipped = internetztube\elementRelations\records\ReplacementRecord::findOne($adminsId);
+$withSkipped->result = json_encode(['replaced' => 1, 'skipped' => ['E2E locked entry (no permission)']] + $withSkipped->getResult());
+$withSkipped->save(false);
+[, , $json] = $http->action('element-relations/replace/status', ['operationId' => $adminsId]);
+check(str_contains($json['message'] ?? '', 'E2E locked entry (no permission)'), 'the status names what was skipped: ' . ($json['message'] ?? ''));
+$withSkipped->status = internetztube\elementRelations\records\ReplacementRecord::STATUS_ROLLED_BACK;
+$withSkipped->result = json_encode(['restored' => 1, 'rollbackSkipped' => ['E2E changed entry (changed since)']] + $withSkipped->getResult());
+$withSkipped->save(false);
+[, , $json] = $http->action('element-relations/replace/status', ['operationId' => $adminsId]);
+check(str_contains($json['message'] ?? '', 'E2E changed entry (changed since)'), 'and for a rollback: ' . ($json['message'] ?? ''));
+// a rollback that could do nothing leaves the replacement applied, and says so
+$withSkipped->status = internetztube\elementRelations\records\ReplacementRecord::STATUS_APPLIED;
+$withSkipped->save(false);
+[, , $json] = $http->action('element-relations/replace/status', ['operationId' => $adminsId]);
+check(str_starts_with($json['message'] ?? '', Craft::t('element-relations', 'rollback-nothing')) && str_contains($json['message'], 'E2E changed entry (changed since)') && ($json['canUndo'] ?? false) === true, 'a rollback that did nothing: says so, Undo stays: ' . ($json['message'] ?? ''));
+// a replacement that found nothing to change
+$withSkipped->result = json_encode(['replaced' => 0, 'skipped' => []]);
+$withSkipped->save(false);
+[, , $json] = $http->action('element-relations/replace/status', ['operationId' => $adminsId]);
+check(($json['message'] ?? '') === Craft::t('element-relations', 'replace-nothing-done', ['from' => (string)$refuseFrom]) && ($json['canUndo'] ?? true) === false, 'a replacement that changed nothing says so, without Undo: ' . ($json['message'] ?? ''));
+// the history's Resume button on a stuck one
+$withSkipped->status = internetztube\elementRelations\records\ReplacementRecord::STATUS_QUEUED;
+$withSkipped->save(false);
+$withSkipped->updateAttributes(['dateUpdated' => craft\helpers\Db::prepareDateForDb(new DateTime('-20 minutes'))]);
+[$status, , $json] = $http->action('element-relations/replace/resume', ['operationId' => $adminsId]);
+check($status === 200 && ($json['message'] ?? '') === Craft::t('element-relations', 'resume-done'), "resume on a stuck one queues it again: “{$json['message']}”");
+(new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE, ['like', 'description', Craft::t('element-relations', 'replace-job-description') . '%', false])->execute();
+foreach ([$refuseSource, $refuseTo, $refuseFrom] as $entry) {
+    $elements->deleteElement($entry, true);
+}
+
 // Lite: nothing is guarded
 Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, $editorPermissions);
 $switchEdition('lite');

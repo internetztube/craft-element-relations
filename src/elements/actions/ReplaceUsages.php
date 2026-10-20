@@ -33,14 +33,17 @@ new Craft.ElementActionTrigger({
         ElementRelationsReplace.start({
             fromId: Number(field.elementRelationsFrom),
             siteId: Number(field.elementRelationsSite),
-            sourceIds: [...new Set(elementIndex.getSelectedElementIds())], // a row per site, the same id
+            // Craft gives one id per selected row (an element in two sites twice): deduped here on purpose
+            sourceIds: [...new Set(elementIndex.getSelectedElementIds())],
+            // the whole page ticked: the wizard preselects "all in the list", the way "select all" is meant
+            allTicked: elementIndex.getSelectedElementIds().length >= elementIndex.view.getAllElements().length,
             // the list's filters, for "All … in the list" (ReplaceController::LIST_CRITERIA picks what it needs)
             criteria: {
                 ...elementIndex.settings.criteria, // the type and site dropdowns
                 status: elementIndex.status,
                 drafts: elementIndex.drafts,
                 search: elementIndex.searchText,
-                condition: elementIndex.getViewParams().condition, // the filter HUD's rules
+                filterConfig: elementIndex.getViewParams().filterConfig, // the filter HUD's rules (Craft sends them as this)
             },
         }, elementIndex);
     },

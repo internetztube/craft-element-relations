@@ -372,6 +372,26 @@ class ReplaceService
     }
 
     /**
+     * Usages of an element among these relating elements, as the list counts them: an element in one site once,
+     * whatever the number of fields or blocks (no trashed elements, no plugin settings). The replacement and the
+     * rollback measure what they did by this, among the owners they changed, so their numbers match the list: a shared
+     * field swapped by one site's save takes the other sites' usages with it, without a change row of its own.
+     * @param list<int> $ownerIds
+     * @internal used by ReplaceRun / RollbackRun
+     */
+    public static function elementCount(int $targetId, array $ownerIds): int
+    {
+        if (!$ownerIds) {
+            return 0;
+        }
+        return (int)(new Query())
+            ->from(['cache' => '{{%elementrelations_cache}}'])
+            ->innerJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
+            ->where(['cache.targetElementId' => $targetId, 'cache.sourcePrimaryOwnerId' => $ownerIds, 'sources.dateDeleted' => null])
+            ->count('DISTINCT [[cache.sourcePrimaryOwnerId]]');
+    }
+
+    /**
      * After a revision revert: the owner and every element it owns, in all sites.
      * @internal used by ReplaceRun / RollbackRun
      */
