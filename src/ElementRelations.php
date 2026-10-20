@@ -125,7 +125,7 @@ class ElementRelations extends Plugin
 
     /** Control panel actions that edit, delete or change the status of an element (Craft's queue runner and settings
      * changes, e.g. deleting a section with its entries, are not among them). */
-    private const IN_USE_GUARDED_CONTROLLERS = ['elements', 'element-indexes', 'assets'];
+    private const IN_USE_GUARDED_CONTROLLERS = ['elements', 'element-indexes', 'delete-elements', 'assets'];
 
     /**
      * Pro: whether elements in use are protected in this request (services/InUseGuard): the control panel's element
@@ -141,8 +141,17 @@ class ElementRelations extends Plugin
         if (!in_array($request->getActionSegments()[0] ?? null, self::IN_USE_GUARDED_CONTROLLERS, true)) {
             return false;
         }
+        return !self::mayDeleteInUse($user);
+    }
+
+    /** Whether the user may delete or disable elements in use (admins may; Lite has no such limit). */
+    public static function mayDeleteInUse(?\craft\elements\User $user = null): bool
+    {
+        if (!self::isPro()) {
+            return true;
+        }
         $user ??= Craft::$app->getUser()->getIdentity();
-        return !$user || !($user->admin || $user->can(self::PERMISSION_IN_USE));
+        return $user !== null && ($user->admin || $user->can(self::PERMISSION_IN_USE));
     }
 
     private static function allowed(string $permission, ?\craft\elements\User $user): bool

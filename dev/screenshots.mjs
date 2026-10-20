@@ -432,6 +432,21 @@ const SHOTS = [
         `,
     },
     {
+        name: 'in-use-dialog', edition: 'Pro', user: 'jonas', viewport: { width: 1100, height: 900 },
+        points: ['In Craft’s own delete dialog', 'The usages listed, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        focus: `$$('.modal').filter((m) => /visitors see/.test(m.textContent)).at(-1)`,
+        highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /visitors see/.test(e.textContent)).slice(-1)]`,
+        title: 'Before deleting: where it is used',
+        text: 'Craft’s delete dialog lists the live usages, and “Replace…” swaps them in one go. Without the permission there is no way past it.',
+        path: demo.skyline.path,
+        act: `
+            new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
+            await until(() => $$('.modal').some((m) => /visitors see/.test(m.textContent)), 'the delete dialog', 30000);
+            await sleep(1500);
+        `,
+        after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
+    },
+    {
         name: 'in-use-disable', edition: 'Pro', layout: 'wide', viewport: { width: 1600 }, user: 'jonas',
         points: ['Also for one site, an expiry date or a later post date', 'Drafts and disabled entries don’t count'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,

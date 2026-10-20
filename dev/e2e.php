@@ -608,6 +608,16 @@ $indexAction = fn(string $action, array $params, Entry $entry) => $editorHttp->a
 check($status === 400 && str_contains($json['message'] ?? '', 'can’t be deleted') && $stillThere($inUse), "index: the Delete action is refused with the reason (HTTP $status: " . ($json['message'] ?? '') . ')');
 [$status, , $json] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
 check($status === 400 && str_contains($json['message'] ?? '', 'can’t be disabled') && $isLive($inUse), "index: Set status → Disabled is refused (HTTP $status)");
+// Craft 5.10+'s delete dialog: the usages as a blocker, no way past it without the permission; its delete is refused
+$dialog = fn(string $route) => $editorHttp->action("delete-elements/$route", ['elementType' => Entry::class, 'elementIds' => [$inUse->id], 'siteId' => $inUse->siteId]);
+if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
+    [$status, , $json] = $dialog('deletion-blockers');
+    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_contains($b['summary'] ?? '', 'visitors see')));
+    check($status === 200 && $ours && str_contains($ours[0]['summary'], 'E2E in use source') && !array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), "delete dialog: the usages are a blocker, without “Delete anyway” for the editor (HTTP $status: " . ($ours[0]['summary'] ?? json_encode($json['blockers'] ?? [])) . ')');
+    check(str_contains($ours[0]['details'] ?? '', 'Craft.createElementIndex') || str_contains($json['bodyHtml'] ?? '', 'usesElement'), 'delete dialog: it lists the usages');
+    [$status, , $json] = $dialog('delete');
+    check(($json['showAsFailure'] ?? false) === true && $stillThere($inUse), "delete dialog: deleting anyway is refused (HTTP $status: " . ($json['message'] ?? '') . ')');
+}
 [$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $byDisabledOnly);
 check($status === 200 && !$isLive($byDisabledOnly), "only live usages count: one used by a disabled entry can be disabled (HTTP $status)");
 [$status] = $editorHttp->action('elements/delete', ['elementId' => $notUsed->id, 'siteId' => $notUsed->siteId]);
@@ -616,6 +626,13 @@ check($status === 200 && !$stillThere($notUsed), "an element nobody uses can be 
 Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, [...$editorPermissions, ElementRelations::PERMISSION_IN_USE]);
 [$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
 check($status === 200 && !$isLive($inUse), "with “Delete or disable elements that are in use” the editor may (HTTP $status)");
+if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
+    $inUse->enabled = true;
+    $elements->saveElement($inUse);
+    [, , $json] = $dialog('deletion-blockers');
+    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_contains($b['summary'] ?? '', 'visitors see')));
+    check($ours && array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), 'with the permission the dialog offers “Delete anyway”');
+}
 $inUse->enabled = true;
 $elements->saveElement($inUse);
 // Lite: nothing is guarded

@@ -35,6 +35,12 @@ class InUseGuard
         \yii\base\Event::on(Element::class, Element::EVENT_BEFORE_SAVE, [self::class, 'beforeSave']);
         \yii\base\Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_BEFORE_PERFORM_ACTION, [self::class, 'beforePerformAction']);
         \yii\base\Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_BEFORE_DELETE_FOR_SITE, [self::class, 'beforeDeleteForSite']);
+        // Craft 5.10+: the delete dialog lists the usages before anything is deleted
+        if (defined(Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
+            \yii\base\Event::on(Element::class, Element::EVENT_DEFINE_DELETION_BLOCKERS, function (\craft\events\DefineElementDeletionBlockersEvent $event): void {
+                $event->blockers[] = new \internetztube\elementRelations\elements\deletionblockers\InUseDeletionBlocker($event->elements, $event->hardDelete);
+            });
+        }
     }
 
     /** "Delete for site" can't be canceled by its event, so a user error stops it (and is shown as such). */
@@ -140,9 +146,12 @@ class InUseGuard
     /** Whether this element in this request is guarded: Pro, a control panel request, a user without the permission. */
     private static function guards(ElementInterface $element): bool
     {
-        if (!ElementRelations::isPro() || !ElementRelations::guardsInUse()) {
-            return false;
-        }
+        return ElementRelations::isPro() && ElementRelations::guardsInUse() && self::counts($element);
+    }
+
+    /** Whether the element's live usages matter at all: the live element itself, and it has any usage. */
+    public static function counts(ElementInterface $element): bool
+    {
         // the live element only: drafts and revisions don't change what visitors see; propagation and resaving
         // follow a save that was already checked
         if ($element->getIsDraft() || $element->getIsRevision() || ($element instanceof Element && ($element->propagating || $element->resaving))) {
