@@ -70,9 +70,11 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, 
     }
 
     /**
-     * Reference tags: {asset:12:url||https://fallback}, {entry:12@2:title}, ... The `||` fallback is the cached URL of the
-     * old element; Craft's HtmlField drops a tag whose fallback is empty, so the old one is kept when the replacement
-     * has no URL.
+     * Reference tags: {asset:12:url||https://fallback}, {entry:12@2:title}, {entry:12@de:url||…}, {asset:7:transform:hero||…}:
+     * every tag the extractor reads (referenceTags()) that points to `$from`. The id is swapped; the site and the
+     * property stay. The `||` fallback is the cached URL of the old element, so it becomes the replacement's URL in the
+     * tag's site, or in its own site when it does not exist there (for an asset transform, that transform's URL). Craft's HtmlField drops a tag whose fallback is empty,
+     * so the old one is kept when the replacement has no URL.
      */
     public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
     {
@@ -83,25 +85,47 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, 
         $fieldData = $element->getFieldValue($field->handle);
         $raw = $fieldData?->getRawContent() ?? '';
         $refHandle = (string)$from::refHandle();
+        $ownSiteId = (int)$element->siteId;
         $new = preg_replace_callback(
-            '/\\{' . preg_quote($refHandle, '/') . ':' . $from->id . '(@\\d+)?(?::([\\w.]+))?(?:\\|\\|([^}]*))?\\}/',
-            function (array $m) use ($refHandle, $to): string {
-                $site = $m[1] ?? '';
-                $property = isset($m[2]) && $m[2] !== '' ? ':' . $m[2] : '';
-                $fallback = $m[3] ?? null;
-                if ($fallback !== null && ($m[2] ?? '') === 'url') {
-                    $fallback = $to->getUrl() ?: $fallback;
+            '/\{' . preg_quote($refHandle, '/') . ':' . $from->id . '(?<site>@[\w-]+)?(?<property>:[^}|]*)?(?:\|\|(?<fallback>[^}]*))?\}/i',
+            function (array $m) use ($refHandle, $to, $ownSiteId): string {
+                $site = (string)($m['site'] ?? '');
+                $property = (string)($m['property'] ?? '');
+                $fallback = $m['fallback'] ?? null;
+                if ($fallback !== null) {
+                    $fallback = self::fallbackUrl($to, $property, self::siteId(ltrim($site, '@'), $ownSiteId)) ?? $fallback;
                 }
                 return '{' . $refHandle . ':' . $to->id . $site . $property . ($fallback !== null ? '||' . $fallback : '') . '}';
             },
             $raw,
             -1,
             $count,
+            PREG_UNMATCHED_AS_NULL,
         );
-        if (!$count) {
+        if (!$count || $new === null) {
             return false;
         }
         $element->setFieldValue($field->handle, $new);
         return true;
+    }
+
+    /**
+     * The URL a reference tag's fallback should hold for `$element` in a site: `:url` its URL, `:transform:<handle>`
+     * (or `:url:<handle>`) of an asset that transform's URL. Null when there is none (the old fallback is kept).
+     */
+    private static function fallbackUrl(ElementInterface $element, string $property, ?int $siteId): ?string
+    {
+        if ($siteId !== null && $siteId !== (int)$element->siteId) {
+            $element = Craft::$app->getElements()->getElementById((int)$element->id, $element::class, $siteId) ?? $element;
+        }
+        $parts = explode(':', ltrim($property, ':'));
+        try {
+            if ($element instanceof \craft\elements\Asset && in_array($parts[0], ['url', 'transform'], true) && isset($parts[1]) && $parts[1] !== '') {
+                return $element->getUrl($parts[1]) ?: null;
+            }
+            return $parts[0] === 'url' ? ($element->getUrl() ?: null) : null;
+        } catch (\Throwable) {
+            return null; // e.g. an unknown transform: keep the old fallback
+        }
     }
 }
