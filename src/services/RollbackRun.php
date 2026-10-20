@@ -201,7 +201,7 @@ final class RollbackRun
     /** Saves the state between batches. */
     public function persist(): void
     {
-        $this->operation->state = json_encode(['restored' => $this->restored, 'reverted' => $this->reverted, 'skipped' => $this->skipped, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation))]) ?: null;
+        $this->operation->state = json_encode(['restored' => $this->restored, 'reverted' => $this->reverted, 'skipped' => $this->skipped, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation)), 'mode' => $this->mode, 'userId' => $this->userId]) ?: null;
         $this->operation->save(false);
     }
 

@@ -51,6 +51,7 @@ class ReplaceController extends Controller
             'index' => ['usages', 'site', 'dryRun'],
             'map' => ['site', 'dryRun'],
             'rollback' => ['revisions'],
+            'resume' => [],
             'history' => ['limit'],
             default => [],
         };
@@ -124,6 +125,24 @@ class ReplaceController extends Controller
         $mode = $this->revisions ? ReplaceService::ROLLBACK_REVISIONS : ReplaceService::ROLLBACK_SWAP;
         $result = ReplaceService::rollback($operation, $mode);
         $this->stdout(WebReplaceController::rollbackMessage($result['restored'], $result['reverted'], $result['skipped']) . "\n", Console::FG_GREEN);
+        return ExitCode::OK;
+    }
+
+    /**
+     * Continues a replacement or rollback whose queue job is gone (a worker died, the job was deleted): it is queued
+     * again and continues where it got.
+     *
+     * @param int $operationId the replacement's id (see the history)
+     */
+    public function actionResume(int $operationId): int
+    {
+        $operation = ReplacementRecord::findOne($operationId);
+        if (!$operation || !in_array($operation->status, [ReplacementRecord::STATUS_QUEUED, ReplacementRecord::STATUS_ROLLBACK_QUEUED], true)) {
+            $this->stderr(Craft::t('element-relations', 'resume-not-needed') . "\n", Console::FG_RED);
+            return ExitCode::UNSPECIFIED_ERROR;
+        }
+        ReplaceService::resume($operation);
+        $this->stdout(Craft::t('element-relations', 'resume-done') . " Run the queue (php craft queue/run) or let your queue worker pick it up.\n", Console::FG_GREEN);
         return ExitCode::OK;
     }
 

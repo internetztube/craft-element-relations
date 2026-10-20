@@ -47,6 +47,15 @@
                                         <button type="submit" class="btn small" title="{{ 'history-rollback-instructions'|t('element-relations') }}">{{ 'history-rollback'|t('element-relations') }}</button>
                                     </form>
                                 {% endif %}
+                                {% if row.canResume %}
+                                    <form method="post" class="element-relations-resume">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('element-relations/replace/resume') }}
+                                        {{ redirectInput(craft.app.request.url) }}
+                                        {{ hiddenInput('operationId', row.id) }}
+                                        <button type="submit" class="btn small" title="{{ 'history-resume-instructions'|t('element-relations') }}">{{ 'history-resume'|t('element-relations') }}</button>
+                                    </form>
+                                {% endif %}
                                 {% if row.canRevert %}
                                     {# Craft asks for confirmation the same way (Craft.submitForm uses confirm()) #}
                                     <form method="post" class="element-relations-revert" onsubmit="return confirm({{ 'history-revert-confirm'|t('element-relations')|json_encode }});">

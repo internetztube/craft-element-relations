@@ -96,6 +96,8 @@ class ElementRelationsUtility extends Utility
                 'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $changed > 0 && ElementRelations::canRollBackOperation($operation),
                 'canRevert' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->canRevertToRevisions() && ElementRelations::canRollBackOperation($operation),
                 'withoutRevision' => (int)($operation->getResult()['withoutRevision'] ?? 0),
+                // its job is gone (a worker died …): offer to continue it
+                'canResume' => \internetztube\elementRelations\services\ReplaceService::isStuck($operation) && ($viewer?->admin || (int)$operation->userId === (int)$viewer?->id),
             ];
         }
         return $rows;

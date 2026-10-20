@@ -189,8 +189,48 @@ class ReplaceService
             throw new \InvalidArgumentException('Only applied operations can be rolled back.');
         }
         $operation->status = ReplacementRecord::STATUS_ROLLBACK_QUEUED;
+        // mode and user in the state too, so a stuck rollback can be resumed (resume())
+        $operation->state = json_encode(['mode' => $mode, 'userId' => self::currentUserId()]) ?: null;
         $operation->save(false);
         Craft::$app->getQueue()->push(new RollbackJob(['operationId' => (int)$operation->id, 'mode' => $mode, 'userId' => self::currentUserId()]));
+    }
+
+    /** A running operation without progress for this long is considered stuck; batches save it every few minutes. */
+    public const STUCK_AFTER_SECONDS = 600;
+
+    /**
+     * Whether a queued replacement or rollback stopped making progress: its job is gone (a worker died, the job lost its
+     * reservation or was deleted) and nothing will finish it.
+     */
+    public static function isStuck(ReplacementRecord $operation): bool
+    {
+        if (!in_array($operation->status, [ReplacementRecord::STATUS_QUEUED, ReplacementRecord::STATUS_ROLLBACK_QUEUED], true)) {
+            return false;
+        }
+        $updated = \craft\helpers\DateTimeHelper::toDateTime($operation->dateUpdated);
+        return $updated && $updated->getTimestamp() < time() - self::STUCK_AFTER_SECONDS;
+    }
+
+    /**
+     * Continues a stuck replacement or rollback with a new queue job, from where it got (owner groups already done are
+     * skipped; those of the batch that broke off are handled again, which changes nothing twice).
+     */
+    public static function resume(ReplacementRecord $operation): void
+    {
+        $state = $operation->getState();
+        $offset = is_numeric($state['processed'] ?? null) ? (int)$state['processed'] : 0;
+        if ($operation->status === ReplacementRecord::STATUS_QUEUED) {
+            Craft::$app->getQueue()->push(new ReplaceElementJob(['operationId' => (int)$operation->id, 'itemOffset' => $offset]));
+        } elseif ($operation->status === ReplacementRecord::STATUS_ROLLBACK_QUEUED) {
+            $mode = ($state['mode'] ?? null) === self::ROLLBACK_REVISIONS ? self::ROLLBACK_REVISIONS : self::ROLLBACK_SWAP;
+            $userId = is_numeric($state['userId'] ?? null) ? (int)$state['userId'] : null;
+            Craft::$app->getQueue()->push(new RollbackJob(['operationId' => (int)$operation->id, 'mode' => $mode, 'userId' => $userId, 'itemOffset' => $offset]));
+        } else {
+            return;
+        }
+        $operation->save(false); // touch: not stuck anymore while the new job waits
+        $operation->updateAttributes(['dateUpdated' => \craft\helpers\Db::prepareDateForDb(new \DateTime())]);
+        Craft::warning(sprintf('Replacement #%d (%s) resumed at owner group %d', $operation->id, $operation->status, $offset), 'element-relations');
     }
 
     /**

@@ -467,6 +467,28 @@ foreach ([$historySource, $historyTo, $historyFrom] as $entry) {
     $elements->deleteElement($entry, true);
 }
 
+// --- a stuck replacement (its queue job is gone) is resumed by the field's status polling
+echo "Stuck replacement\n";
+$stuckFrom = $make('E2E stuck from');
+$stuckTo = $make('E2E stuck to');
+$stuckSource = $make('E2E stuck source', ['relatedEntries' => [$stuckFrom->id]]);
+$flush();
+[$status, , $json] = $http->action('element-relations/replace/replace', ['fromId' => $stuckFrom->id, 'toId' => $stuckTo->id, 'siteId' => $stuckFrom->siteId, 'sourceIds' => [$stuckSource->id]]);
+$stuckId = (int)($json['operationId'] ?? 0);
+check($status === 200 && $stuckId > 0, 'a queued replacement');
+(new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE, ['like', 'description', Craft::t('element-relations', 'replace-job-description') . '%', false])->execute();
+internetztube\elementRelations\records\ReplacementRecord::findOne($stuckId)?->updateAttributes(['dateUpdated' => craft\helpers\Db::prepareDateForDb(new DateTime('-20 minutes'))]);
+[$status, , $json] = $http->action('element-relations/replace/status', ['operationId' => $stuckId]);
+check($status === 200 && ($json['done'] ?? true) === false, 'its job is gone and 20 minutes passed: the status says still running');
+[, , $finishedJson] = (function () use ($runReplaceJob, $finished, $stuckId) {
+    $runReplaceJob($stuckId); // the job the status request queued again
+    return $finished($stuckId);
+})();
+check(($finishedJson['status'] ?? '') === 'applied' && in_array('E2E stuck source', $relating($stuckTo), true), 'the status request resumed it, and it finished');
+foreach ([$stuckSource, $stuckTo, $stuckFrom] as $entry) {
+    $elements->deleteElement($entry, true);
+}
+
 // --- Lite: no button, endpoint refused
 echo "Lite\n";
 $switchEdition('lite');

@@ -213,6 +213,23 @@ return function (array $ctx): void {
     $flush();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
     check($record->status === 'rolledBack' && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the rollback runs in batches too (' . $record->result . ')');
+    // a stuck replacement (its job is gone, e.g. a worker died after the first batch) is detected and resumed
+    $op = ReplaceService::replace($c, $target, $batchIds, queue: true);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute(); // the job disappears
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    $record->state = json_encode(['processed' => 1, 'total' => $siteRows]) ?: null; // as if one owner group was done
+    $record->save(false);
+    $record->updateAttributes(['dateUpdated' => craft\helpers\Db::prepareDateForDb(new DateTime('-20 minutes'))]);
+    check(ReplaceService::isStuck($record), 'a queued replacement without progress for 20 minutes counts as stuck');
+    ReplaceService::resume($record);
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $resumedJobs = (new craft\db\Query())->from(craft\db\Table::QUEUE)->count();
+    check(!ReplaceService::isStuck($record) && (int)$resumedJobs === 1, 'resume() queues a job again and the operation is not stuck anymore');
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    check($record->status === 'applied' && count(array_intersect(['Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($target))) === 2, 'the resumed job continues after the groups already done and finishes (' . $record->result . ')');
+    ReplaceService::rollback($record);
+    $flush();
     foreach ($batchSources as $batchSource) {
         $elements->deleteElement($batchSource, true);
     }

@@ -72,15 +72,28 @@ class ReplaceController extends Controller
     }
 
     /**
-     * Where a queued replacement or rollback stands; the field polls this until `done`.
+     * Continues a stuck replacement or rollback (the history's Resume button).
+     */
+    public function actionResume(): ?Response
+    {
+        $operation = $this->ownOperation();
+        if (!ReplaceService::isStuck($operation)) {
+            return $this->asFailure(Craft::t('element-relations', 'resume-not-needed'));
+        }
+        ReplaceService::resume($operation);
+        return $this->asSuccess(Craft::t('element-relations', 'resume-done'));
+    }
+
+    /**
+     * Where a queued replacement or rollback stands; the field polls this until `done`. A stuck one (its job is gone)
+     * is resumed on the way.
      */
     public function actionStatus(): Response
     {
         $this->requireAcceptsJson();
-        $operation = ReplacementRecord::findOne($this->intBodyParam('operationId'));
-        $user = Craft::$app->getUser()->getIdentity();
-        if (!$operation || !$user || (!$user->admin && (int)$operation->userId !== (int)$user->id)) {
-            throw new ForbiddenHttpException('Unknown replacement.');
+        $operation = $this->ownOperation();
+        if (ReplaceService::isStuck($operation)) {
+            ReplaceService::resume($operation);
         }
         $result = $operation->getResult();
         $elements = Craft::$app->getElements();
@@ -213,6 +226,17 @@ class ReplaceController extends Controller
             $rows[$id]['sites'][] = $element->getSite()->getName();
         }
         return array_values($rows);
+    }
+
+    /** The operation of the posted id, if the current user started it (admins: any); 403 otherwise. */
+    private function ownOperation(): ReplacementRecord
+    {
+        $operation = ReplacementRecord::findOne($this->intBodyParam('operationId'));
+        $user = Craft::$app->getUser()->getIdentity();
+        if (!$operation || !$user || (!$user->admin && (int)$operation->userId !== (int)$user->id)) {
+            throw new ForbiddenHttpException('Unknown replacement.');
+        }
+        return $operation;
     }
 
     /** The first id of a value that may be a list (element select inputs post `name[]`); 0 when there is none. */

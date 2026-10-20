@@ -142,7 +142,7 @@ The plugin is a single Lite edition today; everything in [Features](#features) e
 - **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
 - **Replace:** the field's “Replace…” button opens a slideout: pick the replacement, untick usages that should keep the element, review, replace. “Replace everywhere…” in an element index does all at once. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
-- **Background:** replacements and rollbacks from the control panel run as queue jobs, as the user who started them, so saving many or large entries never blocks the page. The notice follows the job and offers Undo when it is done.
+- **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them, so saving many or large entries never blocks the page. The notice shows the progress and offers Undo when it is done. A job that got lost (a worker stopped) is resumed where it got: automatically while the notice waits, with Resume in the history, or on the command line.
 - **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line-pro).
 
 ### Permissions
@@ -177,6 +177,7 @@ php craft element-relations/replace 12 34 --site=de        # elements of another
 php craft element-relations/replace/map duplicates.csv     # many at once: one "from,to" pair of ids per line
 php craft element-relations/replace/history --limit=50     # the latest replacements with their ids
 php craft element-relations/replace/rollback 1234          # roll one back (--revisions: revert entries to their revisions)
+php craft element-relations/replace/resume 1234            # continue one whose queue job got lost (e.g. a worker stopped)
 ```
 
 A mapping file may have a header line and `#` comments, e.g. after merging duplicate assets:
