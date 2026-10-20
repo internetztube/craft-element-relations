@@ -50,7 +50,7 @@ const DEBUGGING_PORT = 9333;
 
 /**
  * @typedef {object} Shot
- * @property {string} name file name in docs/screenshots (without .png)
+ * @property {string} name file name in docs/screenshots (without .webp)
  * @property {string} title headline above the window
  * @property {string} text one line below the headline
  * @property {'Lite' | 'Pro'} edition
@@ -173,7 +173,7 @@ const SHOTS = [
         name: 'cards', edition: 'Lite',
         points: ['Table or cards, like every index', 'More columns in the View menu'],
         focus: `document.querySelector('.element-relations')`,
-        highlight: `[$$('.element-relations [data-view]')]`,
+        highlight: `[[fieldIndex().$viewModeBtnContainer?.[0]]]`,
         title: 'Table or cards',
         text: 'The field renders Craft’s native element index, so everything looks and works like the rest of the control panel.',
         path: demo.skyline.path,
@@ -357,10 +357,10 @@ const SHOTS = [
     },
     {
         name: 'plugin-settings', edition: 'Lite',
-        points: ['Per environment in config/element-relations.php', 'Large replacements move to the queue'],
+        points: ['Per environment in config/element-relations.php', 'Rebuild any time under Utilities or on the command line'],
         focus: `$$('#content .field')`,
         title: 'Plugin settings',
-        text: 'Batch size for rebuilding the cache, the background limit for replacements. Everything can be set per environment.',
+        text: 'How many elements a queue job handles when the relations cache is rebuilt. Everything can be set per environment.',
         path: '/admin/settings/plugins/element-relations',
         act: `await sleep(500);`,
     },
@@ -495,17 +495,27 @@ async function capture(browser, clip) {
 }
 
 /**
+ * The framed image for the docs: WebP, a tenth of a PNG's size at the same sharpness.
+ * @param {Browser} browser
+ * @returns {Promise<Buffer>}
+ */
+async function captureFramed(browser) {
+    const { data } = await browser.send('Page.captureScreenshot', { format: 'webp', quality: 90 });
+    return Buffer.from(data, 'base64');
+}
+
+/**
  * The focus and highlight boxes of a shot, the focus clamped to the viewport, highlights relative to it.
  * @param {Browser} browser
  * @param {Shot} shot
- * @returns {Promise<{focus: Region, highlights: Region[]}>}
+ * @returns {Promise<{focus: Region, highlights: Region[], clip: Region}>}
  */
 async function regions(browser, shot, viewportWidth = VIEWPORT.width) {
-    /** @type {{focus: Region | null, highlights: Region[]}} */
+    /** @type {{focus: Region | null, highlights: Region[], scrollX: number, scrollY: number}} */
     const found = await evaluate(browser, `
         const focus = ${shot.focus ? `regionOf(${shot.focus}, 28)` : 'null'};
         const highlights = (${shot.highlight ?? '[]'}).filter((group) => [group].flat().filter(Boolean).length).map((group) => regionOf(group, 6));
-        return { focus, highlights };
+        return { focus, highlights, scrollX: window.scrollX, scrollY: window.scrollY };
     `);
     const focus = found.focus ?? { x: 0, y: 0, width: viewportWidth, height: VIEWPORT.height };
     const x = Math.max(0, Math.floor(focus.x)), y = Math.max(0, Math.floor(focus.y));
@@ -521,7 +531,8 @@ async function regions(browser, shot, viewportWidth = VIEWPORT.width) {
         const right = Math.min(h.x + h.width - clamped.x, clamped.width - inset), bottom = Math.min(h.y + h.height - clamped.y, clamped.height - inset);
         return { x: left, y: top, width: right - left, height: bottom - top };
     }).filter((h) => h.width > 0 && h.height > 0);
-    return { focus: clamped, highlights };
+    // the capture wants document coordinates; the boxes are relative to the (scrolled) viewport
+    return { focus: clamped, highlights, clip: { ...clamped, x: clamped.x + found.scrollX, y: clamped.y + found.scrollY } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -715,7 +726,7 @@ try {
         if (!only.length || only.includes(shot.name)) {
             const raw = join(workDir, `${shot.name}.png`);
             const area = await regions(browser, shot, shot.width ?? VIEWPORT.width);
-            writeFileSync(raw, await capture(browser, area.focus));
+            writeFileSync(raw, await capture(browser, area.clip));
             taken.push({ shot, raw, area, address: `transit.test${currentPath.replace(/\?.*$/, '')}` });
             console.log(`  shot ${shot.name}`);
         }
@@ -732,8 +743,8 @@ try {
         const html = join(workDir, `${shot.name}.html`);
         writeFileSync(html, frameHtml(shot, pathToFileURL(raw).href, area, address));
         await open(browser, pathToFileURL(html).href);
-        const target = resolve(outDir, `${shot.name}.png`);
-        writeFileSync(target, await capture(browser));
+        const target = resolve(outDir, `${shot.name}.webp`);
+        writeFileSync(target, await captureFramed(browser));
         console.log(`  framed ${target}`);
     }
 
@@ -743,8 +754,8 @@ try {
         const html = join(workDir, 'cover.html');
         writeFileSync(html, coverHtml(/** @type {typeof taken} */ (coverCards)));
         await open(browser, pathToFileURL(html).href);
-        writeFileSync(resolve(outDir, 'cover.png'), await capture(browser));
-        console.log(`  cover ${resolve(outDir, 'cover.png')}`);
+        writeFileSync(resolve(outDir, 'cover.webp'), await captureFramed(browser));
+        console.log(`  cover ${resolve(outDir, 'cover.webp')}`);
     }
 } finally {
     await browser.close();

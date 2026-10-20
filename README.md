@@ -2,7 +2,7 @@
 
 See where every element is used. One native list of everything that links to an entry, asset, category, product or any other element, across all element types, sites and the plugins your project uses.
 
-![See where every element is used](docs/screenshots/usage-list.png)
+![Element Relations](docs/screenshots/cover.webp)
 
 More in the [tour](docs/README.md).
 
