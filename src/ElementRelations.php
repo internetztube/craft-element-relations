@@ -99,6 +99,7 @@ class ElementRelations extends Plugin
     /** Pro user permissions (admins have them implicitly). */
     public const PERMISSION_REPLACE = 'element-relations-replace';
     public const PERMISSION_ROLLBACK = 'element-relations-rollback';
+    public const PERMISSION_IN_USE = 'element-relations-delete-in-use';
 
     /** Pro and allowed to replace references (console runs without a user are trusted). */
     public static function canReplace(?\craft\elements\User $user = null): bool
@@ -120,6 +121,28 @@ class ElementRelations extends Plugin
             return false;
         }
         return !$user || $user->admin || (int)$operation->userId === (int)$user->id;
+    }
+
+    /** Control panel actions that edit, delete or change the status of an element (Craft's queue runner and settings
+     * changes, e.g. deleting a section with its entries, are not among them). */
+    private const IN_USE_GUARDED_CONTROLLERS = ['elements', 'element-indexes', 'assets'];
+
+    /**
+     * Pro: whether elements in use are protected in this request (services/InUseGuard): the control panel's element
+     * actions, for users without the "Delete or disable elements in use" permission. Console, queue jobs, migrations,
+     * settings changes and site requests never are.
+     */
+    public static function guardsInUse(?\craft\elements\User $user = null): bool
+    {
+        $request = Craft::$app->getRequest();
+        if (!self::isPro() || !$request instanceof \craft\web\Request || !$request->getIsCpRequest()) {
+            return false;
+        }
+        if (!in_array($request->getActionSegments()[0] ?? null, self::IN_USE_GUARDED_CONTROLLERS, true)) {
+            return false;
+        }
+        $user ??= Craft::$app->getUser()->getIdentity();
+        return !$user || !($user->admin || $user->can(self::PERMISSION_IN_USE));
     }
 
     private static function allowed(string $permission, ?\craft\elements\User $user): bool
@@ -219,6 +242,7 @@ class ElementRelations extends Plugin
                     'permissions' => [
                         self::PERMISSION_REPLACE => ['label' => Craft::t('element-relations', 'permission-replace')],
                         self::PERMISSION_ROLLBACK => ['label' => Craft::t('element-relations', 'permission-rollback')],
+                        self::PERMISSION_IN_USE => ['label' => Craft::t('element-relations', 'permission-in-use'), 'info' => Craft::t('element-relations', 'permission-in-use-info')],
                     ],
                 ];
             }
@@ -314,6 +338,9 @@ class ElementRelations extends Plugin
                 \internetztube\elementRelations\services\ReplaceService::refreshOwnerTree((int)$element->id); // its nested elements' rows
             }
         });
+
+        // Pro: elements in use can't be deleted or taken offline in the control panel without a permission
+        \internetztube\elementRelations\services\InUseGuard::register();
 
         $pluginEnableCallback = function (PluginEvent $event): void {
             if (!($event->plugin instanceof ElementRelations)) {
