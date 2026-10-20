@@ -339,6 +339,8 @@ const SHOTS = [
             picker.modal.elementIndex.view.selectElementById(${demo.replacement.id});
             picker.modal.selectElements();
             await until(() => document.querySelector('.element-relations-wizard [data-review-to] .chip'), 'the chosen replacement');
+            // the whole review (summary and the sites line) in view, step 1 may scroll off
+            document.querySelector('.element-relations-wizard').lastElementChild.scrollIntoView({ block: 'end' });
             // the page shows through the shade left of the slideout; just the shade looks cleaner
             document.querySelector('#global-container').style.visibility = 'hidden';
             await sleep(700);
