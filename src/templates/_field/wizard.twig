@@ -65,6 +65,9 @@
             <span data-review-to><span class="light">{{ 'wizard-review-not-chosen'|t('element-relations') }}</span></span>
         </div>
         <p data-summary></p>
+        {% if sites|length > 1 %}
+            <p class="light">{{ 'wizard-every-site'|t('element-relations', {sites: sites|join(', ')}) }}</p>
+        {% endif %}
         {% if revisionHint %}
             <p class="light">{{ revisionHint }}</p>
         {% endif %}
@@ -124,7 +127,8 @@
         const count = texts.everywhere ? texts.total : (wholeList() ? texts.listTotal : $usages.filter(':checked').length);
         const $chip = replacementChip();
         const replacement = $chip.length ? ($chip.data('label') || $chip.find('.label').text().trim() || $chip.text().trim()) : null;
-        $selectAll.prop('checked', count === $usages.length).prop('indeterminate', count > 0 && count < $usages.length);
+        const checked = $usages.filter(':checked').length;
+        $selectAll.prop('checked', checked === $usages.length).prop('indeterminate', checked > 0 && checked < $usages.length);
         $wizard.find('[data-review-to]').empty().append($chip.length
             // a copy without its id, actions and Craft's fade-in (it starts hidden)
             ? $chip.clone().removeAttr('id style').removeClass('removable').find('.elementselect-remove, .delete, button').remove().end()

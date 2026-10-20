@@ -77,6 +77,7 @@ return [
     'wizard-summary-incomplete' => 'Choose a replacement and at least one usage.',
     'wizard-background' => 'Runs in the background, so you can keep working; you can undo it when it is done.',
     'wizard-everywhere' => 'Everywhere: all {count, number} usages',
+    'wizard-every-site' => 'In every site they are used in: {sites}.',
     'wizard-scope-ticked' => 'The {count, plural, =1{one} other{#}} you ticked',
     'wizard-scope-list' => 'All {count, number} usages in the list (with its filters, on every page)',
     'wizard-review-not-chosen' => 'not chosen yet',

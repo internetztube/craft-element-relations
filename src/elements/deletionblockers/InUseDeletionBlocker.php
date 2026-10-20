@@ -59,7 +59,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
 
     public function getSummary(): string
     {
-        $names = implode(', ', array_map(fn(string $title): string => "“{$title}”", $this->titles));
+        $names = implode(', ', $this->titles);
         if ($this->count > count($this->titles)) {
             $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $this->count - count($this->titles)]);
         }

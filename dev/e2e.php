@@ -391,6 +391,9 @@ if ($notes && $notesTo) {
     $all = count((new internetztube\elementRelations\models\RelationsModel($notes->id, $notes->siteId))->getSourceElementIds());
     [$status, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}']));
     check($status === 200 && str_contains($wizardHtml, 'value="list"') && str_contains($wizardHtml, "All $all usages in the list"), "a ticked page of 20: the wizard offers all $all in the list");
+    if (Craft::$app->getIsMultiSite()) {
+        check(str_contains($wizardHtml, 'In every site they are used in'), 'the review says the replacement covers every site the usages are in');
+    }
     [$status, $body, $json] = $replaceAndRun(['fromId' => $notes->id, 'toId' => $notesTo->id, 'siteId' => $notes->siteId, 'scope' => 'list', 'criteria' => '{}']);
     check($status === 200 && ($json['replaced'] ?? 0) === $all && $all > 20, "all in the list: $all replaced, not just the ticked page (" . substr($body, 0, 160) . ')');
     [$status] = $rollbackAndRun((int)($json['operationId'] ?? 0));

@@ -111,36 +111,26 @@ class InUseGuard
     }
 
     /**
-     * Live usages of the element: the number of elements using it (each once, in any of its sites) and the first few
-     * titles. With a site, only the usages in that site (a disable for one site); plugin settings count for the
-     * element as a whole.
-     * @return array{count: int, titles: list<string>}
+     * Live usages of the element: the number of places using it (an element in one of its sites; a page in English and
+     * German is two) and the first few, named with their site on multi-site installs. With a site, only the usages in
+     * that site (a disable for one site); plugin settings count for the element as a whole.
+     * @return array{count: int, titles: list<string>} titles quoted, e.g. “Travel slowly” (English)
      */
     public static function liveUsages(ElementInterface $element, ?int $siteId = null): array
     {
         $model = (new RelationsModel((int)($element->getCanonicalId() ?? $element->id), (int)$element->siteId))
             ->withQueryFactory(fn(string $type): mixed => $type::find()); // Craft's defaults: live entries, enabled elements, no drafts
         $siteIds = $siteId === null ? [] : [$siteId];
-        // each relating element once, whatever the number of its sites; ids only, so thousands stay cheap
-        $ids = [];
-        foreach ($model->getElementQueries($siteIds) as $query) {
-            foreach ($query->ids() as $id) {
-                $ids[(int)$id] = true;
-            }
-        }
+        $multiSite = Craft::$app->getIsMultiSite();
         $titles = [];
-        foreach ($model->getElementsIterator($siteIds, batchSize: 10) as $usage) {
-            $titles[(int)$usage->id] ??= (string)$usage;
-            if (count($titles) >= self::NAMED) {
-                break;
-            }
+        foreach ($model->getElementsIterator($siteIds, self::NAMED) as $usage) {
+            $titles[] = '“' . $usage . '”' . ($multiSite ? ' (' . $usage->getSite()->getName() . ')' : '');
         }
-        $titles = array_values($titles);
         $global = $siteId === null ? $model->getGlobalUsages() : [];
         foreach (array_slice($global, 0, max(0, self::NAMED - count($titles))) as $usage) {
-            $titles[] = $usage->label;
+            $titles[] = '“' . $usage->label . '”';
         }
-        return ['count' => count($ids) + count($global), 'titles' => $titles];
+        return ['count' => $model->getCount($siteIds) + count($global), 'titles' => $titles];
     }
 
     /** Whether this element in this request is guarded: Pro, a control panel request, a user without the permission. */
@@ -200,7 +190,7 @@ class InUseGuard
         if ($usages['count'] === 0) {
             return null;
         }
-        $names = implode(', ', array_map(fn(string $title): string => "“{$title}”", $usages['titles']));
+        $names = implode(', ', $usages['titles']);
         if ($usages['count'] > count($usages['titles'])) {
             $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $usages['count'] - count($usages['titles'])]);
         }
