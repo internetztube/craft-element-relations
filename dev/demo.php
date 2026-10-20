@@ -781,6 +781,25 @@ foreach (['Rail' => 'Bahn', 'Cities' => 'Städte', 'Architecture' => 'Architektu
 // users (authors) with photos
 $users = [];
 $editors = Craft::$app->getUserGroups()->getGroupByHandle('editors');
+// what editors may: the control panel, every site, the demo's sections and volumes, replace and roll back; not
+// "Delete or disable elements that are in use" (Element Relations Pro)
+$editorPermissions = ['accessCp', 'element-relations-replace', 'element-relations-rollback'];
+foreach ($sites->getAllSites() as $site) {
+    $editorPermissions[] = "editSite:$site->uid";
+}
+foreach (['journal', 'destinations', 'team', 'company', 'homepage'] as $handle) {
+    $uid = Craft::$app->getEntries()->getSectionByHandle($handle)->uid;
+    foreach (['viewEntries', 'createEntries', 'saveEntries', 'deleteEntries', 'viewPeerEntries', 'savePeerEntries', 'deletePeerEntries'] as $permission) {
+        $editorPermissions[] = "$permission:$uid";
+    }
+}
+foreach (['images', 'documents'] as $handle) {
+    $uid = Craft::$app->getVolumes()->getVolumeByHandle($handle)->uid;
+    foreach (['viewAssets', 'saveAssets', 'deleteAssets', 'replaceFiles', 'editImages', 'viewPeerAssets', 'savePeerAssets', 'deletePeerAssets', 'replacePeerFiles', 'editPeerImages'] as $permission) {
+        $editorPermissions[] = "$permission:$uid";
+    }
+}
+Craft::$app->getUserPermissions()->saveGroupPermissions($editors->id, $editorPermissions);
 foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amelie' => ['Amelie', 'Novak']] as $key => [$first, $last]) {
     $user = User::find()->username($key)->status(null)->one();
     if (!$user) {
@@ -792,6 +811,11 @@ foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amel
     if ($key === 'mara' && !$user->admin) {
         // the editor the screenshots log in as (dev/screenshots.mjs), with the dev project's password
         $user->admin = true;
+        $user->newPassword = 'password';
+        $elements->saveElement($user) or fail($user);
+    }
+    if ($key === 'jonas' && $user->password === null) {
+        // a non-admin editor (Editors group) for the screenshots of what editors may not do, dev password too
         $user->newPassword = 'password';
         $elements->saveElement($user) or fail($user);
     }

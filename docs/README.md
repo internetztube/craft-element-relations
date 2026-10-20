@@ -76,9 +76,17 @@ Utilities → Element Relations lists every replacement. **Roll back** swaps the
 
 ![History, rollback and revisions](screenshots/history.jpg)
 
+## Keep what is in use <sup>Pro</sup>
+
+Editors can't delete what live content uses, or take it offline: deleting (also for one site), disabling (also for one site), an expiry date in the past or a post date in the future are refused, from the edit page and from the index's actions, and the error says where it is used. Only live usages count, so a draft or a disabled entry pointing to it doesn't block. The permission “Delete or disable elements that are in use” lets someone through; console commands, migrations and queue jobs are never blocked.
+
+![Keep what is in use](screenshots/in-use-delete.jpg)
+
+![Disabling is checked too](screenshots/in-use-disable.jpg)
+
 ## Permissions <sup>Pro</sup>
 
-Replacing and rolling back are permissions of their own. Everything else follows Craft's view and save permissions: users only see usages they may view.
+Replacing, rolling back, and deleting or disabling elements that are in use are permissions of their own. Everything else follows Craft's view and save permissions: users only see usages they may view.
 
 ![Permissions](screenshots/permissions.jpg)
 

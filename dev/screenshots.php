@@ -44,7 +44,7 @@ echo json_encode([
     'replaceIn' => [entry('homepage', 'Homepage')->id, entry('journal', 'How to read a station')->id],
     'social' => ['path' => editPath(asset('social-share.svg'))],
     'guide' => ['path' => editPath(asset('rail-pass-guide-2026.pdf'))],
-    'hongKong' => ['path' => editPath(entry('destinations', 'Hong Kong'))],
+    'hongKong' => ['id' => entry('destinations', 'Hong Kong')->id, 'path' => editPath(entry('destinations', 'Hong Kong'))],
     'homepage' => ['path' => editPath(entry('homepage', 'Homepage'))],
     'usedInField' => ['path' => "/admin/settings/fields/edit/$usedIn->id"],
     'editors' => ['path' => "/admin/settings/users/groups/$editors->id"],
