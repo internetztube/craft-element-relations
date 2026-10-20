@@ -230,6 +230,29 @@ return function (array $ctx): void {
     check($record->status === 'applied' && count(array_intersect(['Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($target))) === 2, 'the resumed job continues after the groups already done and finishes (' . $record->result . ')');
     ReplaceService::rollback($record);
     $flush();
+
+    // a batch that broke off after doing its work but before saving its progress: the resumed job meets elements it
+    // already changed and must count them as done, not report them as needing a manual change
+    $op = ReplaceService::replace($c, $target, $batchIds, queue: true);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    $groups = internetztube\elementRelations\services\ReplaceRun::groups($record);
+    internetztube\elementRelations\services\ReplaceRun::resume($record, $c, $target)->processGroup($groups[0]); // no persist(): "crashed"
+    ReplaceService::resume($record);
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $result = $record->getResult();
+    check($record->status === 'applied' && $result['replaced'] === $siteRows && empty($result['skipped']), 'after a broken-off batch, the resumed replacement counts what was already done and reports nothing to fix (' . $record->result . ')');
+    ReplaceService::queueRollback($record);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    internetztube\elementRelations\services\RollbackRun::start($record, ReplaceService::ROLLBACK_SWAP, null)->processGroup(internetztube\elementRelations\services\RollbackRun::groups($record)[0]);
+    ReplaceService::resume($record);
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $result = $record->getResult();
+    check($record->status === 'rolledBack' && ($result['restored'] ?? 0) === $siteRows && empty($result['rollbackSkipped']) && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the same for a rollback: everything restored, nothing reported (' . $record->result . ')');
+
     foreach ($batchSources as $batchSource) {
         $elements->deleteElement($batchSource, true);
     }

@@ -148,6 +148,7 @@ final class ReplaceRun
             $owner ??= ReplaceService::ownerInfo($ownerId === $id ? $element : ReplaceService::load($types[$ownerId] ?? null, $ownerId, $siteId), $ownerId, $siteId, $this->userId, $this->from, $this->to);
 
             $elementChanges = [];
+            $alreadyDone = false;
             foreach ($rows as $row) {
                 $field = $row['fieldId'] ? Craft::$app->getFields()->getFieldById($row['fieldId']) : null;
                 $field = $field instanceof Field ? $field : null;
@@ -164,11 +165,17 @@ final class ReplaceRun
                 $ok = $field ? ReplaceService::replaceInField($field, $element, $this->from, $this->to) : ReplaceService::replaceInElement($element, $this->from, $this->to);
                 if ($ok) {
                     $elementChanges[] = ['elementId' => $id, 'siteId' => $siteId, 'ownerId' => $ownerId, 'fieldId' => $field ? (int)$field->id : null, 'preHadTo' => $preHadTo, 'before' => $before];
+                } elseif ($this->isReplaced($element, $field)) {
+                    $alreadyDone = true; // done by this operation before its job broke off (its change row exists)
                 } else {
                     $this->pending[$id][] = ReplaceService::label($element, $this->user, $field);
                 }
             }
             if (!$elementChanges) {
+                if ($alreadyDone && !isset($this->saved[$id])) {
+                    $this->replaced++;
+                    $this->saved[$id] = true;
+                }
                 continue;
             }
             $element->setRevisionNotes($this->notes);
@@ -244,6 +251,13 @@ final class ReplaceRun
             Event::trigger(ReplaceService::class, ReplaceService::EVENT_AFTER_REPLACE, new ReplaceEvent(['from' => $this->from, 'to' => $this->to, 'sourceIds' => $onlySourceIds, 'result' => $result, 'operation' => $this->operation]));
         }
         return $result;
+    }
+
+    /** The element references the replacement and no longer the original (in this field). */
+    private function isReplaced(ElementInterface $element, ?Field $field): bool
+    {
+        $targets = ExtractorService::targetIds($element, $field);
+        return in_array($this->to->id, $targets, true) && !in_array($this->from->id, $targets, true);
     }
 
     private function withoutRevision(): int

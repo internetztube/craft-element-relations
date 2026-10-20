@@ -152,6 +152,7 @@ final class RollbackRun
                 continue;
             }
             $changed = false;
+            $alreadyBack = false;
             foreach ($changes as $change) {
                 $field = $change['fieldId'] ? Craft::$app->getFields()->getFieldById((int)$change['fieldId']) : null;
                 $field = $field instanceof Field ? $field : null;
@@ -171,11 +172,16 @@ final class RollbackRun
                 }
                 if ($ok) {
                     $changed = true;
+                } elseif ($this->isBack($element, $field, $change)) {
+                    $alreadyBack = true; // rolled back before the job broke off
                 } else {
                     $this->skipped[] = ReplaceService::label($element, $this->user, $field) . ' (' . Craft::t('element-relations', 'rollback-changed-since') . ')';
                 }
             }
             if (!$changed) {
+                if ($alreadyBack) {
+                    $this->restored++;
+                }
                 continue;
             }
             if ($this->notes) {
@@ -196,6 +202,23 @@ final class RollbackRun
             ReplaceService::guaranteeRevision($owner, $revisionBefore, $this->notes, $this->userId);
         }
         ReplaceService::refreshEverySite($saved, $types);
+    }
+
+    /**
+     * The element is already as before the replacement: its field holds the previous value again, or (for references
+     * the replacement added) the original instead of the replacement.
+     * @param Change $change
+     */
+    private function isBack(ElementInterface $element, ?Field $field, array $change): bool
+    {
+        if (!$this->from || !$this->to) {
+            return false;
+        }
+        if ($field && $change['preHadTo']) {
+            return json_encode(ReplaceService::serializedFieldValue($field, $element)) === json_encode($change['before']);
+        }
+        $targets = ExtractorService::targetIds($element, $field);
+        return in_array($this->from->id, $targets, true) && !in_array($this->to->id, $targets, true);
     }
 
     /** Saves the state between batches. */
