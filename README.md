@@ -2,13 +2,13 @@
 
 See where every element is used. One native list of everything that links to an entry, asset, category, product or any other element, across all element types, sites and the plugins your project uses.
 
-![Element Relations](docs/screenshots/cover.webp)
+![Element Relations](docs/screenshots/cover.jpg)
 
 More in the [tour](docs/README.md).
 
 ## Features
 
-- **One list, every element type.** The field is Craft's own element index: search, sort, status and Drafts filter, table or card view, chips that link to the edit pages. A type dropdown with counts, plus columns for where the element lives, the field that holds the link and the site.
+- **One list, every element type.** The field is Craft's own element index: search, sort, status and Drafts filter, table or card view, chips that link to the edit pages. Type and site dropdowns with counts, plus columns for where the element lives, the field that holds the link (and whether it sits in a disabled Matrix block) and the site.
 - **Everything that can link to an element.** Anything Craft stores in its relations table works out of the box. Rich text, link fields and plugins that store references elsewhere are read by dedicated extractors (see [Supported fields and plugins](#supported-fields-and-plugins)).
 - **Plugin settings, too.** Usages that are not elements, such as SEOmatic's global or per-section SEO image, are listed below the field.
 - **Templates, GraphQL and element queries.** `isInUse`, counts and the relating elements in Twig and GraphQL; `usesElement` on any element query.
@@ -140,7 +140,7 @@ The relations field only returns what the GraphQL schema may read: elements of s
 The plugin is a single Lite edition today; everything in [Features](#features) except the Pro list is Lite. The Pro edition is ready behind a feature flag (`'features' => ['editions' => true]` in `config/element-relations.php`) and adds:
 
 - **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
-- **Replace:** the field's “Replace…” button opens a slideout: pick the replacement, untick usages that should keep the element, review, replace. “Replace everywhere…” in an element index does all at once. Plugin settings are listed for a manual change. Only elements the user may save are touched.
+- **Replace:** tick usages in the field's list and choose “Replace…” (or “Replace everywhere…” in an element index); a slideout picks the replacement, lets you untick usages or take all in the filtered list, across pages, and shows a summary before anything changes. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them, so saving many or large entries never blocks the page. The notice shows the progress and offers Undo when it is done. A job that got lost (a worker stopped) is resumed where it got: automatically while the notice waits, with Resume in the history, or on the command line.
 - **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line-pro).
@@ -153,7 +153,7 @@ Pro adds two permissions:
 
 | Permission | Allows |
 |---|---|
-| Replace element references | the wizard and “Replace everywhere…” |
+| Replace element references | “Replace…” in the field and “Replace everywhere…” |
 | Roll back replacements | Undo, Roll back and Revert to revisions, for their own replacements |
 
 Admins have both, can roll back anyone's replacements and see everyone's in the history; other users see their own. Replacing also needs permission to view both elements, to save every element that gets changed and to edit the field (a field layout's “Who can edit” condition); everything else is skipped and not named. A queued replacement runs as the user who started it and is not run when they are gone or lost the permission.
@@ -250,7 +250,7 @@ Every feature, in the demo site: [docs/README.md](docs/README.md).
 dev/dev.sh                      # setup + serve (PostgreSQL)
 DB_DRIVER=mysql PROJECT_DIR=../craft-element-relations-dev-mysql PORT=8081 dev/dev.sh
 dev/dev.sh smoke                # seed and run dev/smoke.php (every integration, incl. replace and rollback)
-dev/dev.sh e2e                  # control panel over HTTP: every usage through the wizard, undo, history
+dev/dev.sh e2e                  # control panel over HTTP: every usage through Replace…, undo, history
 dev/dev.sh screenshots          # retake docs/screenshots from the demo site (headless Chrome)
 vendor/bin/phpstan              # static analysis
 ```

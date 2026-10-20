@@ -8,6 +8,7 @@ use Craft;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\db\Query;
+use craft\db\Table;
 use craft\elements\User;
 use internetztube\elementRelations\events\ReplaceEvent;
 use internetztube\elementRelations\models\RelationsModel;
@@ -62,13 +63,15 @@ final class ReplaceRun
     public static function plan(ReplacementRecord $operation, ElementInterface $from, ElementInterface $to, ?array $onlySourceIds): self
     {
         $rows = (new Query())
-            ->select(['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'fieldId', 'type'])
+            ->select(['sourceElementId' => 'cache.sourceElementId', 'sourceSiteId' => 'cache.sourceSiteId', 'sourcePrimaryOwnerId' => 'cache.sourcePrimaryOwnerId', 'fieldId' => 'cache.fieldId', 'type' => 'cache.type'])
             ->distinct()
-            ->from('{{%elementrelations_cache}}')
-            ->where(['targetElementId' => $from->id])
-            ->andWhere(['not', ['sourceElementId' => null]]) // non-element usages are reported at the end
-            ->andFilterWhere(['sourcePrimaryOwnerId' => $onlySourceIds])
-            ->orderBy(['sourcePrimaryOwnerId' => SORT_ASC, 'sourceSiteId' => SORT_ASC, 'sourceElementId' => SORT_ASC])
+            ->from(['cache' => '{{%elementrelations_cache}}'])
+            // not in trashed elements (they are no usages until restored)
+            ->innerJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
+            ->where(['cache.targetElementId' => $from->id, 'sources.dateDeleted' => null])
+            ->andWhere(['not', ['cache.sourceElementId' => null]]) // non-element usages are reported at the end
+            ->andFilterWhere(['cache.sourcePrimaryOwnerId' => $onlySourceIds])
+            ->orderBy(['cache.sourcePrimaryOwnerId' => SORT_ASC, 'cache.sourceSiteId' => SORT_ASC, 'cache.sourceElementId' => SORT_ASC])
             ->all();
         /** @var list<array{sourceElementId: int|string, sourceSiteId: int|string, sourcePrimaryOwnerId: int|string|null, fieldId: int|string|null, type: string}> $rows */
         /** @var array<string, OwnerGroup> $groups */

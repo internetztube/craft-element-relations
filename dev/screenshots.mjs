@@ -4,10 +4,10 @@
  * DevTools protocol (no packages needed, Node 22+) and framed as a browser window on a soft gradient.
  *
  *   dev/dev.sh screenshots            all shots into docs/screenshots/
- *   ONLY=wizard-step1 dev/dev.sh screenshots
+ *   ONLY=replace dev/dev.sh screenshots
  *
  * Env: CHROME (path to Chrome), CP_USER / CP_PASSWORD (default: the demo's editor mara / the dev password).
- * The wizard shots really replace an element and undo it again, like a user would.
+ * The replace shots really replace an element and undo it again, like a user would.
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -50,8 +50,8 @@ const DEBUGGING_PORT = 9333;
 /**
  * @typedef {object} DemoTargets Paths and ids of the demo elements, from dev/screenshots.php
  * @property {{id: number, path: string}} skyline the asset most screenshots show
- * @property {{id: number}} replacement the asset the wizard replaces it with
- * @property {number[]} replaceIn usages ticked in the wizard's second step
+ * @property {{id: number}} replacement the asset the replace shots replace it with
+ * @property {number[]} replaceIn usages the replace shots tick
  * @property {{path: string}} social
  * @property {{path: string}} guide
  * @property {{path: string}} hongKong
@@ -62,7 +62,7 @@ const DEBUGGING_PORT = 9333;
 
 /**
  * @typedef {object} Shot
- * @property {string} name file name in docs/screenshots (without .webp)
+ * @property {string} name file name in docs/screenshots (without .jpg)
  * @property {string} title headline above the window
  * @property {string} text one line below the headline
  * @property {'Lite' | 'Pro'} edition
@@ -150,7 +150,7 @@ window.waitForOperation = async (operationId) => {
     throw new Error('Operation ' + operationId + ' did not finish');
 };
 /** The type dropdown's open menu (Garnish renders it at the end of the page). */
-window.typeMenu = () => $('[data-element-relations-type-menu] .menubtn').data('menubtn')?.menu?.$container?.[0];
+window.typeMenu = () => $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn')?.menu?.$container?.[0];
 /** Moves Craft's notices (fixed at the bottom of the viewport) into the shot, bottom left. */
 window.placeNotices = (region) => {
     const container = $$('.notification')[0]?.parentElement;
@@ -160,6 +160,10 @@ window.placeNotices = (region) => {
 };
 /** The sources next to an index would show at the window's left edge, cut. */
 window.hideSources = () => { document.querySelector('#sidebar').style.visibility = 'hidden'; };
+/** The usage list's "Replace…" button, once usages are ticked. */
+window.replaceButton = () => $$('.element-relations button').find((button) => button.textContent.trim() === 'Replace…');
+/** The open replace wizard's slideout. */
+window.wizardSlideout = () => document.querySelector('.element-relations-wizard')?.closest('.slideout');
 window.visibleModal = () => $('.modal:visible').last().data('modal') ?? Garnish.Modal.visibleModal;
 // trial and dev mode notices are not part of what the plugin looks like
 const style = document.createElement('style');
@@ -189,7 +193,7 @@ const SHOTS = [
         path: demo.guide.path,
         act: `
             await indexReady(fieldIndex(), 'the usage list');
-            $('[data-element-relations-type-menu] .menubtn').data('menubtn').showMenu();
+            $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn').showMenu();
             await sleep(500);
         `,
     },
@@ -202,6 +206,8 @@ const SHOTS = [
         text: 'The field renders Craft’s native element index, so everything looks and works like the rest of the control panel.',
         path: demo.skyline.path,
         act: `await indexReady(fieldIndex(), 'the usage list'); document.querySelector('.element-relations [data-view="cards"]').click(); await indexReady(fieldIndex(), 'cards');`,
+        // back to the table (Craft remembers the view), where the replace shots tick rows
+        after: `document.querySelector('.element-relations [data-view="table"]').click(); await indexReady(fieldIndex(), 'the table');`,
     },
     {
         name: 'entry-tab', edition: 'Lite',
@@ -278,30 +284,44 @@ const SHOTS = [
         `,
     },
     {
-        name: 'wizard', edition: 'Pro',
-        // as tall as the window, so the whole slideout (it fills the viewport's height) is in it
-        viewport: { width: 1280, height: Math.round((LAYOUTS.side.height - BAR) / ZOOM) },
-        points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'Review, then replace in the background'],
-        focus: `document.querySelector('.element-relations-wizard').closest('.slideout')`,
-        highlight: `[[document.querySelector('.element-relations-wizard [data-summary]')], [document.querySelector('.element-relations-wizard').closest('.slideout').querySelector('button[type="submit"]')]]`,
-        title: 'Replace an element everywhere',
-        text: 'A slideout right from the field: choose the replacement, the usages, review. Every supported field and plugin is rewritten the way it was read.',
+        name: 'replace', edition: 'Pro',
+        points: ['Tick the usages, like in any index', 'Or all in the list, on every page', 'Element Relations’ own button, next to Craft’s'],
+        focus: `inPane(document.querySelector('.element-relations'))`,
+        highlight: `[[replaceButton()]]`,
+        title: 'Replace it where you choose',
+        text: 'Tick the usages right in the list and choose “Replace…”. Every supported field and plugin is rewritten the way it was read.',
         path: demo.skyline.path,
         act: `
             await indexReady(fieldIndex(), 'the usage list');
-            document.querySelector('[data-element-relations-replace] .btn').click();
+            const index = fieldIndex();
+            // the demo's usages to replace in, each with its rows in every site
+            $$('.element-relations tbody tr[data-id]')
+                .filter((row) => ${JSON.stringify(demo.replaceIn)}.includes(Number(row.dataset.id)))
+                .forEach((row) => index.view.elementSelect.selectItem($(row)));
+            await until(() => replaceButton(), 'the Replace… button');
+            await sleep(600);
+        `,
+    },
+    {
+        name: 'wizard', edition: 'Pro',
+        // as tall as the window, so the whole slideout (it fills the viewport's height) is in it
+        viewport: { width: 1280, height: Math.round((LAYOUTS.side.height - BAR) / ZOOM) },
+        points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
+        focus: `wizardSlideout()`,
+        highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
+        title: 'Review, then replace',
+        text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
+        act: `
+            replaceButton().click();
             await until(() => document.querySelector('.element-relations-wizard'), 'the wizard');
             await sleep(800);
-            const wizard = document.querySelector('.element-relations-wizard');
-            const picker = $(wizard).find('.elementselect').data('elementSelect');
+            const picker = $('.element-relations-wizard .elementselect').data('elementSelect');
             picker.showModal();
             await until(() => picker.modal?.elementIndex?.view, 'the picker');
             await indexReady(picker.modal.elementIndex, 'the picker');
             picker.modal.elementIndex.view.selectElementById(${demo.replacement.id});
             picker.modal.selectElements();
-            await until(() => wizard.querySelector('.elementselect .chip'), 'the chosen replacement');
-            const usages = wizard.querySelectorAll('[data-usage]');
-            usages[usages.length - 1].click(); // leave one usage as it is
+            await until(() => document.querySelector('.element-relations-wizard [data-review-to] .chip'), 'the chosen replacement');
             // the page shows through the shade left of the slideout; just the shade looks cleaner
             document.querySelector('#global-container').style.visibility = 'hidden';
             await sleep(700);
@@ -317,7 +337,7 @@ const SHOTS = [
         text: 'Replacements and rollbacks run as queue jobs, as the user who started them. The notice follows the job.',
         act: `
             document.querySelector('#global-container').style.visibility = '';
-            document.querySelector('.element-relations-wizard').closest('.slideout').querySelector('button[type="submit"]').click();
+            wizardSlideout().querySelector('button[type="submit"]').click();
             await until(() => $$('.notification').some((n) => /background/.test(n.textContent)), 'the running notice');
             await sleep(400);
         `,
@@ -545,12 +565,12 @@ async function capture(browser, clip, viewportHeight) {
 }
 
 /**
- * The framed image for the docs: WebP, a tenth of a PNG's size at the same sharpness.
+ * The framed image for the docs, as JPG.
  * @param {Browser} browser
  * @returns {Promise<Buffer>}
  */
 async function captureFramed(browser) {
-    const { data } = await browser.send('Page.captureScreenshot', { format: 'webp', quality: 90 });
+    const { data } = await browser.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
     return Buffer.from(data, 'base64');
 }
 
@@ -711,7 +731,7 @@ function frameHtml(shot, imageUrl, area, address) {
 }
 
 /** Shots on the cover, left to right (the middle one in front); all in the side layout, so the windows match. */
-const COVER_SHOTS = ['usage-list', 'wizard', 'cards'];
+const COVER_SHOTS = ['usage-list', 'wizard', 'replace'];
 
 /**
  * The cover for the README: the plugin's name over three of the shots, fanned out.
@@ -823,7 +843,7 @@ try {
         const html = join(workDir, `${shot.name}.html`);
         writeFileSync(html, frameHtml(shot, pathToFileURL(raw).href, area, address));
         await open(browser, pathToFileURL(html).href);
-        const target = resolve(outDir, `${shot.name}.webp`);
+        const target = resolve(outDir, `${shot.name}.jpg`);
         writeFileSync(target, await captureFramed(browser));
         console.log(`  framed ${target}`);
     }
@@ -834,8 +854,8 @@ try {
         const html = join(workDir, 'cover.html');
         writeFileSync(html, coverHtml(/** @type {typeof taken} */ (coverCards)));
         await open(browser, pathToFileURL(html).href);
-        writeFileSync(resolve(outDir, 'cover.webp'), await captureFramed(browser));
-        console.log(`  cover ${resolve(outDir, 'cover.webp')}`);
+        writeFileSync(resolve(outDir, 'cover.jpg'), await captureFramed(browser));
+        console.log(`  cover ${resolve(outDir, 'cover.jpg')}`);
     }
 } finally {
     await browser.close();

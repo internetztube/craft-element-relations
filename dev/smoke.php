@@ -177,7 +177,7 @@ check(!str_contains($input, 'export-btn') || str_contains($input, 'export-btn" c
 $js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
 $colOpts = html_entity_decode($input);
 check(str_contains($colOpts, '"attr":"status"') && str_contains($colOpts, '"attr":"postDate"') && str_contains($colOpts, '"attr":"link"'), 'the View menu offers Status, Post Date and Link as table columns');
-check(str_contains($js, 'Craft.createElementIndex') && str_contains($js, 'usesElement') && str_contains($js, '"static":true') && str_contains($js, '"canHaveDrafts":true') && str_contains($js, 'Usage'), 'the index JS is bound to the Usage type, read-only, filtered by usesElement');
+check(str_contains($js, 'Craft.createElementIndex') && str_contains($js, 'usesElement') && str_contains($js, '"inlineEditable":false') && str_contains($js, '"canHaveDrafts":true') && str_contains($js, 'Usage'), 'the index JS is bound to the Usage type, without inline editing, filtered by usesElement');
 $settingsHtml = withWebRequest(fn() => $field->getSettingsHtml());
 check(str_contains($settingsHtml, 'name="viewMode"') && str_contains($settingsHtml, 'name="showStatusMenu"') && str_contains($settingsHtml, 'name="pageSize"'), 'field settings offer View Mode, status menu and page size');
 $configured = clone $field;

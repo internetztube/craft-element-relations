@@ -198,25 +198,15 @@ class ElementRelations extends Plugin
         });
 
 
-        // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
+        // type and site dropdowns in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
         Craft::$app->getView()->hook('cp.elements.toolbar', function (array &$context): string {
             if (($context['elementType'] ?? null) !== Usage::class) {
                 return '';
             }
-            $html = '';
-            if (ElementRelationsField::$toolbarTypes) {
-                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/type-menu', [
-                    'types' => ElementRelationsField::$toolbarTypes,
-                    'id' => 'element-relations-types-' . mt_rand(),
-                ]);
-            }
-            if (ElementRelationsField::$replaceSettings) { // Pro: replace wizard
-                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/replace', [
-                    'settings' => ElementRelationsField::$replaceSettings,
-                    'id' => 'element-relations-replace-' . mt_rand(),
-                ]);
-            }
-            return $html;
+            return implode('', array_map(fn(array $menu): string => Craft::$app->getView()->renderTemplate('element-relations/_field/filter-menu', [
+                'menu' => $menu,
+                'id' => 'element-relations-menu-' . mt_rand(),
+            ]), ElementRelationsField::$toolbarMenus));
         });
 
         // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
@@ -309,7 +299,20 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_BEFORE_DELETE, function (ModelEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
-            ExtractorService::deleteRelationsForElement($element);
+            // A trashed element can be restored, so its usages stay (lists and counts skip trashed elements, the list's
+            // "Trashed" status shows them; rows of elements Craft's garbage collection removes later are never joined).
+            // Not for nested elements: Craft trashes a Matrix block's entry when it is removed from its owner, whose
+            // usage it would otherwise still be; restoring the owner refreshes them (below).
+            $nested = $element instanceof \craft\base\NestedElementInterface && $element->getPrimaryOwnerId() !== null;
+            if ($element->hardDelete || $nested) {
+                ExtractorService::deleteRelationsForElement($element);
+            }
+        });
+        Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_AFTER_RESTORE_ELEMENT, function (\craft\events\ElementEvent $event): void {
+            $element = $event->element;
+            if (!$element instanceof \craft\base\NestedElementInterface || $element->getPrimaryOwnerId() === null) {
+                \internetztube\elementRelations\services\ReplaceService::refreshOwnerTree((int)$element->id); // its nested elements' rows
+            }
         });
 
         $pluginEnableCallback = function (PluginEvent $event): void {

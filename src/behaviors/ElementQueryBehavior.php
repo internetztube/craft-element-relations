@@ -6,6 +6,7 @@ namespace internetztube\elementRelations\behaviors;
 
 use craft\base\ElementInterface;
 use craft\db\Query;
+use craft\db\Table;
 use craft\elements\db\ElementQuery;
 use yii\base\Behavior;
 use yii\db\Expression;
@@ -69,7 +70,11 @@ class ElementQueryBehavior extends Behavior
             $subQuery->andWhere(['not exists', (new Query())
                 ->select(['elementrelations_cache.id'])
                 ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-                ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')]),
+                // usages by trashed elements don't count, like everywhere else (they come back when restored);
+                // plugin settings (no source element) do
+                ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
+                ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')])
+                ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null]]]),
             ]);
         }
         if ($this->usesElement === null) {

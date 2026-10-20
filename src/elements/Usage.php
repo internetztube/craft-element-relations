@@ -8,6 +8,8 @@ use Craft;
 use craft\base\Element;
 use craft\elements\Entry;
 use craft\enums\CmsEdition;
+use internetztube\elementRelations\ElementRelations;
+use internetztube\elementRelations\elements\actions\ReplaceUsages;
 use internetztube\elementRelations\elements\db\UsageQuery;
 
 /**
@@ -30,10 +32,11 @@ abstract class Usage extends Element
 
     /**
      * Filled by UsageQuery::populate() for every element it loads: "<elementId>:<siteId>" => list of
-     * ['fieldId' => int|null, 'type' => string] describing through which field (or feature) that element uses the
-     * queried target (empty without a `usesElement` param). Also tells the attribute HTML hook which elements are
+     * ['fieldId' => int|null, 'type' => string, 'disabledIn' => int|null] describing through which field (or feature)
+     * that element uses the queried target (empty without a `usesElement` param); `disabledIn` is the disabled nested
+     * element (e.g. a Matrix block) the relation is in. Also tells the attribute HTML hook which elements are
      * being rendered in a Usage index.
-     * @var array<string, array<int, array{fieldId: int|null, type: string}>>
+     * @var array<string, array<int, array{fieldId: int|null, type: string, disabledIn: int|null}>>
      */
     public static array $via = [];
 
@@ -99,6 +102,16 @@ abstract class Usage extends Element
     public static function exporters(string $source): array
     {
         return [];
+    }
+
+    /**
+     * Pro: "Replace…" for the ticked usages; with an action, Craft's index shows its checkboxes and action bar. Nothing
+     * else: Craft's defaults (Edit, Duplicate, Set status, Delete) would act on the relating elements themselves.
+     * @return list<class-string<ReplaceUsages>>
+     */
+    public static function actions(string $source): array
+    {
+        return ElementRelations::canReplace() ? [ReplaceUsages::class] : [];
     }
 
     /** @return list<array{key: string, label: string}> */

@@ -6,6 +6,7 @@ use craft\elements\Category;
 use craft\elements\Entry;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\actions\ReplaceRelations;
+use internetztube\elementRelations\models\RelationsModel;
 use internetztube\elementRelations\services\ReplaceService;
 
 return function (array $ctx): void {
@@ -25,7 +26,7 @@ return function (array $ctx): void {
     $editionBefore = ElementRelations::getInstance()->edition;
     $plugins->switchEdition('element-relations', 'lite');
     $offersUsedRule = fn(): bool => in_array(internetztube\elementRelations\elements\conditions\UsedConditionRule::class, array_map(fn($rule) => $rule::class, Asset::createCondition()->getSelectableConditionRules()), true);
-    check(!$offersUsedRule() && !in_array(ReplaceRelations::class, Asset::actions('*'), true), 'Lite: no “Used anywhere” filter, no Replace action');
+    check(!$offersUsedRule() && !in_array(ReplaceRelations::class, Asset::actions('*'), true) && !internetztube\elementRelations\elements\Usage::actions('*'), 'Lite: no “Used anywhere” filter, no Replace actions');
     $plugins->switchEdition('element-relations', 'pro');
     check($offersUsedRule(), 'Pro: the asset filter offers “Used anywhere”');
     check(!in_array('elementRelations:unused', $sourceKeys(), true), 'no extra “Unused” source: the filter works on top of every source');
@@ -54,7 +55,8 @@ return function (array $ctx): void {
     check(in_array(internetztube\elementRelations\elements\conditions\UsedConditionRule::class, array_map(fn($r) => $r::class, Asset::createCondition()->getSelectableConditionRules()), true), 'the rule is offered in asset conditions (filter HUD, custom sources)');
     $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
     $sorted = Asset::find()->status(null)->orderBy([$sort['orderBy'] => SORT_DESC])->ids();
-    check(array_search($asset->id, $sorted, true) < array_search($fresh->id, $sorted, true) && $sorted[0] === $asset->id, 'sorting by the field puts the most used asset first and the unused one after it');
+    $usageCount = fn(int $id) => (new RelationsModel($id, Craft::$app->getSites()->getPrimarySite()->id))->getCountFast([]);
+    check(array_search($asset->id, $sorted, true) < array_search($fresh->id, $sorted, true) && $usageCount($sorted[0]) >= $usageCount($asset->id), 'sorting by the field puts the most used asset first and the unused one after it');
     $category = Category::find()->title('Test Category')->one(); // relates to Page C, nothing relates to it
     check($category && in_array($category->id, Category::find()->unused()->status(null)->ids(), true), 'unused() works for categories (Test Category is a source, not a target)');
 
@@ -102,7 +104,8 @@ return function (array $ctx): void {
     $field = Craft::$app->getFields()->getFieldByHandle('relations');
     Craft::$app->getView()->clear();
     $input = withWebRequest(fn() => $field->getInputHtml($c->getFieldValue('relations'), $c));
-    check(str_contains($input, 'data-element-relations-replace'), 'Pro: the field offers the Replace… wizard button');
+    check(str_contains($input, 'data-element-relations-from="' . $c->id . '"'), 'Pro: the field tells the index which element its "Replace…" action replaces');
+    check(in_array(internetztube\elementRelations\elements\actions\ReplaceUsages::class, internetztube\elementRelations\elements\Usage::actions('*'), true), 'Pro: the usage list offers "Replace…" for the ticked usages (an element action, so Craft shows checkboxes)');
     $rawBefore = $hasCk ? Entry::find()->id($source->id)->one()->getFieldValue('ckeditor')->getRawContent() : '';
 
     $result = ReplaceService::replace($c, $target);

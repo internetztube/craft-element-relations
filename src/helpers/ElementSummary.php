@@ -42,9 +42,23 @@ class ElementSummary
     {
         $vias = Usage::$via["$element->id:$element->siteId"] ?? [];
         $parts = [];
+        // per field: the disabled blocks (nested elements) it is used in, and whether it is used anywhere live
+        $disabled = [];
+        $live = [];
+        foreach ($vias as $via) {
+            if ($via['fieldId']) {
+                $via['disabledIn'] !== null ? $disabled[$via['fieldId']][$via['disabledIn']] = true : $live[$via['fieldId']] = true;
+            }
+        }
         foreach ($vias as $via) {
             if ($via['fieldId'] && ($field = Craft::$app->getFields()->getFieldById($via['fieldId']))) {
-                $parts[$field->id] = Html::encode(Craft::t('site', (string)$field->name));
+                $html = Html::encode(Craft::t('site', (string)$field->name));
+                if (isset($disabled[$field->id])) {
+                    $html .= ' ' . Html::tag('span', Html::encode(Craft::t('element-relations', isset($live[$field->id]) ? 'field-via-also-disabled' : 'field-via-disabled', [
+                        'count' => count($disabled[$field->id]),
+                    ])), ['class' => 'light', 'data-element-relations-disabled' => true]);
+                }
+                $parts[$field->id] = $html;
             } else {
                 $label = match (true) {
                     $via['type'] === 'element-user-photo' => Craft::t('element-relations', 'field-via-user-photo'),

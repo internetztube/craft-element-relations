@@ -228,6 +228,21 @@ class RelationsModel
     }
 
     /**
+     * Number of relating elements per site, in the order of the site settings.
+     * @return array<int, int>
+     */
+    public function getCountsBySite(): array
+    {
+        $counts = array_fill_keys(Craft::$app->getSites()->getAllSiteIds(), 0);
+        foreach ($this->getFastCountQueryResult() as $row) {
+            if (isset($counts[$row['siteId']])) {
+                $counts[$row['siteId']] += $row['count'];
+            }
+        }
+        return array_filter($counts);
+    }
+
+    /**
      * IDs of the (primary owner) elements that relate to this element. Cheap: one query, no element hydration.
      * @param int|int[]|null $siteIds
      * @return list<int>

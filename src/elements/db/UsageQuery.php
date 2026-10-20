@@ -51,6 +51,9 @@ class UsageQuery extends ElementQuery
      */
     public bool $allSites = false;
 
+    /** With `allSites`: only these of the sites (the field's site dropdown); null = every site. */
+    public mixed $inSites = null;
+
     /**
      * Only what this user may view. Applied automatically for non-admin users in control panel requests (the field's
      * list, the wizard's modal, any element index request for this type); `false` switches it off (server code only).
@@ -115,10 +118,20 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    /** @param int|int[]|string|null $value site id(s), see $inSites */
+    public function inSites(mixed $value): static
+    {
+        $this->inSites = $value;
+        return $this;
+    }
+
     protected function beforePrepare(): bool
     {
         if ($this->allSites) {
-            $this->siteId = Craft::$app->getSites()->getAllSiteIds(); // siteId is normalized before beforePrepare()
+            $all = Craft::$app->getSites()->getAllSiteIds();
+            $only = array_map(intval(...), array_filter((array)$this->inSites, is_numeric(...)));
+            // siteId is normalized before beforePrepare()
+            $this->siteId = $this->inSites !== null && $this->inSites !== '' ? array_values(array_intersect($all, $only)) ?: [0] : $all;
         }
         /** @var Query<array-key, mixed> $subQuery prepare() creates it before calling beforePrepare() */
         $subQuery = $this->subQuery;
@@ -409,15 +422,29 @@ class UsageQuery extends ElementQuery
         // through which field(s) each loaded element uses the target (for the index's "Field" column)
         $targetIds = $this->targetIds();
         if ($targetIds && $elements) {
-            /** @var list<array{sourcePrimaryOwnerId: int|string, sourceSiteId: int|string, fieldId: int|string|null, type: string}> $rowsVia */
+            // with the state of the element holding the relation: a disabled Matrix block (nested entry) of a live owner
+            // is no live usage, which the column says
+            /** @var list<array{sourcePrimaryOwnerId: int|string, sourceSiteId: int|string, sourceElementId: int|string|null, fieldId: int|string|null, type: string, enabled: bool|int|string|null, enabledForSite: bool|int|string|null}> $rowsVia */
             $rowsVia = (new Query())
-                ->select(['sourcePrimaryOwnerId', 'sourceSiteId', 'fieldId', 'type'])
+                ->select([
+                    'sourcePrimaryOwnerId' => 'cache.sourcePrimaryOwnerId', 'sourceSiteId' => 'cache.sourceSiteId',
+                    'sourceElementId' => 'cache.sourceElementId', 'fieldId' => 'cache.fieldId', 'type' => 'cache.type',
+                    'enabled' => 'sources.enabled', 'enabledForSite' => 'sources_sites.enabled',
+                ])
                 ->distinct()
-                ->from('{{%elementrelations_cache}}')
-                ->where(['targetElementId' => $targetIds, 'sourcePrimaryOwnerId' => array_column($rows, 'id')])
+                ->from(['cache' => '{{%elementrelations_cache}}'])
+                ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
+                ->leftJoin(['sources_sites' => Table::ELEMENTS_SITES], '[[sources_sites.elementId]] = [[cache.sourceElementId]] AND [[sources_sites.siteId]] = [[cache.sourceSiteId]]')
+                ->where(['cache.targetElementId' => $targetIds, 'cache.sourcePrimaryOwnerId' => array_column($rows, 'id')])
                 ->all();
             foreach ($rowsVia as $via) {
-                Usage::$via["{$via['sourcePrimaryOwnerId']}:{$via['sourceSiteId']}"][] = ['fieldId' => $via['fieldId'] ? (int)$via['fieldId'] : null, 'type' => $via['type']];
+                $nested = $via['sourceElementId'] !== null && (int)$via['sourceElementId'] !== (int)$via['sourcePrimaryOwnerId'];
+                $disabled = $nested && (($via['enabled'] !== null && !(bool)$via['enabled']) || ($via['enabledForSite'] !== null && !(bool)$via['enabledForSite']));
+                Usage::$via["{$via['sourcePrimaryOwnerId']}:{$via['sourceSiteId']}"][] = [
+                    'fieldId' => $via['fieldId'] ? (int)$via['fieldId'] : null,
+                    'type' => $via['type'],
+                    'disabledIn' => $disabled ? (int)$via['sourceElementId'] : null,
+                ];
             }
         }
 

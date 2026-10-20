@@ -7,6 +7,7 @@
 use craft\elements\Asset;
 use craft\elements\Entry;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\models\RelationsModel;
 
 return function (array $ctx): void {
     $usages = function (craft\base\ElementInterface $of): array {
@@ -41,4 +42,36 @@ return function (array $ctx): void {
     $jonasRows = $usages($jonas);
     check(($jonasRows['Packing light for a week of trains:default'] ?? null) === 'Written by', 'Field column: only the field linking this element, not the fields of an earlier list in the request (' . ($jonasRows['Packing light for a week of trains:default'] ?? '-') . ')');
     check(isset($jonasRows['Why we take the train:default:draft']), 'demo: the draft of an article shows up as a usage');
+
+    // a never-published article (only a draft)
+    $river = Asset::find()->filename('afternoon-by-the-river.jpg')->one();
+    check(isset($usages($river)['A ferry to Busan:default:draft']), 'demo: an unpublished draft shows up as a usage (a draft row)');
+
+    // the trash: a trashed article can be restored, so its usages stay; it is listed under "Trashed" only, counts nowhere
+    // and no replacement touches it; restoring brings it back as it was
+    $glassRoof = Asset::find()->filename('glass-roof.jpg')->one();
+    $outdated = Entry::find()->title('Station guide 2019')->trashed(true)->status(null)->one();
+    check($outdated !== null && Asset::find()->filename('timetable-2019.pdf')->trashed(true)->exists(), 'demo: an article and a document are in the trash');
+    $trashedUsages = fn() => array_map('strval', Craft::configure(Usage::find()->allSites()->status(null)->trashed(true), ['usesElement' => $glassRoof->id])->all());
+    $model = fn() => new RelationsModel($glassRoof->id, $glassRoof->siteId);
+    $countBefore = $model()->getCountFast([]);
+    check(!isset($usages($glassRoof)['Station guide 2019:default']) && in_array('Station guide 2019', $trashedUsages(), true), 'trashed usage: not in the list, but under "Trashed"');
+    check(!in_array($outdated->id, $model()->getSourceElementIds(), true), "trashed usage: not counted ($countBefore)");
+    $plan = internetztube\elementRelations\services\ReplaceService::replace($glassRoof, Asset::find()->filename('into-the-tunnel.jpg')->one(), [$outdated->id]);
+    check($plan['replaced'] === 0, 'trashed usage: a replacement leaves it alone (' . json_encode($plan) . ')');
+    Craft::$app->getElements()->restoreElement($outdated);
+    check(isset($usages($glassRoof)['Station guide 2019:default']) && $model()->getCountFast([]) > $countBefore, 'restored: listed and counted again right away (its usages were kept)');
+    Craft::$app->getElements()->deleteElement($outdated);
+    check(!isset($usages($glassRoof)['Station guide 2019:default']) && $model()->getCountFast([]) === $countBefore, 'trashed again: out of the list again');
+
+    // one image, many usages: several pages in the field's list; 30 notes per destination
+    $notes = Asset::find()->filename('station-notes.jpg')->one();
+    $noteRows = $usages($notes);
+    $noteIds = (new RelationsModel($notes->id, $notes->siteId))->getSourceElementIds();
+    check(count($noteIds) === 90 && count($noteRows) === 90 * count(Craft::$app->getSites()->getAllSiteIds()), 'demo: 90 station notes share one image, ' . count($noteRows) . ' rows in its list (pages of 20)');
+    foreach (['Beijing', 'Hong Kong', 'Taipei'] as $city) {
+        $destination = Entry::find()->section('destinations')->title($city)->one();
+        $notesThere = array_filter(array_keys($usages($destination)), fn(string $row) => str_starts_with($row, 'Station notes:') && str_ends_with($row, ':default'));
+        check(count($notesThere) === 30, "demo: $city has 30 station notes (" . count($notesThere) . ')');
+    }
 };

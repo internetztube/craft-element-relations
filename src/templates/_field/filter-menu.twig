@@ -1,0 +1,54 @@
+{# A dropdown in the toolbar of the field's index (ElementRelationsField::$toolbarMenus: the element types, the sites),
+   in Craft's menu button markup, placed after the status menu by the script below. Choosing an option sets the index
+   criteria param `param` (UsageQuery::$elementTypes, ::$inSites); the first option ("All …") clears it. #}
+{% set total = menu.options|map(o => o.count)|reduce((carry, n) => carry + n, 0) %}
+<div class="element-relations-menu" data-element-relations-menu="{{ id }}" data-param="{{ menu.param }}">
+    <button type="button" class="btn menubtn" aria-label="{{ menu.label }}">{{ menu.allLabel }}</button>
+    <div class="menu">
+        <ul class="padded">
+            <li><a class="sel flex flex-justify" data-value="">{{ menu.allLabel }} <span class="badge">{{ total|number }}</span></a></li>
+            {% for value, option in menu.options %}
+                <li><a class="flex flex-justify" data-value="{{ value }}">{{ option.label }} <span class="badge">{{ option.count|number }}</span></a></li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% js %}
+/**
+ * Moves a dropdown next to the index's status menu (after the ones placed before it) and filters the index by the
+ * chosen option.
+ * @param {JQuery} $menu the `[data-element-relations-menu]` wrapper, rendered inside the index's toolbar
+ * @returns {void}
+ */
+window.ElementRelationsMenu = window.ElementRelationsMenu || function ($menu) {
+    'use strict';
+    const $index = $menu.closest('.element-index');
+    const $button = $menu.find('.menubtn');
+    const param = $menu.data('param');
+    let tries = 0;
+    const attach = function () {
+        /** @type {Craft.BaseElementIndex|undefined} */
+        const index = $index.data('elementIndex');
+        /** @type {Garnish.MenuBtn|undefined} */
+        let menuButton = $button.data('menubtn');
+        if ((!index || !menuButton) && tries++ < 40) { return setTimeout(attach, 50); } // index + Craft's menu button init are async
+        if (!menuButton) { menuButton = new Garnish.MenuBtn($button); }
+        const $placed = $index.find('.element-relations-menu.placed').last();
+        $menu.insertAfter($placed.length ? $placed : $index.find('.statusmenubtn').parent()).addClass('placed');
+        menuButton.on('optionSelect', function (event) {
+            const $option = $(event.option);
+            $option.closest('.menu').find('.sel').removeClass('sel');
+            $option.addClass('sel');
+            $button.text($option.contents().first().text().trim());
+            // `data-value` is empty for "All …"
+            index.settings.criteria[param] = String($option.data('value') ?? '') || null;
+            index.setPage(1);
+            index.updateElements();
+        });
+    };
+    attach();
+};
+{% endjs %}
+{% js %}
+ElementRelationsMenu($('[data-element-relations-menu="{{ id }}"]'));
+{% endjs %}
