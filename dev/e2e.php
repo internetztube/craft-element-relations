@@ -144,6 +144,21 @@ check($status === 200, "edit page renders (HTTP $status)");
 check(str_contains($html, 'Craft.createElementIndex') && str_contains($html, '"usesElement":' . $from->id) && str_contains($html, '"allSites":true'), 'field embeds the Usage index filtered by this element across all sites');
 check(str_contains($html, 'data-element-relations-from="' . $from->id . '"'), 'the field tells its index which element "Replace…" replaces');
 
+// --- the demo front end (dev/templates): every page that shows the plugin's data renders with it
+echo "Front end\n";
+foreach ([
+    '/' => 'Where we travel most',
+    '/destinations/hong-kong' => 'Stories from here',
+    '/destinations/hong-kong/p2' => 'Page 2 of', // Craft's page trigger
+    '/journal?destination=taipei' => 'Stories from Taipei',
+    '/journal/how-to-read-a-station' => 'Linked from',
+    '/team/mara-lindqvist' => 'stories by Mara',
+    '/de/' => 'Where we travel most',
+] as $path => $text) {
+    [$status, $page] = $http->page($path);
+    check($status === 200 && str_contains($page, $text), "front end $path shows “{$text}” (HTTP $status)");
+}
+
 // --- what the field's list shows: Craft's element index endpoint over the Usage type
 echo "Usage index endpoint (the field's list)\n";
 /** The usage list's response: rows, and the element actions Craft offers on them (Pro: "Replace…"). */

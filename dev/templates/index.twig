@@ -1,0 +1,33 @@
+{% extends '_layout' %}
+
+{% block content %}
+    {% include '_partials/blocks' with {blocks: entry.contentBlocks.all()} %}
+
+    {#
+     # Element Relations: rank the destinations by how many stories use them. `count` is one SQL query per destination
+     # (no elements are loaded) and, on the front end, counts what visitors may see: live entries, no drafts. Nobody
+     # maintains a "stories" field on the destination; the journal entries point to it, the plugin counts backwards.
+     #}
+    {% set destinations = craft.entries().section('destinations').level(2).all() %}
+    {% set ranked = destinations|sort((a, b) => b.usedIn.count(sections: ['journal']) <=> a.usedIn.count(sections: ['journal'])) %}
+    <h2>{{ 'Where we travel most'|t('site') }}</h2>
+    <div class="grid">
+        {% for destination in ranked %}
+            {% set image = destination.heroImage.one() %}
+            <a class="rank" href="{{ destination.url }}">
+                {% if image %}<img src="{{ image.getUrl({width: 128, height: 128, mode: 'crop'}) }}" alt="">{% endif %}
+                <span>
+                    <strong>{{ destination.title }}</strong>
+                    <span class="meta">{{ '{count, plural, =1{one story} other{# stories}}'|t('site', {count: destination.usedIn.count(sections: ['journal'])}) }}</span>
+                </span>
+            </a>
+        {% endfor %}
+    </div>
+
+    <h2>{{ 'Latest from the journal'|t('site') }}</h2>
+    <div class="grid">
+        {% for item in craft.entries().section('journal').orderBy('postDate desc').limit(6).all() %}
+            {% include '_partials/card' %}
+        {% endfor %}
+    </div>
+{% endblock %}

@@ -96,6 +96,8 @@ Get the `RelationsModel` from the element's field:
 {% endfor %}
 ```
 
+A complete example site using all of this (destination pages listing their stories, backlinks, author pages): [`dev/templates`](dev/templates).
+
 For elements with thousands of usages use `count`/`isInUse` (one SQL query each), pass a `limit` to `elements`, or walk them with `elementsIterator` (batches); `elements` without a limit loads every relating element.
 
 `siteIds`: omitted = the element's site, `[]` = all sites. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.

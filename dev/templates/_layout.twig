@@ -1,0 +1,111 @@
+{#
+ # Transit, the demo front end of Element Relations (dev/templates, linked into the dev project by dev/demo.php).
+ # Plain Twig and one stylesheet; the plugin's parts are marked "Element Relations:" in each template.
+ #}
+{% set settings = craft.app.globals.getSetByHandle('siteSettings') %}
+{% set logo = settings ? settings.logoImage.one() : null %}
+{% set nav = [
+    {label: 'Journal'|t('site'), url: url('journal'), active: entry is defined and entry.section.handle == 'journal'},
+    {label: 'Destinations'|t('site'), url: url('destinations'), active: entry is defined and entry.section.handle == 'destinations'},
+    {label: 'Team'|t('site'), url: url('team'), active: entry is defined and entry.section.handle == 'team'},
+] %}
+<!doctype html>
+<html lang="{{ currentSite.language }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --ink: #172033; --muted: #5b6478; --line: #e4e7ee; --paper: #fbfaf7; --card: #fff;
+            --accent: #e5422b; --accent-soft: #fdece8; --radius: 14px;
+            --font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font: 17px/1.6 var(--font); color: var(--ink); background: var(--paper); }
+        a { color: inherit; }
+        img { display: block; max-width: 100%; height: auto; }
+        .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+        .header { border-bottom: 1px solid var(--line); background: var(--card); }
+        .header .wrap { display: flex; align-items: center; gap: 28px; min-height: 68px; }
+        .header .logo img { height: 30px; width: auto; }
+        .header nav { display: flex; gap: 22px; margin-right: auto; font-weight: 600; font-size: 15px; }
+        .header nav a { text-decoration: none; color: var(--muted); }
+        .header nav a.active, .header nav a:hover { color: var(--ink); }
+        .sites { display: flex; gap: 8px; font-size: 13px; }
+        .sites a { text-decoration: none; color: var(--muted); padding: 2px 8px; border-radius: 99px; }
+        .sites a.active { background: var(--ink); color: #fff; }
+        main { padding: 48px 0 80px; }
+        h1 { font-size: clamp(34px, 5vw, 54px); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 16px; }
+        h2 { font-size: 26px; letter-spacing: -.01em; margin: 56px 0 18px; }
+        .eyebrow { margin: 0 0 10px; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+        .lede { font-size: 21px; color: var(--muted); max-width: 46em; margin: 0 0 28px; }
+        .grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+        .card { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; text-decoration: none; transition: transform .15s, box-shadow .15s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(23, 32, 51, .35); }
+        .card img { aspect-ratio: 3 / 2; object-fit: cover; width: 100%; background: var(--line); }
+        .card .body { padding: 16px 18px 20px; }
+        .card h3 { margin: 4px 0 6px; font-size: 19px; line-height: 1.25; }
+        .card p { margin: 0; color: var(--muted); font-size: 15px; }
+        .meta { font-size: 13px; color: var(--muted); }
+        .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 600; text-decoration: none; }
+        .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+        .figure { margin: 0 0 32px; }
+        .figure img { width: 100%; border-radius: var(--radius); }
+        .figure figcaption { margin-top: 10px; font-size: 14px; color: var(--muted); }
+        .prose { max-width: 42em; }
+        .prose p { margin: 0 0 1.1em; }
+        .aside { margin-top: 48px; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+        .aside h2 { margin: 0 0 14px; font-size: 20px; }
+        .aside ul { margin: 0; padding-left: 18px; }
+        .note { font-size: 13px; color: var(--muted); margin: 14px 0 0; }
+        .pager { display: flex; gap: 12px; align-items: center; margin-top: 32px; font-size: 15px; }
+        .pager a { padding: 6px 14px; border: 1px solid var(--line); border-radius: 99px; text-decoration: none; background: var(--card); }
+        .hero-block { position: relative; border-radius: calc(var(--radius) * 1.5); overflow: hidden; margin-bottom: 40px; color: #fff; }
+        .hero-block img { width: 100%; aspect-ratio: 21 / 9; object-fit: cover; }
+        .hero-block .text { position: absolute; inset: auto 0 0 0; padding: 40px; background: linear-gradient(transparent, rgba(10, 14, 26, .78)); }
+        .hero-block h1 { margin: 0 0 16px; max-width: 14em; }
+        .button { display: inline-block; padding: 10px 20px; border-radius: 99px; background: var(--accent); color: #fff; font-weight: 600; text-decoration: none; }
+        .rank { display: flex; align-items: center; gap: 16px; padding: 14px 18px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); text-decoration: none; }
+        .rank img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; }
+        .rank strong { display: block; font-size: 18px; }
+        .footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+        @media (max-width: 640px) {
+            .header .wrap { flex-wrap: wrap; gap: 12px 20px; padding: 12px 0; }
+            .hero-block .text { padding: 20px; }
+            .hero-block img { aspect-ratio: 4 / 3; }
+        }
+    </style>
+</head>
+<body>
+<header class="header">
+    <div class="wrap">
+        <a class="logo" href="{{ siteUrl }}">
+            {% if logo %}<img src="{{ logo.url }}" alt="Transit">{% else %}<strong>Transit</strong>{% endif %}
+        </a>
+        <nav>
+            {% for item in nav %}
+                <a href="{{ item.url }}" class="{{ item.active ? 'active' }}">{{ item.label }}</a>
+            {% endfor %}
+        </nav>
+        <div class="sites">
+            {% for site in craft.app.sites.getAllSites() %}
+                {# the same page in the other site, if it exists there #}
+                {% set localized = entry is defined ? craft.entries().id(entry.id).siteId(site.id).one() : null %}
+                <a href="{{ localized.url ?? siteUrl('', null, null, site.id) }}" class="{{ site.id == currentSite.id ? 'active' }}">{{ site.language|slice(0, 2)|upper }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</header>
+<main>
+    <div class="wrap">
+        {% block content %}{% endblock %}
+    </div>
+</main>
+<footer class="footer">
+    <div class="wrap">
+        {{ settings.footerText ?? 'Transit, a travel journal.' }}
+        · The “Stories from here”, “Linked from” and “This photo also appears in” lists come from the Element Relations plugin.
+    </div>
+</footer>
+</body>
+</html>

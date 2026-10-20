@@ -1,0 +1,19 @@
+{% extends '_layout' %}
+
+{% block content %}
+    <p class="eyebrow">{{ 'Team'|t('site') }}</p>
+    <h1>{{ 'Who writes Transit'|t('site') }}</h1>
+    <div class="grid">
+        {% for person in craft.entries().section('team').all() %}
+            {% set portrait = person.portrait.one() %}
+            <a class="rank" href="{{ person.url }}">
+                {% if portrait %}<img src="{{ portrait.getUrl({width: 128, height: 128, mode: 'crop'}) }}" alt="">{% endif %}
+                <span>
+                    <strong>{{ person.title }}</strong>
+                    {# Element Relations: how many stories point to this person #}
+                    <span class="meta">{{ person.jobTitle }} · {{ '{count, plural, =1{one story} other{# stories}}'|t('site', {count: person.usedIn.count(sections: ['journal'])}) }}</span>
+                </span>
+            </a>
+        {% endfor %}
+    </div>
+{% endblock %}

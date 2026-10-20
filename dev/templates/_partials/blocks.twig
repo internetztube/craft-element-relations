@@ -1,0 +1,34 @@
+{# The homepage's and the content pages' Matrix blocks (`contentBlocks`). #}
+{% for block in blocks %}
+    {% switch block.type.handle %}
+        {% case 'hero' %}
+            {% set image = block.heroImage.one() %}
+            <section class="hero-block">
+                {% if image %}<img src="{{ image.getUrl({width: 2000, height: 860, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}">{% endif %}
+                <div class="text">
+                    <h1>{{ block.headline }}</h1>
+                    {% if block.buttonLink and block.buttonLink.url %}<a class="button" href="{{ block.buttonLink.url }}">{{ block.buttonLabel }}</a>{% endif %}
+                </div>
+            </section>
+        {% case 'textBlock' %}
+            <div class="prose">{{ block.body }}</div>
+        {% case 'imageBlock' %}
+            {% set image = block.image.one() %}
+            {% if image %}
+                <figure class="figure">
+                    <img src="{{ image.getUrl({width: 1600, height: 800, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">
+                    {% if block.caption %}<figcaption>{{ block.caption }}</figcaption>{% endif %}
+                </figure>
+            {% endif %}
+        {% case 'featuredArticles' %}
+            <h2>{{ block.headline }}</h2>
+            <div class="grid">
+                {% for item in block.articles.all() %}{% include '_partials/card' %}{% endfor %}
+            </div>
+        {% case 'callToAction' %}
+            <section class="aside">
+                <h2>{{ block.headline }}</h2>
+                {% if block.buttonLink and block.buttonLink.url %}<a class="button" href="{{ block.buttonLink.url }}">{{ block.buttonLabel }}</a>{% endif %}
+            </section>
+    {% endswitch %}
+{% endfor %}

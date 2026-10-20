@@ -1,0 +1,75 @@
+{% extends '_layout' %}
+
+{% set hero = entry.heroImage.one() %}
+
+{% block content %}
+    <p class="eyebrow">{{ entry.parent.title ?? 'Destination'|t('site') }}</p>
+    <h1>{{ entry.title }}</h1>
+    {% if entry.summary %}<p class="lede">{{ entry.summary }}</p>{% endif %}
+    {% if entry.bestTime %}<p class="meta">{{ 'Best time to go:'|t('site') }} {{ entry.bestTime }}</p>{% endif %}
+    {% if hero %}
+        <figure class="figure"><img src="{{ hero.getUrl({width: 1600, height: 700, mode: 'crop'}) }}" alt="{{ hero.alt ?? hero.title }}"></figure>
+    {% endif %}
+
+    {% if entry.level == 1 %}
+        {# a region: its destinations #}
+        <div class="grid">
+            {% for child in entry.children.all() %}
+                {% set item = child %}{% include '_partials/card' %}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {#
+     # Element Relations: "Stories from here", the main use case. Every journal entry that relates to this destination,
+     # wherever the link is: the Destinations field of an article or review, a stop of a route (a Matrix block), a link
+     # in the body text. No reverse field to keep in sync.
+     #
+     # `usesElement` is an element query param, so it works with everything Craft queries do: ordering, `relatedTo`,
+     # search, and `{% paginate %}` (here 9 a page; Hong Kong, Beijing and Taipei have 30 station notes each).
+     #}
+    {% set storiesQuery = craft.entries()
+        .section('journal')
+        .usesElement(entry)
+        .orderBy('postDate desc')
+        .limit(9) %}
+    {% paginate storiesQuery as pageInfo, stories %}
+
+    <h2>{{ 'Stories from here'|t('site') }} <span class="meta">({{ pageInfo.total }})</span></h2>
+    {% if stories %}
+        <div class="grid">
+            {% for item in stories %}{% include '_partials/card' %}{% endfor %}
+        </div>
+        {% if pageInfo.totalPages > 1 %}
+            <nav class="pager">
+                {% if pageInfo.prevUrl %}<a href="{{ pageInfo.prevUrl }}">← {{ 'Newer'|t('site') }}</a>{% endif %}
+                <span class="meta">{{ 'Page {page} of {pages}'|t('site', {page: pageInfo.currentPage, pages: pageInfo.totalPages}) }}</span>
+                {% if pageInfo.nextUrl %}<a href="{{ pageInfo.nextUrl }}">{{ 'Older'|t('site') }} →</a>{% endif %}
+            </nav>
+        {% endif %}
+    {% else %}
+        <p class="meta">{{ 'No stories yet.'|t('site') }}</p>
+    {% endif %}
+
+    {#
+     # Element Relations: the same through the field's value (a RelationsModel). Handy for a teaser or a badge:
+     # `isInUse` and `count` are one query each, `elements` takes filters and a limit.
+     #}
+    {% set relations = entry.usedIn %}
+    {% if relations.isInUse %}
+        <section class="aside">
+            <h2>{{ 'Also points here'|t('site') }}</h2>
+            {% set other = relations.elements(limit: 8)|filter(e => (e.section.handle ?? null) != 'journal') %}
+            {% if other %}
+                <ul class="pills">
+                    {% for element in other %}
+                        <li>{% if element.url %}<a class="pill" href="{{ element.url }}">{{ element.title }}</a>{% else %}<span class="pill">{{ element.title ?? element }}</span>{% endif %}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="meta">{{ 'Only journal stories so far.'|t('site') }}</p>
+            {% endif %}
+            <p class="note">{{ '{count, plural, =1{One element links} other{# elements link}} to {title} in total.'|t('site', {count: relations.count, title: entry.title}) }}</p>
+        </section>
+    {% endif %}
+{% endblock %}

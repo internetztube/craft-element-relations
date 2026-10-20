@@ -1,0 +1,29 @@
+{% extends '_layout' %}
+
+{% set portrait = entry.portrait.one() %}
+
+{% block content %}
+    <div style="display: flex; gap: 28px; align-items: center; flex-wrap: wrap">
+        {% if portrait %}<img src="{{ portrait.getUrl({width: 240, height: 240, mode: 'crop'}) }}" alt="" style="width: 120px; border-radius: 50%">{% endif %}
+        <div>
+            <p class="eyebrow">{{ entry.jobTitle }}</p>
+            <h1>{{ entry.title }}</h1>
+        </div>
+    </div>
+    {% if entry.summary %}<p class="lede">{{ entry.summary }}</p>{% endif %}
+
+    {#
+     # Element Relations: an author page without an "articles" field on the person. Stories point to their writers
+     # (the Written by field); `elements` with `sections` lists them, `count` gives the number for the heading.
+     # `status` is left out: on the front end it defaults to what visitors may see.
+     #}
+    {% set relations = entry.usedIn %}
+    {% set total = relations.count(sections: ['journal']) %}
+    <h2>{{ '{count, plural, =0{No stories yet} =1{One story} other{# stories}} by {name}'|t('site', {count: total, name: entry.title|split(' ')|first}) }}</h2>
+    <div class="grid">
+        {% for item in relations.elements(sections: ['journal'], limit: 12) %}
+            {% include '_partials/card' %}
+        {% endfor %}
+    </div>
+    {% if total > 12 %}<p class="note">{{ '12 of them are shown.'|t('site') }}</p>{% endif %}
+{% endblock %}

@@ -641,6 +641,26 @@ if ($phase === 'schema') {
     $team = ensureSection('team', 'Team', Section::TYPE_CHANNEL, [$person], 'team/{slug}');
     ensureSection('company', 'Company', Section::TYPE_STRUCTURE, [$page], 'company/{slug}');
 
+    // the demo front end: dev/templates is the project's templates folder, each section renders with its template
+    $templates = CRAFT_BASE_PATH . '/templates';
+    if (!is_link($templates)) {
+        if (is_dir($templates)) {
+            rename($templates, "$templates-craft-default"); // Craft's welcome page
+        }
+        symlink(__DIR__ . '/templates', $templates);
+    }
+    foreach (['homepage' => 'index', 'journal' => 'journal/_entry', 'destinations' => 'destinations/_entry', 'team' => 'team/_entry', 'company' => 'company/_entry'] as $handle => $template) {
+        $section = Craft::$app->getEntries()->getSectionByHandle($handle);
+        $siteSettings = $section->getSiteSettings();
+        if (array_filter($siteSettings, fn($settings) => $settings->template !== $template)) {
+            foreach ($siteSettings as $settings) {
+                $settings->template = $template;
+            }
+            $section->setSiteSettings($siteSettings);
+            Craft::$app->getEntries()->saveSection($section) or fail($section);
+        }
+    }
+
     // entries fields point at their sections (they exist only now)
     $fields = Craft::$app->getFields();
     foreach (['writtenBy' => $team, 'relatedArticles' => $journal, 'articles' => $journal, 'destinations' => $destinations, 'featuredDestination' => $destinations] as $handle => $section) {

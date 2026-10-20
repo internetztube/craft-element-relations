@@ -1,0 +1,32 @@
+{% extends '_layout' %}
+
+{# /journal: every story, 12 a page; ?destination=<slug> narrows it to one destination (with `usesElement`). #}
+{% set destination = craft.app.request.getQueryParam('destination')
+    ? craft.entries().section('destinations').slug(craft.app.request.getQueryParam('destination')).one() : null %}
+{% set query = craft.entries().section('journal').orderBy('postDate desc').limit(12) %}
+{% if destination %}
+    {# Element Relations: the same param as on the destination page, combined with an ordinary query #}
+    {% do query.usesElement(destination) %}
+{% endif %}
+{% paginate query as pageInfo, stories %}
+
+{% block content %}
+    <p class="eyebrow">{{ 'Journal'|t('site') }}</p>
+    <h1>{{ destination ? 'Stories from {place}'|t('site', {place: destination.title}) : 'Every story'|t('site') }}</h1>
+    <ul class="pills" style="margin-bottom: 32px">
+        <li><a class="pill" href="{{ url('journal') }}">{{ 'All'|t('site') }}</a></li>
+        {% for place in craft.entries().section('destinations').level(2).all() %}
+            <li><a class="pill" href="{{ url('journal', {destination: place.slug}) }}">{{ place.title }}</a></li>
+        {% endfor %}
+    </ul>
+    <div class="grid">
+        {% for item in stories %}{% include '_partials/card' %}{% endfor %}
+    </div>
+    {% if pageInfo.totalPages > 1 %}
+        <nav class="pager">
+            {% if pageInfo.prevUrl %}<a href="{{ pageInfo.prevUrl }}">← {{ 'Newer'|t('site') }}</a>{% endif %}
+            <span class="meta">{{ 'Page {page} of {pages}'|t('site', {page: pageInfo.currentPage, pages: pageInfo.totalPages}) }}</span>
+            {% if pageInfo.nextUrl %}<a href="{{ pageInfo.nextUrl }}">{{ 'Older'|t('site') }} →</a>{% endif %}
+        </nav>
+    {% endif %}
+{% endblock %}
