@@ -1,0 +1,22 @@
+{#
+ # One code example of the /code page: the code on the left, what it renders on the demo data on the right.
+ #
+ #   {% import '_partials/example' as ex %}
+ #   {% set code %}{% verbatim %}{{ entry.usedIn.count }}{% endverbatim %}{% endset %}
+ #   {% set result %}{{ entry.usedIn.count }}{% endset %}
+ #   {{ ex.example('Count', code, result, 'One SQL query.', 'twig') }}
+ #}
+{% macro example(title, code, result, note = null, language = 'twig', id = null) %}
+    <article class="example" id="{{ id ?? title|kebab }}">
+        <header>
+            <h3><a href="#{{ id ?? title|kebab }}">{{ title }}</a></h3>
+            {% if note %}<p>{{ note|e|replace('/`([^`]+)`/', '<code>$1</code>')|raw }}</p>{% endif %}
+        </header>
+        <div class="example-grid {{ result is null ? 'code-only' }}">
+            <div class="example-code"><span class="lang">{{ language }}</span><pre><code>{{ ('' ~ code)|trim }}</code></pre></div>
+            {% if result is not null %}
+                <div class="example-result"><span class="lang">{{ 'Result'|t('site') }}</span>{{ result }}</div>
+            {% endif %}
+        </div>
+    </article>
+{% endmacro %}

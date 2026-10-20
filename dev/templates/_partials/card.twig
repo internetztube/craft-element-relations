@@ -1,9 +1,9 @@
-{# A card for any journal entry. #}
+{# A card for any journal entry (`item`). #}
 {% set image = (item.heroImage ?? null) ? item.heroImage.one() : null %}
 <a class="card" href="{{ item.url }}">
-    {% if image %}
-        <img src="{{ image.getUrl({width: 640, height: 427, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">
-    {% endif %}
+    <div class="thumb">
+        {% if image %}<img src="{{ image.getUrl({width: 640, height: 427, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">{% endif %}
+    </div>
     <div class="body">
         <span class="meta">{{ item.type.name }}{% if item.postDate %} · {{ item.postDate|date('j M Y') }}{% endif %}</span>
         <h3>{{ item.title }}</h3>

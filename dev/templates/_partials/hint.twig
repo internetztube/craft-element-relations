@@ -1,0 +1,20 @@
+{#
+ # A plugin hint: marks a part of the page that comes from Element Relations and shows the Twig behind it.
+ # The header's "Plugin hints" switch shows or hides them all.
+ #
+ #   {% import '_partials/hint' as er %}
+ #   {{ er.hint('Stories from here', "craft.entries().usesElement(entry)", 'Every story pointing here.') }}
+ #}
+{% macro hint(title, code, note = null) %}
+    <details class="er-hint">
+        <summary>
+            <span class="er-badge">{{ svg('@internetztube/elementRelations/icon-mask.svg') }} Element Relations</span>
+            <span class="er-title">{{ title }}</span>
+            <span class="er-toggle" aria-hidden="true">{{ '</>' }}</span>
+        </summary>
+        <div class="er-body">
+            {% if note %}<p>{{ note|e|replace('/`([^`]+)`/', '<code>$1</code>')|raw }}</p>{% endif %}
+            <pre><code>{{ ('' ~ code)|trim }}</code></pre>
+        </div>
+    </details>
+{% endmacro %}

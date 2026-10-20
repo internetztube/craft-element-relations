@@ -3,30 +3,33 @@
     {% switch block.type.handle %}
         {% case 'hero' %}
             {% set image = block.heroImage.one() %}
-            <section class="hero-block">
-                {% if image %}<img src="{{ image.getUrl({width: 2000, height: 860, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}">{% endif %}
+            <section class="hero">
+                {% if image %}<img src="{{ image.getUrl({width: 2200, height: 940, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}">{% endif %}
                 <div class="text">
+                    <p class="eyebrow">Transit</p>
                     <h1>{{ block.headline }}</h1>
-                    {% if block.buttonLink and block.buttonLink.url %}<a class="button" href="{{ block.buttonLink.url }}">{{ block.buttonLabel }}</a>{% endif %}
+                    {% if block.buttonLink and block.buttonLink.url %}<a class="button" href="{{ block.buttonLink.url }}">{{ block.buttonLabel }} →</a>{% endif %}
                 </div>
             </section>
         {% case 'textBlock' %}
-            <div class="prose">{{ block.body }}</div>
+            <div class="section prose">{{ block.body }}</div>
         {% case 'imageBlock' %}
             {% set image = block.image.one() %}
             {% if image %}
-                <figure class="figure">
-                    <img src="{{ image.getUrl({width: 1600, height: 800, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">
+                <figure class="section figure">
+                    <img src="{{ image.getUrl({width: 2000, height: 760, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">
                     {% if block.caption %}<figcaption>{{ block.caption }}</figcaption>{% endif %}
                 </figure>
             {% endif %}
         {% case 'featuredArticles' %}
-            <h2>{{ block.headline }}</h2>
-            <div class="grid">
-                {% for item in block.articles.all() %}{% include '_partials/card' %}{% endfor %}
-            </div>
+            <section class="section">
+                <div class="section-head"><h2>{{ block.headline }}</h2></div>
+                <div class="grid">
+                    {% for item in block.articles.all() %}{% include '_partials/card' %}{% endfor %}
+                </div>
+            </section>
         {% case 'callToAction' %}
-            <section class="aside">
+            <section class="section panel" style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 28px 32px">
                 <h2>{{ block.headline }}</h2>
                 {% if block.buttonLink and block.buttonLink.url %}<a class="button" href="{{ block.buttonLink.url }}">{{ block.buttonLabel }}</a>{% endif %}
             </section>

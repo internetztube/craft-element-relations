@@ -1,0 +1,217 @@
+{% extends '_layout' %}
+{% import '_partials/example' as ex %}
+
+{#
+ # /code: the plugin's template API, each example next to what it renders on the demo data. `usedIn` is the demo's
+ # Element Relations field (on entries, assets, categories, tags, products, global sets). On the front end `count`,
+ # `isInUse` and `elements` default to what visitors may see: live entries, enabled elements, no drafts.
+ #}
+{% set hk = craft.entries().section('destinations').slug('hong-kong').one() %}
+{% set mara = craft.entries().section('team').slug('mara-lindqvist').one() %}
+{% set river = craft.assets().filename('afternoon-by-the-river.jpg').one() %}
+{% set notes = craft.assets().filename('station-notes.jpg').one() %}
+{% set social = craft.assets().filename('social-share.svg').one() %}
+
+{% block content %}
+    <p class="eyebrow">{{ 'Developers'|t('site') }}</p>
+    <h1>{{ 'Code examples'|t('site') }}</h1>
+    <p class="lede">Element Relations knows, for every element, what links to it: through any relational field, Matrix blocks, rich text, links, SEO images and many plugins. In templates that is one field value and one query param. Every example below runs live on this site’s content.</p>
+
+    <nav class="toc">
+        {% for anchor, label in {
+            'is-it-used': 'Is it used?', 'how-often': 'How often?', 'which-elements': 'Which elements?',
+            'filters': 'Filters', 'statuses-and-drafts': 'Statuses and drafts', 'per-type-and-site': 'Per type and site',
+            'element-queries': 'In element queries', 'large-lists': 'Large lists', 'plugin-settings': 'Plugin settings',
+            'unused': 'Unused (Pro)', 'graphql': 'GraphQL', 'php': 'PHP',
+        } %}<a href="#{{ anchor }}">{{ label }}</a>{% endfor %}
+    </nav>
+
+    <section class="examples">
+        {# --- isInUse -------------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{% set relations = entry.usedIn %}   {# a RelationsModel #}
+
+{% if relations.isInUse %}…{% endif %}       {# in the element's site #}
+{% if relations.isInUse([]) %}…{% endif %}   {# in any site #}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <dl class="kv">
+                <dt>hk.usedIn.isInUse</dt><dd>{{ hk.usedIn.isInUse ? 'true' : 'false' }}</dd>
+                <dt>hk.usedIn.isInUse([])</dt><dd>{{ hk.usedIn.isInUse([]) ? 'true' : 'false' }}</dd>
+            </dl>
+        {% endset %}
+        {{ ex.example('Is it used?', code, result, '`isInUse` is one SQL query and loads no elements, e.g. to hide a "Stories from here" section or to warn before deleting.', 'twig', 'is-it-used') }}
+
+        {# --- count --------------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{{ entry.usedIn.count }}                           {# this site #}
+{{ entry.usedIn.count([]) }}                       {# all sites #}
+{{ entry.usedIn.count(sections: ['journal']) }}    {# only journal entries #}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <dl class="kv">
+                <dt>Hong Kong · count</dt><dd>{{ hk.usedIn.count }}</dd>
+                <dt>Hong Kong · count([])</dt><dd>{{ hk.usedIn.count([]) }}</dd>
+                <dt>Hong Kong · count(sections: ['journal'])</dt><dd>{{ hk.usedIn.count(sections: ['journal']) }}</dd>
+            </dl>
+        {% endset %}
+        {{ ex.example('How often?', code, result, 'Badges, rankings, "33 stories". One query each; `siteIds` means the site of the relating element, `[]` is every site.', 'twig', 'how-often') }}
+
+        {# --- elements ------------------------------------------------------------------------------------------ #}
+        {% set code %}{% verbatim %}
+{% for element in mara.usedIn.elements(limit: 5) %}
+    <a href="{{ element.url }}">{{ element.title }}</a>
+{% endfor %}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <ul class="result-list">
+                {% for element in mara.usedIn.elements(limit: 5) %}
+                    <li><a href="{{ element.url }}">{{ element.title }}</a> <span class="meta">{{ element.section.name ?? element.displayName() }}</span></li>
+                {% endfor %}
+            </ul>
+        {% endset %}
+        {{ ex.example('Which elements?', code, result, 'Every element type in one list (entries, assets, products, menus, …) as their real classes. Pass a `limit`: without one, every relating element is loaded.', 'twig', 'which-elements') }}
+
+        {# --- filters ------------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{% set routes = hk.usedIn.elements(
+    sections: ['journal'],
+    entryTypes: ['route'],
+    limit: 3,
+) %}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <ul class="result-list">
+                {% for element in hk.usedIn.elements(sections: ['journal'], entryTypes: ['route'], limit: 3) %}
+                    <li><a href="{{ element.url }}">{{ element.title }}</a> <span class="meta">{{ element.type.name }}</span></li>
+                {% else %}
+                    <li class="meta">none</li>
+                {% endfor %}
+            </ul>
+        {% endset %}
+        {{ ex.example('Filters', code, result, '`sections`, `entryTypes`, `types` (element classes), `search`, `limit`, `offset`; the same arguments work for `count` and `isInUse`.', 'twig', 'filters') }}
+
+        {# --- status / drafts ----------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{{ river.usedIn.count }}                           {# what visitors may see #}
+{{ river.usedIn.count(status: null, drafts: null) }}   {# everything, drafts too #}
+{{ river.usedIn.count(status: ['live']) }}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <dl class="kv">
+                <dt>count</dt><dd>{{ river.usedIn.count }}</dd>
+                <dt>count(status: null, drafts: null)</dt><dd>{{ river.usedIn.count(status: null, drafts: null) }}</dd>
+                <dt>count(status: ['live'])</dt><dd>{{ river.usedIn.count(status: ['live']) }}</dd>
+            </dl>
+            <p class="meta">The difference: an unpublished draft (“A ferry to Busan”) uses this photo.</p>
+        {% endset %}
+        {{ ex.example('Statuses and drafts', code, result, 'On the front end the defaults are what visitors may see; in the control panel and the console, every status and drafts. Trashed elements never count.', 'twig', 'statuses-and-drafts') }}
+
+        {# --- per type / site ----------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{% for class, n in hk.usedIn.countsByType %}
+    {{ class }}: {{ n }}
+{% endfor %}
+
+{{ hk.usedIn.sites|map(s => s.name)|join(', ') }}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <dl class="kv">
+                {% for class, n in hk.usedIn.countsByType %}<dt>{{ class|split('\\')|last }}</dt><dd>{{ n }}</dd>{% endfor %}
+                <dt>sites</dt><dd>{{ hk.usedIn.sites|map(s => s.name)|join(', ') }}</dd>
+            </dl>
+        {% endset %}
+        {{ ex.example('Per type and site', code, result, '`countsByType` (all sites, most used first) for a breakdown; `sites` for a "also in German" note.', 'twig', 'per-type-and-site') }}
+
+        {# --- usesElement ---------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{% set query = craft.entries()
+    .section('journal')
+    .usesElement(hk)
+    .orderBy('postDate desc')
+    .limit(9) %}
+{% paginate query as pageInfo, stories %}
+
+{# combine with anything Craft queries do #}
+{{ craft.entries().usesElement(hk).relatedTo(mara).count() }}
+        {% endverbatim %}{% endset %}
+        {% set query = craft.entries().section('journal').usesElement(hk).orderBy('postDate desc').limit(3) %}
+        {% set result %}
+            <ul class="result-list">
+                {% for item in query.all() %}<li><a href="{{ item.url }}">{{ item.title }}</a> <span class="meta">{{ item.postDate|date('j M Y') }}</span></li>{% endfor %}
+            </ul>
+            <dl class="kv">
+                <dt>total</dt><dd>{{ query.count() }}</dd>
+                <dt>…and related to Mara</dt><dd>{{ craft.entries().usesElement(hk).relatedTo(mara).count() }}</dd>
+            </dl>
+        {% endset %}
+        {{ ex.example('In element queries', code, result, '`usesElement` works on every element query: ordering, `relatedTo`, `search`, `{% paginate %}`. The destination pages of this site use it for “Stories from here”.', 'twig', 'element-queries') }}
+
+        {# --- iterator ------------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{# thousands of usages: batches of 100, never all in memory #}
+{% for element in notes.usedIn.elementsIterator(batchSize: 100) %}
+    {{ element.title }}
+{% endfor %}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <dl class="kv"><dt>walked through (batches of 25)</dt><dd>{{ notes.usedIn.elementsIterator(batchSize: 25)|length }}</dd></dl>
+        {% endset %}
+        {{ ex.example('Large lists', code, result, 'For exports or a sitemap of everything that uses an element. For a list on a page, `elements(limit: …)` or `usesElement` with `{% paginate %}`.', 'twig', 'large-lists') }}
+
+        {# --- global usages -------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{% for usage in social.usedIn.globalUsages %}
+    <a href="{{ usage.url }}">{{ usage.label }}</a>
+{% endfor %}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <ul class="result-list">
+                {% for usage in social.usedIn.globalUsages %}<li>{{ usage.label }} <span class="meta">{{ usage.provider ?? '' }}</span></li>{% else %}<li class="meta">none</li>{% endfor %}
+            </ul>
+        {% endset %}
+        {{ ex.example('Plugin settings', code, result, 'Usages that are no element, such as SEOmatic’s global SEO image: label and settings page (the URL is for the control panel).', 'twig', 'plugin-settings') }}
+
+        {# --- unused (Pro) --------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{% for asset in craft.assets().volume('images').unused().all() %}
+    {{ asset.filename }}
+{% endfor %}
+        {% endverbatim %}{% endset %}
+        {% set result %}
+            <ul class="result-list">
+                {% for asset in craft.assets().volume('images').unused().limit(8).all() %}<li>{{ asset.filename }}</li>{% else %}<li class="meta">none</li>{% endfor %}
+            </ul>
+        {% endset %}
+        {{ ex.example('Unused (Pro)', code, result, 'Everything nothing links to (plugin settings count as a usage), e.g. for a clean-up page or a report. In the control panel: the “Used anywhere” filter.', 'twig', 'unused') }}
+
+        {# --- GraphQL --------------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+{
+  entry(section: "destinations", slug: "hong-kong") {
+    ... on destination_Entry {
+      usedIn {
+        count
+        anywhere: count(siteIds: [])
+        stories: elements(sections: ["journal"], limit: 3) { id title url }
+      }
+    }
+  }
+}
+        {% endverbatim %}{% endset %}
+        {{ ex.example('GraphQL', code, null, 'Only what the schema may read is returned (sections, volumes, sites outside it are left out); `status` needs the “Query for non-enabled elements” scope.', 'graphql', 'graphql') }}
+
+        {# --- PHP ------------------------------------------------------------------------------------------------- #}
+        {% set code %}{% verbatim %}
+use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\services\ReplaceService;
+
+// everything that uses an asset, across all element types, as their real classes
+$usages = Usage::find()->usesElement($asset)->search('station')->all();
+
+// Pro, in a content migration: swap one element for another wherever it is used
+ReplaceService::replace($oldAsset, $newAsset);
+        {% endverbatim %}{% endset %}
+        {{ ex.example('PHP', code, null, 'The same in modules and migrations; `php craft element-relations/replace <from> <to>` on the command line (Pro).', 'php', 'php') }}
+    </section>
+{% endblock %}

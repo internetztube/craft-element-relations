@@ -1,4 +1,5 @@
 {% extends '_layout' %}
+{% import '_partials/hint' as er %}
 
 {% block content %}
     {% include '_partials/blocks' with {blocks: entry.contentBlocks.all()} %}
@@ -8,26 +9,40 @@
      # (no elements are loaded) and, on the front end, counts what visitors may see: live entries, no drafts. Nobody
      # maintains a "stories" field on the destination; the journal entries point to it, the plugin counts backwards.
      #}
-    {% set destinations = craft.entries().section('destinations').level(2).all() %}
-    {% set ranked = destinations|sort((a, b) => b.usedIn.count(sections: ['journal']) <=> a.usedIn.count(sections: ['journal'])) %}
-    <h2>{{ 'Where we travel most'|t('site') }}</h2>
-    <div class="grid">
-        {% for destination in ranked %}
-            {% set image = destination.heroImage.one() %}
-            <a class="rank" href="{{ destination.url }}">
-                {% if image %}<img src="{{ image.getUrl({width: 128, height: 128, mode: 'crop'}) }}" alt="">{% endif %}
-                <span>
-                    <strong>{{ destination.title }}</strong>
-                    <span class="meta">{{ '{count, plural, =1{one story} other{# stories}}'|t('site', {count: destination.usedIn.count(sections: ['journal'])}) }}</span>
-                </span>
-            </a>
-        {% endfor %}
-    </div>
+    {% set ranked = craft.entries().section('destinations').level(2).all()
+        |map(d => {destination: d, stories: d.usedIn.count(sections: ['journal'])})
+        |sort((a, b) => b.stories <=> a.stories) %}
+    {% set most = (ranked|first).stories ?? 1 %}
+    <section class="section er-zone">
+        {% set code %}{% verbatim %}
+{% set ranked = craft.entries().section('destinations').level(2).all()
+    |map(d => {destination: d, stories: d.usedIn.count(sections: ['journal'])})
+    |sort((a, b) => b.stories <=> a.stories) %}
+        {% endverbatim %}{% endset %}
+        {{ er.hint('Ranked by the stories that point to each destination', code, 'Destinations have no “stories” field: the journal entries point to them, `usedIn.count` counts backwards. One SQL query each; on the front end only what visitors may see.') }}
+        <div class="section-head"><h2>{{ 'Where we travel most'|t('site') }}</h2><a class="meta" href="{{ url('destinations') }}">{{ 'All destinations'|t('site') }} →</a></div>
+        <div class="ranking">
+            {% for row in ranked %}
+                {% set image = row.destination.heroImage.one() %}
+                <a class="rank" href="{{ row.destination.url }}">
+                    {% if image %}<img src="{{ image.getUrl({width: 128, height: 128, mode: 'crop'}) }}" alt="">{% else %}<span></span>{% endif %}
+                    <span>
+                        <strong>{{ row.destination.title }}</strong>
+                        <span class="meta">{{ row.destination.summary }}</span>
+                        <span class="bar"><span style="width: {{ (row.stories / max(most, 1) * 100)|round }}%"></span></span>
+                    </span>
+                    <span class="num">{{ row.stories }}<span class="meta" style="font-weight: 500"> {{ 'stories'|t('site') }}</span></span>
+                </a>
+            {% endfor %}
+        </div>
+    </section>
 
-    <h2>{{ 'Latest from the journal'|t('site') }}</h2>
-    <div class="grid">
-        {% for item in craft.entries().section('journal').orderBy('postDate desc').limit(6).all() %}
-            {% include '_partials/card' %}
-        {% endfor %}
-    </div>
+    <section class="section">
+        <div class="section-head"><h2>{{ 'Latest from the journal'|t('site') }}</h2><a class="meta" href="{{ url('journal') }}">{{ 'Every story'|t('site') }} →</a></div>
+        <div class="grid">
+            {% for item in craft.entries().section('journal').orderBy('postDate desc').limit(6).all() %}
+                {% include '_partials/card' %}
+            {% endfor %}
+        </div>
+    </section>
 {% endblock %}

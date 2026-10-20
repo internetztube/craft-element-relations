@@ -1,23 +1,29 @@
 {% extends '_layout' %}
+{% import '_partials/hint' as er %}
 
 {% block content %}
     <p class="eyebrow">{{ 'Destinations'|t('site') }}</p>
     <h1>{{ 'Where we have been'|t('site') }}</h1>
     {% for region in craft.entries().section('destinations').level(1).all() %}
-        <h2>{{ region.title }}</h2>
-        <div class="grid">
-            {% for place in region.children.all() %}
-                {% set image = place.heroImage.one() %}
-                <a class="card" href="{{ place.url }}">
-                    {% if image %}<img src="{{ image.getUrl({width: 640, height: 427, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">{% endif %}
-                    <div class="body">
-                        {# Element Relations: a badge with the number of stories, one query #}
-                        <span class="meta">{{ '{count, plural, =1{one story} other{# stories}}'|t('site', {count: place.usedIn.count(sections: ['journal'])}) }}</span>
-                        <h3>{{ place.title }}</h3>
-                        <p>{{ place.summary }}</p>
-                    </div>
-                </a>
-            {% endfor %}
-        </div>
+        <section class="section er-zone">
+            {% set code %}{% verbatim %}
+{{ place.usedIn.count(sections: ['journal']) }} stories
+            {% endverbatim %}{% endset %}
+            {{ er.hint('The number of stories on each card', code, 'One SQL query per card; no stories are loaded.') }}
+            <div class="section-head"><h2>{{ region.title }}</h2></div>
+            <div class="grid">
+                {% for place in region.children.all() %}
+                    {% set image = place.heroImage.one() %}
+                    <a class="card" href="{{ place.url }}">
+                        <div class="thumb">{% if image %}<img src="{{ image.getUrl({width: 640, height: 427, mode: 'crop'}) }}" alt="{{ image.alt ?? image.title }}" loading="lazy">{% endif %}</div>
+                        <div class="body">
+                            <span class="tag">{{ '{count, plural, =1{one story} other{# stories}}'|t('site', {count: place.usedIn.count(sections: ['journal'])}) }}</span>
+                            <h3>{{ place.title }}</h3>
+                            <p>{{ place.summary }}</p>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        </section>
     {% endfor %}
 {% endblock %}

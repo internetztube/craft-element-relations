@@ -47,6 +47,26 @@ return function (array $ctx): void {
     $river = Asset::find()->filename('afternoon-by-the-river.jpg')->one();
     check(isset($usages($river)['A ferry to Busan:default:draft']), 'demo: an unpublished draft shows up as a usage (a draft row)');
 
+    // front-end defaults: what visitors may see unless asked for; an explicit null means everything (as in 3.1)
+    $asVisitor = function (callable $fn): mixed {
+        $request = Craft::$app->getRequest();
+        Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => false, 'cookieValidationKey' => Craft::$app->getConfig()->getGeneral()->securityKey, 'url' => '/']);
+        try {
+            return $fn();
+        } finally {
+            Craft::$app->set('request', $request);
+        }
+    };
+    $riverModel = new RelationsModel($river->id, $river->siteId);
+    [$visitor, $everything, $draftsOnly, $elementsAll] = $asVisitor(fn() => [
+        $riverModel->getCount(),
+        $riverModel->getCount(status: null, drafts: null),
+        $riverModel->getCount(drafts: true),
+        count($riverModel->getElements(status: null, drafts: null)),
+    ]);
+    check($draftsOnly >= 1 && $everything === $visitor + $draftsOnly && $elementsAll === $everything, "front end: count() is what visitors see ($visitor), count(status: null, drafts: null) everything ($everything), drafts included ($draftsOnly)");
+    check($riverModel->getCount() === $everything, 'console: the default is everything (' . $riverModel->getCount() . ')');
+
     // the trash: a trashed article can be restored, so its usages stay; it is listed under "Trashed" only, counts nowhere
     // and no replacement touches it; restoring brings it back as it was
     $glassRoof = Asset::find()->filename('glass-roof.jpg')->one();

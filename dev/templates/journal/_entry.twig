@@ -1,77 +1,111 @@
 {% extends '_layout' %}
+{% import '_partials/hint' as er %}
 
 {% set hero = entry.heroImage.one() %}
+{% set authors = (entry.writtenBy ?? null) ? entry.writtenBy.all() : [] %}
+{% set places = (entry.destinations ?? null) ? entry.destinations.all() : [] %}
 
 {% block content %}
-    <article>
-        <p class="eyebrow">{{ entry.type.name }} · {{ entry.postDate|date('j F Y') }}</p>
-        <h1>{{ entry.title }}</h1>
-        {% if entry.summary ?? null %}<p class="lede">{{ entry.summary }}</p>{% endif %}
-        {% set authors = (entry.writtenBy ?? null) ? entry.writtenBy.all() : [] %}
-        {% if authors %}
-            <p class="meta">{{ 'By'|t('site') }} {% for person in authors %}<a href="{{ person.url }}">{{ person.title }}</a>{{ not loop.last ? ', ' }}{% endfor %}</p>
-        {% endif %}
-
-        {% if hero %}
-            <figure class="figure">
-                <img src="{{ hero.getUrl({width: 1600, height: 800, mode: 'crop'}) }}" alt="{{ hero.alt ?? hero.title }}">
-                {#
-                 # Element Relations: the photo's own usages, through the field on the asset. This story is one of
-                 # them; the rest is "this photo also appears in". `elements` with a limit loads only what is shown.
-                 #}
-                {% set alsoIn = hero.usedIn.elements(sections: ['journal'], limit: 4)|filter(e => e.id != entry.id) %}
-                {% if alsoIn %}
-                    <figcaption>
-                        {{ 'This photo also appears in'|t('site') }}
-                        {% for other in alsoIn %}<a href="{{ other.url }}">{{ other.title }}</a>{{ not loop.last ? ', ' }}{% endfor %}.
-                    </figcaption>
-                {% endif %}
-            </figure>
-        {% endif %}
-
-        {% switch entry.type.handle %}
-            {% case 'review' %}
-                <p class="pill">{{ entry.placeName }} · {{ '★★★★★'|slice(0, entry.rating.value|default(0) + 0) }}</p>
-                <div class="prose">{{ entry.body }}</div>
-            {% case 'route' %}
-                <ol class="prose">
-                    {% for stop in entry.stops.all() %}
-                        {% set place = stop.destinations.one() %}
-                        <li><strong>{% if place %}<a href="{{ place.url }}">{{ stop.title }}</a>{% else %}{{ stop.title }}{% endif %}</strong>{% if stop.travelTime %} · {{ stop.travelTime }}{% endif %}</li>
-                    {% endfor %}
-                </ol>
-            {% case 'photoEssay' %}
-                <div class="grid">
-                    {% for photo in entry.gallery.all() %}
-                        <figure class="figure"><img src="{{ photo.getUrl({width: 800, height: 600, mode: 'crop'}) }}" alt="{{ photo.alt ?? photo.title }}" loading="lazy"></figure>
-                    {% endfor %}
-                </div>
-            {% default %}
-                <div class="prose">{{ entry.body }}</div>
-        {% endswitch %}
-
-        {% set places = (entry.destinations ?? null) ? entry.destinations.all() : [] %}
-        {% if places %}
-            <ul class="pills" style="margin-top: 24px">
-                {% for place in places %}<li><a class="pill" href="{{ place.url }}">{{ place.title }}</a></li>{% endfor %}
-            </ul>
-        {% endif %}
-    </article>
-
-    {#
-     # Element Relations: backlinks. Every element that links to this story: a "Related articles" field elsewhere, a
-     # link in another story's text, the homepage's featured articles, a navigation item. Shown only when there are any.
-     #}
-    {% set relations = entry.usedIn %}
-    {% if relations.isInUse %}
-        <section class="aside">
-            <h2>{{ 'Linked from'|t('site') }}</h2>
-            <ul>
-                {% for element in relations.elements(limit: 10) %}
-                    <li>{% if element.url %}<a href="{{ element.url }}">{{ element.title }}</a>{% else %}{{ element.title ?? element }}{% endif %}
-                        <span class="meta">· {{ element.section.name ?? element.displayName() }}</span></li>
-                {% endfor %}
-            </ul>
-        </section>
+    <p class="eyebrow">{{ entry.type.name }} · {{ entry.postDate|date('j F Y') }}</p>
+    <h1>{{ entry.title }}</h1>
+    {% if entry.summary ?? null %}<p class="lede">{{ entry.summary }}</p>{% endif %}
+    {% if hero %}
+        <figure class="figure"><img src="{{ hero.getUrl({width: 2200, height: 1000, mode: 'crop'}) }}" alt="{{ hero.alt ?? hero.title }}"></figure>
     {% endif %}
+
+    <div class="article">
+        <article>
+            {% switch entry.type.handle %}
+                {% case 'review' %}
+                    <p><span class="tag">{{ entry.placeName }}</span> <span class="stars">{{ '★★★★★'|slice(0, entry.rating.value|default(0) + 0) }}</span></p>
+                    <div class="prose">{{ entry.body }}</div>
+                {% case 'route' %}
+                    <ol class="stops">
+                        {% for stop in entry.stops.all() %}
+                            {% set place = stop.destinations.one() %}
+                            <li><strong>{% if place %}<a href="{{ place.url }}">{{ stop.title }}</a>{% else %}{{ stop.title }}{% endif %}</strong>
+                                {% if stop.travelTime %}<div class="meta">{{ stop.travelTime }}</div>{% endif %}</li>
+                        {% endfor %}
+                    </ol>
+                {% case 'photoEssay' %}
+                    <div class="grid">
+                        {% for photo in entry.gallery.all() %}
+                            <figure class="figure"><img src="{{ photo.getUrl({width: 800, height: 600, mode: 'crop'}) }}" alt="{{ photo.alt ?? photo.title }}" loading="lazy"></figure>
+                        {% endfor %}
+                    </div>
+                {% default %}
+                    <div class="prose">{{ entry.body }}</div>
+            {% endswitch %}
+        </article>
+
+        <aside class="sidebar">
+            {% if authors or places %}
+                <div class="panel">
+                    {% if authors %}
+                        <h3>{{ 'Written by'|t('site') }}</h3>
+                        <ul>
+                            {% for person in authors %}
+                                {% set portrait = person.portrait.one() %}
+                                <li><a class="mini" href="{{ person.url }}">{% if portrait %}<img src="{{ portrait.getUrl({width: 104, height: 104, mode: 'crop'}) }}" alt="" style="border-radius: 50%">{% endif %}<span><strong>{{ person.title }}</strong><span class="meta">{{ person.jobTitle }}</span></span></a></li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    {% if places %}
+                        <h3 style="margin-top: {{ authors ? '18px' : 0 }}">{{ 'Places'|t('site') }}</h3>
+                        <ul class="tags">{% for place in places %}<li><a class="tag" href="{{ place.url }}">{{ place.title }}</a></li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {#
+             # Element Relations: the photo's own usages, through the field on the asset. This story is one of them;
+             # the rest is "this photo also appears in". `elements` with a limit loads only what is shown.
+             #}
+            {% set alsoIn = hero ? hero.usedIn.elements(sections: ['journal'], limit: 5)|filter(e => e.id != entry.id)|slice(0, 4) : [] %}
+            {% if alsoIn %}
+                <div class="panel er-zone">
+                    {% set code %}{% verbatim %}
+{% set hero = entry.heroImage.one() %}
+{% set alsoIn = hero.usedIn
+    .elements(sections: ['journal'], limit: 5)
+    |filter(e => e.id != entry.id) %}
+                    {% endverbatim %}{% endset %}
+                    {{ er.hint('Other stories with this photo', code, 'The relations of the asset, not of the entry: the plugin\'s field sits on the asset, so every element knows where it is used.') }}
+                    <h3>{{ 'This photo also appears in'|t('site') }}</h3>
+                    <ul>
+                        {% for other in alsoIn %}
+                            {% set thumb = other.heroImage.one() %}
+                            <li><a class="mini" href="{{ other.url }}">{% if thumb %}<img src="{{ thumb.getUrl({width: 104, height: 104, mode: 'crop'}) }}" alt="">{% endif %}<span><strong>{{ other.title }}</strong><span class="meta">{{ other.type.name }}</span></span></a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {#
+             # Element Relations: backlinks. Every element that links to this story: a "Related articles" field
+             # elsewhere, a link in another story's text, the homepage's featured articles, a navigation item.
+             #}
+            {% set relations = entry.usedIn %}
+            {% if relations.isInUse %}
+                <div class="panel er-zone">
+                    {% set code %}{% verbatim %}
+{% set relations = entry.usedIn %}
+{% if relations.isInUse %}
+  {% for element in relations.elements(limit: 10) %}
+    <a href="{{ element.url }}">{{ element.title }}</a>
+  {% endfor %}
+{% endif %}
+                    {% endverbatim %}{% endset %}
+                    {{ er.hint('Backlinks', code, 'Related-articles fields, links in other stories\' text, the homepage\'s featured articles: whatever points to this story. `isInUse` is one query; no elements are loaded when there are none.') }}
+                    <h3>{{ 'Linked from'|t('site') }}</h3>
+                    <ul>
+                        {% for element in relations.elements(limit: 10) %}
+                            <li>{% if element.url %}<a href="{{ element.url }}">{{ element.title }}</a>{% else %}{{ element.title ?? element }}{% endif %}
+                                <div class="meta">{{ element.section.name ?? element.displayName() }}</div></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </aside>
+    </div>
 {% endblock %}

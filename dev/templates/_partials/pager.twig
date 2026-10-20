@@ -1,0 +1,10 @@
+{# Numbered pages for a `{% paginate %}` (`pageInfo`). #}
+{% if pageInfo.totalPages > 1 %}
+    <nav class="pager" aria-label="{{ 'Pages'|t('site') }}">
+        {% if pageInfo.prevUrl %}<a href="{{ pageInfo.prevUrl }}" aria-label="{{ 'Previous'|t('site') }}">←</a>{% endif %}
+        {% for page, url in pageInfo.getRangeUrls(1, pageInfo.totalPages) %}
+            {% if page == pageInfo.currentPage %}<span class="current">{{ page }}</span>{% else %}<a href="{{ url }}">{{ page }}</a>{% endif %}
+        {% endfor %}
+        {% if pageInfo.nextUrl %}<a href="{{ pageInfo.nextUrl }}" aria-label="{{ 'Next'|t('site') }}">→</a>{% endif %}
+    </nav>
+{% endif %}

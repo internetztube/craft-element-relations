@@ -16,6 +16,9 @@ pages of those list the stories pointing to them. Nobody maintains a second fiel
 | Writer (`team/_entry.twig`) | Their stories, with the number | `entry.usedIn.count(sections: ['journal'])`, `.elements(sections: ['journal'], limit: 12)` |
 | Homepage (`index.twig`) | Destinations ranked by stories | `destination.usedIn.count(sections: ['journal'])` in a `sort` |
 | Journal (`journal/index.twig`) | `?destination=hong-kong` | `.usesElement(destination)` on an ordinary query |
+| Code (`code/index.twig`, `/code`) | Every Twig API next to its live result, plus GraphQL and PHP | all of the above, `countsByType`, `sites`, `elementsIterator`, `globalUsages`, `unused()` |
+
+The header's **Plugin hints** switch frames every part that comes from the plugin and shows its Twig (`_partials/hint.twig`).
 
 `usedIn` is the demo's Element Relations field. On the front end its `count`, `isInUse` and `elements` default to
 what visitors may see (live entries, enabled elements, no drafts); `count` and `isInUse` are one SQL query each, and
