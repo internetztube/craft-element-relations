@@ -155,7 +155,7 @@ foreach ([
     '/journal/how-to-read-a-station' => 'Linked from',
     '/team/mara-lindqvist' => 'Stories by Mara',
     '/de/' => 'Where we travel most',
-    '/code' => 'walked through (batches of 25)',
+    '/destinations/taipei' => '.usesElement(entry)', // the inline code of the plugin hints
 ] as $path => $text) {
     [$status, $page] = $http->page($path);
     check($status === 200 && str_contains($page, $text), "front end $path shows “{$text}” (HTTP $status)");

@@ -61,6 +61,26 @@
         {% endif %}
     </section>
 
+    {# Element Relations: numbers for a fact box, each one SQL query, no elements loaded #}
+    <section class="section er-zone">
+        {% set code %}{% verbatim %}
+{{ entry.usedIn.count }}            {# this site #}
+{{ entry.usedIn.count([]) }}        {# every site #}
+{% for class, n in entry.usedIn.countsByType %}…{% endfor %}
+{{ entry.usedIn.sites|map(s => s.name)|join(', ') }}
+        {% endverbatim %}{% endset %}
+        {{ er.hint('In numbers', code, '`siteIds` is the site of the element that links here; `[]` means every site. `countsByType` is per element type, most used first.') }}
+        <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))">
+            <div class="panel"><div class="meta">{{ 'In this site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count }}</div></div>
+            <div class="panel"><div class="meta">{{ 'In every site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count([]) }}</div></div>
+            <div class="panel">
+                <div class="meta">{{ 'By element type'|t('site') }}</div>
+                {% for class, n in entry.usedIn.countsByType %}<div><strong>{{ n }}</strong> {{ class|split('\\')|last }}</div>{% endfor %}
+            </div>
+            <div class="panel"><div class="meta">{{ 'Sites'|t('site') }}</div><strong>{{ entry.usedIn.sites|map(s => s.name)|join(', ') }}</strong></div>
+        </div>
+    </section>
+
     {#
      # Element Relations: the same through the field's value (a RelationsModel). Handy for a teaser or a badge:
      # `isInUse` and `count` are one query each, `elements` takes filters and a limit.
