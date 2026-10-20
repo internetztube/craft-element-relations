@@ -39,6 +39,21 @@ class QueueElementsForRefreshService extends Component
         }
     }
 
+    /**
+     * Drops the elements from the pending refreshes, in every site: they were just refreshed right away (e.g. by a
+     * replacement), so a queue job would only repeat the work.
+     * @param int[] $elementIds
+     */
+    public static function forget(array $elementIds): void
+    {
+        if (!$elementIds) {
+            return;
+        }
+        $instance = self::getInstance();
+        $forget = array_flip($elementIds);
+        $instance->items = array_values(array_filter($instance->items, fn(array $item): bool => !isset($forget[$item['elementId']])));
+    }
+
     public static function destruct(): void
     {
         $instance = self::getInstance();

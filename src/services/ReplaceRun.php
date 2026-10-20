@@ -27,8 +27,6 @@ use yii\base\Event;
  */
 final class ReplaceRun
 {
-    /** @var list<Change> */
-    private array $changes = [];
     /** @var list<OwnerRevisions> owners that changed, with their revisions before and after */
     private array $owners = [];
     private int $replaced = 0;
@@ -40,6 +38,8 @@ final class ReplaceRun
     private array $pending = [];
     /** owner groups done so far, for the progress the field shows */
     private int $processed = 0;
+    /** all owner groups (counted once) */
+    private ?int $total = null;
 
     private ?User $user;
     private string $notes;
@@ -97,7 +97,6 @@ final class ReplaceRun
         $run = new self($operation, $from, $to, $operation->userId !== null ? (int)$operation->userId : null);
         $state = $operation->getState();
         $result = $operation->getResult();
-        $run->changes = $operation->getChanges();
         $run->owners = $operation->getRevisions();
         $run->replaced = (int)($result['replaced'] ?? 0);
         $run->skipped = $result['skipped'] ?? [];
@@ -106,6 +105,7 @@ final class ReplaceRun
         $pending = (array)($state['pending'] ?? []);
         $run->pending = $pending;
         $run->processed = is_numeric($state['processed'] ?? null) ? (int)$state['processed'] : 0;
+        $run->total = is_numeric($state['total'] ?? null) ? (int)$state['total'] : null;
         return $run;
     }
 
@@ -187,7 +187,7 @@ final class ReplaceRun
             foreach ($elementChanges as $change) {
                 $field = $change['fieldId'] ? Craft::$app->getFields()->getFieldById($change['fieldId']) : null;
                 $change['after'] = $field instanceof Field && $fresh ? ReplaceService::serializedFieldValue($field, $fresh) : null;
-                $this->changes[] = $change;
+                $this->operation->addChange($change); // right away: what is saved can always be rolled back
             }
         }
 
@@ -204,10 +204,9 @@ final class ReplaceRun
     /** Saves the state between batches. */
     public function persist(): void
     {
-        $this->operation->changes = json_encode($this->changes) ?: null;
         $this->operation->revisions = json_encode($this->owners) ?: null;
         $this->operation->result = json_encode(['replaced' => $this->replaced, 'skipped' => array_values(array_unique($this->skipped)), 'withoutRevision' => $this->withoutRevision()]) ?: null;
-        $this->operation->state = json_encode(['saved' => array_keys($this->saved), 'pending' => $this->pending, 'processed' => $this->processed, 'total' => count(self::groups($this->operation))]) ?: null;
+        $this->operation->state = json_encode(['saved' => array_keys($this->saved), 'pending' => $this->pending, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation))]) ?: null;
         $this->operation->save(false);
     }
 

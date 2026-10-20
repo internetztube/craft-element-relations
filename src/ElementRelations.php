@@ -52,7 +52,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.12";
+    public string $schemaVersion = "1.0.13";
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
@@ -256,10 +256,22 @@ class ElementRelations extends Plugin
             }
         }
 
-        // what a user may view among the usages is cached; forget it whenever that could change
+        // what a user may view among the usages is cached; forget it whenever that could change: a usage (relating
+        // element) or a user saved, deleted or restored, group assignments, project config (sections, volumes, group
+        // permissions); new or changed relations reset it in ExtractorService
         $forgetPermissions = fn() => \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        $forgetIfUsage = function (\craft\events\ElementEvent $event) use ($forgetPermissions): void {
+            $element = $event->element;
+            $isUsage = $element instanceof \craft\elements\User || (new \craft\db\Query())
+                ->from('{{%elementrelations_cache}}')
+                ->where(['sourcePrimaryOwnerId' => $element->id])
+                ->exists();
+            if ($isUsage) {
+                $forgetPermissions();
+            }
+        };
         foreach ([\craft\services\Elements::EVENT_AFTER_SAVE_ELEMENT, \craft\services\Elements::EVENT_AFTER_DELETE_ELEMENT, \craft\services\Elements::EVENT_AFTER_RESTORE_ELEMENT] as $eventName) {
-            Event::on(\craft\services\Elements::class, $eventName, $forgetPermissions);
+            Event::on(\craft\services\Elements::class, $eventName, $forgetIfUsage);
         }
         Event::on(\craft\services\Users::class, \craft\services\Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, $forgetPermissions);
         foreach ([\craft\services\ProjectConfig::EVENT_ADD_ITEM, \craft\services\ProjectConfig::EVENT_UPDATE_ITEM, \craft\services\ProjectConfig::EVENT_REMOVE_ITEM] as $eventName) {

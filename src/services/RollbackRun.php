@@ -27,6 +27,8 @@ final class RollbackRun
     private int $restored = 0;
     /** owner groups done so far, for the progress the field shows */
     private int $processed = 0;
+    /** all owner groups (counted once) */
+    private ?int $total = null;
     private int $reverted = 0;
     /** @var list<string> */
     private array $skipped = [];
@@ -67,6 +69,7 @@ final class RollbackRun
         $skipped = (array)($state['skipped'] ?? []);
         $run->skipped = $skipped;
         $run->processed = is_numeric($state['processed'] ?? null) ? (int)$state['processed'] : 0;
+        $run->total = is_numeric($state['total'] ?? null) ? (int)$state['total'] : null;
         return $run;
     }
 
@@ -198,7 +201,7 @@ final class RollbackRun
     /** Saves the state between batches. */
     public function persist(): void
     {
-        $this->operation->state = json_encode(['restored' => $this->restored, 'reverted' => $this->reverted, 'skipped' => $this->skipped, 'processed' => $this->processed, 'total' => count(self::groups($this->operation))]) ?: null;
+        $this->operation->state = json_encode(['restored' => $this->restored, 'reverted' => $this->reverted, 'skipped' => $this->skipped, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation))]) ?: null;
         $this->operation->save(false);
     }
 

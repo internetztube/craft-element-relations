@@ -91,6 +91,9 @@ class ReplaceElementJob extends BaseBatchedJob
     protected function afterBatch(): void
     {
         $this->run?->persist();
+        // a queue worker runs batch after batch in one process: keep its memory flat
+        Craft::getLogger()->flush(true);
+        gc_collect_cycles();
     }
 
     protected function after(): void

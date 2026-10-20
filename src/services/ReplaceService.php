@@ -134,6 +134,7 @@ class ReplaceService
                 $progress($i / max(1, count($groups)));
             }
             $run->processGroup($group);
+            self::keepMemoryFlat($i);
         }
         if ($progress) {
             $progress(1);
@@ -161,10 +162,20 @@ class ReplaceService
             throw new \InvalidArgumentException('The acting user does not exist.');
         }
         $run = RollbackRun::start($operation, $mode, $userId);
-        foreach (RollbackRun::groups($operation) as $group) {
+        foreach (RollbackRun::groups($operation) as $i => $group) {
             $run->processGroup($group);
+            self::keepMemoryFlat($i);
         }
         return $run->finish();
+    }
+
+    /** Every 100 owner groups in one process (console, migrations): flush Craft's log buffer and collect garbage. */
+    private static function keepMemoryFlat(int $i): void
+    {
+        if ($i % 100 === 99) {
+            Craft::getLogger()->flush(true);
+            gc_collect_cycles();
+        }
     }
 
     /**
@@ -412,6 +423,8 @@ class ReplaceService
                 ExtractorService::refreshRelationsForElement($siteElement);
             }
         }
+        // every site is up to date now: the refresh their save queued would only repeat it
+        QueueElementsForRefreshService::forget(array_map('intval', $ids));
     }
 
     /**

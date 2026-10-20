@@ -58,6 +58,28 @@ class Install extends Migration
             'uid' => $migration->uid(),
         ]);
         $migration->createIndex(null, '{{%elementrelations_replacements}}', ['dateCreated']);
+        self::createReplacementChangesTable($migration);
+    }
+
+    /** One row per changed element and field of a replacement (see services\ReplaceRun), removed with it. */
+    public static function createReplacementChangesTable(Migration $migration): void
+    {
+        $migration->createTable('{{%elementrelations_replacement_changes}}', [
+            'id' => $migration->primaryKey(),
+            'operationId' => $migration->integer()->notNull(),
+            'elementId' => $migration->integer()->notNull(),
+            'siteId' => $migration->integer()->notNull(),
+            'ownerId' => $migration->integer()->notNull(),
+            'fieldId' => $migration->integer()->null(),
+            'preHadTo' => $migration->boolean()->notNull()->defaultValue(false),
+            'before' => $migration->longText()->null(), // JSON of the field value before
+            'after' => $migration->longText()->null(), // JSON of the field value after
+            'dateCreated' => $migration->dateTime()->notNull(),
+            'dateUpdated' => $migration->dateTime()->notNull(),
+            'uid' => $migration->uid(),
+        ]);
+        $migration->createIndex(null, '{{%elementrelations_replacement_changes}}', ['operationId', 'ownerId', 'siteId']);
+        $migration->addForeignKey(null, '{{%elementrelations_replacement_changes}}', ['operationId'], '{{%elementrelations_replacements}}', ['id'], 'CASCADE');
     }
 
     public function safeDown(): bool

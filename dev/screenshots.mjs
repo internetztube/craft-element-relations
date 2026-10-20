@@ -55,6 +55,7 @@ const DEBUGGING_PORT = 9333;
  * @property {string} text one line below the headline
  * @property {'Lite' | 'Pro'} edition
  * @property {string} [path] page to open first; without it the shot continues on the current page
+ * @property {number} [width] a wider browser window for this shot (wide tables), in CSS pixels
  * @property {string[]} points two or three key points next to the shot
  * @property {string} [focus] JavaScript expression for the element(s) to zoom in on (default: the whole page)
  * @property {string} [highlight] JavaScript expression for groups of elements that get a glowing ring
@@ -224,11 +225,13 @@ const SHOTS = [
             await until(() => hud()?.$body?.find('[name="condition[new-rule-type]"]').length, 'the filter');
             // add the rule like picking it from "Add a filter" (Craft's condition builder renders it via htmx)
             await until(() => hud().$body.find('button.add').data('menubtn'), 'the Add a filter menu');
+            if (!hud().$body.find('.lightswitch').length) {
             const addButton = hud().$body.find('button.add').data('menubtn');
             const option = addButton.menu.$options.filter((i, o) => o.textContent.trim() === 'Used anywhere')[0];
             if (!option) throw new Error('No "Used anywhere" in: ' + addButton.menu.$options.map((i, o) => o.textContent.trim()).get().join(', '));
             addButton.menu.selectOption(option);
             await until(() => hud().$body.find('.lightswitch').length, 'the Used anywhere rule');
+            }
             await sleep(300);
             hud().$body.find('.lightswitch').data('lightswitch').turnOff();
             await sleep(500);
@@ -299,9 +302,9 @@ const SHOTS = [
         `,
     },
     {
-        name: 'history', edition: 'Pro',
+        name: 'history', edition: 'Pro', width: 1760,
         points: ['Roll back keeps changes made since', 'Revert to revisions uses Craft’s own revisions'],
-        focus: `[byText('h2, h3', 'Replacements')[0], document.querySelector('.element-relations-history')]`,
+        focus: `[byText('h2, h3', 'Replacements')[0], document.querySelector('#element-relations-history')]`,
         highlight: `[[...byText('button', 'Roll back'), ...byText('button', 'Revert to revisions')]]`,
         title: 'History, rollback and revisions',
         text: 'Utilities → Element Relations lists every replacement with Roll back and Revert to revisions.',
@@ -497,18 +500,18 @@ async function capture(browser, clip) {
  * @param {Shot} shot
  * @returns {Promise<{focus: Region, highlights: Region[]}>}
  */
-async function regions(browser, shot) {
+async function regions(browser, shot, viewportWidth = VIEWPORT.width) {
     /** @type {{focus: Region | null, highlights: Region[]}} */
     const found = await evaluate(browser, `
         const focus = ${shot.focus ? `regionOf(${shot.focus}, 28)` : 'null'};
         const highlights = (${shot.highlight ?? '[]'}).filter((group) => [group].flat().filter(Boolean).length).map((group) => regionOf(group, 6));
         return { focus, highlights };
     `);
-    const focus = found.focus ?? { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height };
+    const focus = found.focus ?? { x: 0, y: 0, width: viewportWidth, height: VIEWPORT.height };
     const x = Math.max(0, Math.floor(focus.x)), y = Math.max(0, Math.floor(focus.y));
     const clamped = {
         x, y,
-        width: Math.min(VIEWPORT.width, Math.ceil(focus.x + focus.width)) - x,
+        width: Math.min(viewportWidth, Math.ceil(focus.x + focus.width)) - x,
         height: Math.min(VIEWPORT.height, Math.ceil(focus.y + focus.height)) - y,
     };
     // relative to the focus box, and cut to it (a column may continue below the visible rows)
@@ -584,7 +587,8 @@ function frameHtml(shot, imageUrl, area, address) {
     const stacked = area.focus.width / area.focus.height > STACKED_ASPECT;
     const stage = stacked ? STACKED_STAGE : STAGE;
     const zoom = Math.min(stage.width / area.focus.width, (stage.height - 36) / area.focus.height, stage.maxZoom);
-    const top = stage.top + (stage.height - (area.focus.height * zoom + 36)) / 2;
+    // right of the text: centred; below it (stacked): right under the text
+    const top = stacked ? stage.top : stage.top + (stage.height - (area.focus.height * zoom + 36)) / 2;
     const left = stage.left + (stage.width - area.focus.width * zoom) / 2;
     const points = shot.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('');
     return `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -679,11 +683,22 @@ try {
     /** @type {{shot: Shot, raw: string, area: {focus: Region, highlights: Region[]}, address: string}[]} */
     const taken = [];
     let currentPath = '';
-    const lastWanted = only.length ? Math.max(...SHOTS.map((s, i) => (only.includes(s.name) ? i : -1))) : SHOTS.length - 1;
-    for (const shot of SHOTS.slice(0, lastWanted + 1)) {
+    // with ONLY, run each wanted shot together with the shots it continues from (back to the one opening its page)
+    const needed = new Set(SHOTS.map((_, i) => i));
+    if (only.length) {
+        needed.clear();
+        SHOTS.forEach((shot, i) => {
+            if (!only.includes(shot.name)) return;
+            let start = i;
+            while (start > 0 && !SHOTS[start].path) start--;
+            for (let j = start; j <= i; j++) needed.add(j);
+        });
+    }
+    for (const shot of SHOTS.filter((_, i) => needed.has(i))) {
         // shots without a path continue on the page of the previous one, so they run with it
         if (shot.path) {
             currentPath = shot.path;
+            await resize(browser, { ...VIEWPORT, width: shot.width ?? VIEWPORT.width });
             await open(browser, baseUrl + shot.path);
             await evaluate(browser, PAGE_HELPERS);
         }
@@ -699,7 +714,7 @@ try {
         }
         if (!only.length || only.includes(shot.name)) {
             const raw = join(workDir, `${shot.name}.png`);
-            const area = await regions(browser, shot);
+            const area = await regions(browser, shot, shot.width ?? VIEWPORT.width);
             writeFileSync(raw, await capture(browser, area.focus));
             taken.push({ shot, raw, area, address: `transit.test${currentPath.replace(/\?.*$/, '')}` });
             console.log(`  shot ${shot.name}`);

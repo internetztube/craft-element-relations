@@ -40,6 +40,7 @@ function withWebRequest(callable $fn): mixed
     }
 }
 
+Craft::$app->getFormatter(); // created once in the console context (inside withWebRequest() it would ask the web user)
 $phase = $argv[2] ?? 'measure';
 $elements = Craft::$app->getElements();
 
@@ -135,6 +136,15 @@ timed('index column preview (restricted user, warm)', fn() => strlen($asViewer(f
 internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
 timed('index column preview (restricted user, cold)', fn() => strlen($asViewer(fn() => $field->getPreviewHtml($model, $target))));
 timed('revision hint (wizard)', fn() => ElementRelationsField::revisionHintFor($target));
+$unrelated = Entry::find()->section('pages')->title('Page B')->one();
+if ($unrelated) {
+    $asViewer(fn() => $field->getPreviewHtml($model, $target)); // warm
+    $elements->saveElement($unrelated);
+    timed('preview (restricted) after saving an unrelated entry (stays warm)', fn() => strlen($asViewer(fn() => $field->getPreviewHtml($model, $target))));
+    $usage = Entry::find()->section('pages')->title('Stress 00001')->one();
+    $elements->saveElement($usage);
+    timed('preview (restricted) after saving one of its usages (cold again)', fn() => strlen($asViewer(fn() => $field->getPreviewHtml($model, $target))));
+}
 
 if (in_array('replace', $argv, true)) {
     Craft::$app->getUser()->setIdentity(User::find()->username('admin')->one());
@@ -144,7 +154,7 @@ if (in_array('replace', $argv, true)) {
         return $result;
     });
     $operation = ReplacementRecord::findOne($result['operationId']);
-    printf("  -> %s, %d replaced, changes %d KB\n", $operation->status, $operation->getResult()['replaced'] ?? 0, strlen((string)$operation->changes) / 1024);
+    printf("  -> %s, %d replaced, %d change rows\n", $operation->status, $operation->getResult()['replaced'] ?? 0, $operation->getChangedElementCount());
     timed('roll back, queued job', function () use ($operation) {
         ReplaceService::queueRollback($operation);
         Craft::$app->getQueue()->run();

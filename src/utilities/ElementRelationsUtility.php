@@ -88,12 +88,12 @@ class ElementRelationsUtility extends Utility
                 'user' => $user instanceof User ? Cp::elementChipHtml($user) : '',
                 'from' => $chip((int)$operation->fromId, (int)$operation->siteId),
                 'to' => $chip((int)$operation->toId, (int)$operation->siteId),
-                'elements' => count(array_unique(array_map(fn(array $change): string => $change['elementId'] . ':' . $change['siteId'], $operation->getChanges()))),
+                'elements' => $changed = $operation->getChangedElementCount(),
                 'status' => Cp::statusLabelHtml([
                     'color' => $colors[$operation->status] ?? Color::Gray,
                     'label' => Craft::t('element-relations', 'history-status-' . $operation->status),
                 ]),
-                'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->getChanges() && ElementRelations::canRollBackOperation($operation),
+                'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $changed > 0 && ElementRelations::canRollBackOperation($operation),
                 'canRevert' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->canRevertToRevisions() && ElementRelations::canRollBackOperation($operation),
                 'withoutRevision' => (int)($operation->getResult()['withoutRevision'] ?? 0),
             ];

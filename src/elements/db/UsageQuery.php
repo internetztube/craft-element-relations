@@ -228,7 +228,7 @@ class UsageQuery extends ElementQuery
         $cached = $cache->getOrSet(
             'element-relations:viewable:' . md5($key),
             fn(): array => self::computeViewablePairs($targetIds, $viewer),
-            3600,
+            600, // a safety net: permissions saved in code without saving the user fire no event
             new \yii\caching\TagDependency(['tags' => [self::PERMISSION_CACHE_TAG]]),
         );
         return self::$_pairs[$key] = $cached;
