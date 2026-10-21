@@ -62,6 +62,8 @@ const DEBUGGING_PORT = 9333;
  * @property {string[]} points two or three key points next to the shot
  * @property {string} [focus] JavaScript expression for the element(s) the page is scrolled to (default: the top); without `highlight` what the inset zooms into
  * @property {string} [highlight] JavaScript expression for groups of elements that get a ring; the inset zooms into the first group
+ * @property {string} [cover] JavaScript expression for the part of the page the cover shows as a close-up (COVER_SHOTS)
+ * @property {string} [caption] under that close-up
  * @property {string} [act] JavaScript run in the page before the capture (may await)
  * @property {boolean} [reload] reload the page after `act` (e.g. when it changed what the page shows)
  * @property {string} [afterReload] JavaScript run after that reload
@@ -174,6 +176,8 @@ const SHOTS = [
         points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[...column('Field').slice(0, 3), ...column('Site').slice(0, 3)]]`,
+        cover: `document.querySelector('.element-relations').closest('.field') ?? document.querySelector('.element-relations')`,
+        caption: 'Everything that uses an element, in one list: where, through which field, in which site',
         title: 'See where every element is used',
         text: 'One list of everything that links to it: entries, Matrix blocks, products, menus, forms, in every site.',
         path: demo.skyline.path,
@@ -240,6 +244,8 @@ const SHOTS = [
         points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
+        cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
+        caption: 'Pro: find what nobody uses, with Craft’s own filter',
         title: 'Find what nobody uses',
         text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
         path: '/admin/assets/images',
@@ -302,6 +308,8 @@ const SHOTS = [
         points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
         focus: `wizardSlideout()`,
         highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
+        cover: `wizardSlideout()`,
+        caption: 'Pro: replace it where you choose, with a review first, undo when it is done',
         title: 'Review, then replace',
         text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
         act: `
@@ -829,45 +837,67 @@ function frameHtml({ shot, base, inset, area, address }) {
     </body></html>`;
 }
 
-/** Shots on the cover, left to right (the middle one in front). */
-const COVER_SHOTS = ['usage-list', 'wizard', 'used-filter'];
+/** Close-ups on the cover: the first two stacked on the left, the third (tall) on the right. */
+const COVER_SHOTS = ['usage-list', 'used-filter', 'wizard'];
 /** What the cover promises, under the title. */
 const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 12,000 usages', 'Craft CMS 5'];
 
 /**
- * The cover for the README: the plugin's name over three of the shots, fanned out.
- * @param {{shot: Shot, base: string, area: Area, address: string}[]} cards
+ * The cover for the README: the plugin's name over three close-ups of the control panel, so a reader sees what to
+ * expect at a glance.
+ * @param {{shot: Shot, cover: string, coverRegion: Region}[]} cards
  */
 function coverHtml(cards) {
-    const scale = 0.52;
-    const placements = [
-        { dx: -380, top: 570, rotate: -5, z: 1 },
-        { dx: 0, top: 530, rotate: 0, z: 3 },
-        { dx: 380, top: 570, rotate: 5, z: 1 },
-    ];
-    const windows = cards.map((card, i) => {
-        const box = layoutOf(card.area), place = placements[i];
-        const left = FRAME.width / 2 - box.width / 2 + place.dx; // scaled about its top centre
-        return `<div class="card" style="left:${left}px;top:${place.top}px;transform:rotate(${place.rotate}deg) scale(${scale});z-index:${place.z}">${windowHtml(pathToFileURL(card.base).href, card.area, card.address, box.scale)}</div>`;
-    }).join('');
+    const top = 470, bottom = 1130, gap = 28, caption = 44, margin = 88;
+    /** @param {typeof cards[number]} card */
+    const ratio = (card) => card.coverRegion.height / card.coverRegion.width;
+    /** @param {typeof cards[number]} card @param {number} w */
+    const height = (card, w) => Math.round(ratio(card) * w);
+    const [first, second, tall] = cards;
+    // two cards stacked on the left, the tall one on the right, both columns ending on the same line
+    const layout = (/** @type {number} */ width) => {
+        const right = ((width - gap) * (ratio(first) + ratio(second)) + caption + gap) / (ratio(first) + ratio(second) + ratio(tall));
+        const left = width - gap - right;
+        const x = Math.round((FRAME.width - width) / 2);
+        return {
+            slots: [
+                { card: first, left: x, top, width: Math.round(left) },
+                { card: second, left: x, top: top + height(first, left) + caption + gap, width: Math.round(left) },
+                { card: tall, left: x + Math.round(left) + gap, top, width: Math.round(right) },
+            ],
+            bottom: top + height(tall, right) + caption,
+        };
+    };
+    let { slots, bottom: end } = layout(FRAME.width - 2 * margin);
+    if (end > bottom) {
+        ({ slots } = layout(Math.round((FRAME.width - 2 * margin) * (bottom - top) / (end - top))));
+    }
+    const crops = slots.map(({ card, left, top, width }) => `<figure class="crop" style="left:${left}px;top:${top}px;width:${width}px">
+        <div class="pic"><img src="${pathToFileURL(card.cover).href}" alt="" style="width:${width}px;height:${height(card, width)}px"></div>
+        <figcaption>${escapeHtml(card.shot.caption ?? card.shot.title)}</figcaption>
+    </figure>`).join('');
     const chips = COVER_CHIPS.map((chip) => `<span>${escapeHtml(chip)}</span>`).join('');
     return `<!doctype html><html><head><meta charset="utf-8"><style>
         ${PAGE_CSS}
-        .head { position: absolute; left: 0; right: 0; top: 96px; text-align: center; }
-        .head img { width: 92px; height: 92px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, .5); }
-        h1 { margin: 28px 0 14px; font-size: 80px; letter-spacing: -.035em; }
-        p { font-size: 27px; }
-        .chips { margin-top: 30px; display: flex; justify-content: center; gap: 12px; }
-        .chips span { padding: 9px 18px; border-radius: 99px; font-size: 16px; font-weight: 600; color: #e7ebf5;
-            background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); backdrop-filter: blur(6px); }
-        .card { position: absolute; transform-origin: top center; }
+        .head { position: absolute; left: 0; right: 0; top: 72px; text-align: center; }
+        .head img { width: 84px; height: 84px; border-radius: 22px; box-shadow: 0 20px 50px rgba(0, 0, 0, .5); }
+        h1 { margin: 22px 0 12px; font-size: 72px; letter-spacing: -.035em; }
+        p { font-size: 25px; }
+        .chips { margin-top: 24px; display: flex; justify-content: center; gap: 12px; }
+        .chips span { padding: 8px 16px; border-radius: 99px; font-size: 15px; font-weight: 600; color: #e7ebf5;
+            background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); }
+        .crop { position: absolute; margin: 0; }
+        .pic { border-radius: 12px; overflow: hidden; background: #fff;
+            box-shadow: 0 50px 100px -30px rgba(0, 0, 0, .75), 0 0 0 1px rgba(255, 255, 255, .14); }
+        .pic img { display: block; }
+        figcaption { margin-top: 12px; font-size: 15px; line-height: 1.35; color: #c4cce0; }
     </style></head><body>
         <div class="head">
             <img src="${PLUGIN_ICON}" alt=""><h1>Element Relations</h1>
             <p>See where every element is used in Craft CMS. Replace it everywhere, safely.</p>
             <div class="chips">${chips}</div>
         </div>
-        ${windows}
+        ${crops}
     </body></html>`;
 }
 
@@ -902,7 +932,7 @@ try {
     await login(defaultUser);
     let currentUser = defaultUser;
 
-    /** @type {{shot: Shot, base: string, inset: string | null, area: Area, address: string}[]} */
+    /** @type {{shot: Shot, base: string, inset: string | null, cover: string | null, coverRegion: Region | null, area: Area, address: string}[]} */
     const taken = [];
     let currentPath = '';
     // with ONLY, run each wanted shot together with the shots it continues from (back to the one opening its page)
@@ -952,7 +982,13 @@ try {
                 inset = join(workDir, `${shot.name}-inset.png`);
                 writeFileSync(inset, await capture(browser, { ...area.inset, x: area.inset.x + area.scroll.x, y: area.inset.y + area.scroll.y }));
             }
-            taken.push({ shot, base, inset, area, address: `transit.test${currentPath.replace(/\?.*$/, '')}` });
+            let cover = null, coverRegion = null;
+            if (shot.cover) {
+                coverRegion = /** @type {Region} */ (await evaluate(browser, `return regionOf(${shot.cover}, 4);`));
+                cover = join(workDir, `${shot.name}-cover.png`);
+                writeFileSync(cover, await capture(browser, { ...coverRegion, x: coverRegion.x + area.scroll.x, y: coverRegion.y + area.scroll.y }));
+            }
+            taken.push({ shot, base, inset, cover, coverRegion, area, address: `transit.test${currentPath.replace(/\?.*$/, '')}` });
             console.log(`  shot ${shot.name}`);
         }
         if (process.env.DEBUG_EVAL && shot.name === only.at(-1)) {
@@ -974,7 +1010,7 @@ try {
     }
 
     // the cover: three of the shots, when they were all taken in this run
-    const coverCards = COVER_SHOTS.map((name) => taken.find((t) => t.shot.name === name));
+    const coverCards = COVER_SHOTS.map((name) => taken.find((t) => t.shot.name === name && t.cover));
     if (coverCards.every(Boolean)) {
         const html = join(workDir, 'cover.html');
         writeFileSync(html, coverHtml(/** @type {typeof taken} */ (coverCards)));
