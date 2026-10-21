@@ -48,7 +48,8 @@ export async function launchChrome(debuggingPort) {
 
     /** @type {{type: string, webSocketDebuggerUrl: string}[]} */
     let targets = [];
-    for (let attempt = 0; attempt < 100 && !targets.some((t) => t.type === 'page'); attempt++) {
+    // up to 30 s: a CI runner busy with the coverage run can be slow to start it
+    for (let attempt = 0; attempt < 300 && !targets.some((t) => t.type === 'page'); attempt++) {
         await sleep(100);
         targets = await fetch(`http://127.0.0.1:${debuggingPort}/json/list`).then((r) => r.json()).catch(() => []);
     }
@@ -94,8 +95,13 @@ export async function launchChrome(debuggingPort) {
             const exited = new Promise((resolve) => chrome.once('exit', resolve));
             chrome.kill();
             await exited;
-            // Chrome's helper processes may still write to the profile for a moment after the main one exited
-            rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+            // Chrome's helper processes may still write to the profile after the main one exited; a leftover temp
+            // profile is harmless, so cleaning up never fails the suite
+            try {
+                rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+            } catch {
+                // left to the OS's temp cleanup
+            }
         },
     };
 }
