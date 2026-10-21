@@ -596,6 +596,14 @@ foreach (Entry::find()->section('journal')->title('E2E *')->status(null)->all() 
 }
 $inUse = $article('E2E in use');
 $article('E2E in use source', ['relatedArticles' => [$inUse->id]]);
+// a second usage, in a section the editor may not view: counted, never named, the dialog's list says it left one out
+foreach (Entry::find()->section('pages')->title('E2E hidden source')->status(null)->all() as $old) {
+    $elements->deleteElement($old, true);
+}
+$pagesSection = Craft::$app->getEntries()->getSectionByHandle('pages') ?? throw new RuntimeException('Run the seed first');
+$hiddenSource = new Entry(['sectionId' => $pagesSection->id, 'typeId' => $pagesSection->getEntryTypes()[0]->id, 'title' => 'E2E hidden source']);
+$hiddenSource->setFieldValues(['relatedEntries' => [$inUse->id]]);
+$elements->saveElement($hiddenSource) or throw new RuntimeException(json_encode($hiddenSource->getErrors()));
 $notUsed = $article('E2E not in use');
 $byDisabledOnly = $article('E2E used by a disabled entry only');
 $article('E2E disabled source', ['relatedArticles' => [$byDisabledOnly->id]], false);
@@ -653,6 +661,7 @@ $isLive = fn(Entry $entry): bool => Entry::find()->id($entry->id)->status(null)-
 [$status, , $json] = $editorHttp->action('elements/delete', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId]);
 $errors = json_encode($json['errors'] ?? [], JSON_UNESCAPED_UNICODE);
 check($status === 400 && str_contains($errors, 'can’t be deleted') && str_contains($errors, 'E2E in use source') && $stillThere($inUse), "edit page: deleting an element in use is refused, naming the usage (HTTP $status: " . substr($errors, 0, 200) . ')');
+check(str_contains($errors, '2 live elements use it') && str_contains($errors, 'and one more') && !str_contains($errors, 'E2E hidden source'), "edit page: a usage the editor may not view is counted, not named ($errors)");
 [$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'enabled' => false]);
 check($status === 400 && str_contains(json_encode($json['errors']['enabled'] ?? [], JSON_UNESCAPED_UNICODE), 'can’t be disabled') && $isLive($inUse), "edit page: disabling it is refused on the Enabled field (HTTP $status)");
 [$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'expiryDate' => ['date' => '2001-01-01', 'time' => '10:00 AM', 'timezone' => 'UTC']]);
@@ -677,6 +686,7 @@ if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
     $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_starts_with($b['summary'] ?? '', 'Element Relations found')));
     check($status === 200 && $ours && str_contains($ours[0]['summary'], 'E2E in use source') && !array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), "delete dialog: the usages are a blocker, without “Delete anyway” for the editor (HTTP $status: " . ($ours[0]['summary'] ?? json_encode($json['blockers'] ?? [])) . ')');
     check(str_contains($ours[0]['details'] ?? '', 'Craft.createElementIndex') || str_contains($json['bodyHtml'] ?? '', 'usesElement'), 'delete dialog: it lists the usages');
+    check(!str_contains($ours[0]['summary'], 'E2E hidden source') && str_contains($ours[0]['details'] ?? '', 'data-element-relations-hidden="1"'), "delete dialog: the usage the editor may not view is not named, and the list says it leaves one out ({$ours[0]['summary']})");
     [$status, , $json] = $dialog('delete');
     check(($json['showAsFailure'] ?? false) === true && $stillThere($inUse), "delete dialog: deleting anyway is refused (HTTP $status: " . ($json['message'] ?? '') . ')');
 }
@@ -808,7 +818,7 @@ $switchEdition('lite');
 [$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
 check($status === 200 && !$isLive($inUse), "Lite: no guard (HTTP $status)");
 $switchEdition('pro');
-foreach ([...Entry::find()->section('journal')->title('E2E *')->status(null)->all(), $editor] as $element) {
+foreach ([...Entry::find()->section('journal')->title('E2E *')->status(null)->all(), $hiddenSource, $editor] as $element) {
     $elements->deleteElement($element, true);
 }
 

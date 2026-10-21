@@ -134,17 +134,18 @@ class UsageQuery extends ElementQuery
     }
 
     /**
-     * How many usages of the targets (relating element × site, drafts included) the user may not view.
+     * How many usages of the targets (relating element × site, drafts included; or only those with `$status`, e.g.
+     * the live ones the delete dialog lists) the user may not view.
      * @param int[] $targetIds
      */
-    public static function hiddenCount(array $targetIds, User $viewer): int
+    public static function hiddenCount(array $targetIds, User $viewer, ?string $status = null): int
     {
         if ($viewer->admin || !$targetIds) {
             return 0;
         }
         // the very query the list runs, once without and once with the restriction, so the numbers always add up
-        $count = function (User|false $as) use ($targetIds): int {
-            $query = Usage::find()->allSites()->status(null)->drafts(null)->viewableBy($as);
+        $count = function (User|false $as) use ($targetIds, $status): int {
+            $query = Usage::find()->allSites()->status($status)->drafts($status === null ? null : false)->viewableBy($as);
             Craft::configure($query, ['usesElement' => $targetIds]);
             return (int)$query->count();
         };

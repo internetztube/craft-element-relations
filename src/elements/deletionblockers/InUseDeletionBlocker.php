@@ -11,6 +11,7 @@ use craft\helpers\Cp;
 use craft\helpers\Html;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\elements\db\UsageQuery;
 use internetztube\elementRelations\services\InUseGuard;
 
 /**
@@ -91,6 +92,12 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
         // whose list this is: the plugin's icon and name above it
         $source = Html::tag('p', Html::tag('span', Html::svg(Craft::getAlias('@internetztube/elementRelations/icon-mask.svg')), ['class' => 'cp-icon small', 'aria-hidden' => 'true'])
             . Html::tag('span', Html::encode(Craft::t('element-relations', 'in-use-blocker-details'))), ['class' => 'flex gap-xs light', 'style' => 'margin: 0 0 8px; flex-wrap: nowrap;']);
+        // what the list leaves out for this user, so its rows and the count above add up
+        $viewer = \internetztube\elementRelations\fields\ElementRelationsField::restrictedViewer();
+        $hidden = $viewer ? UsageQuery::hiddenCount(array_map(fn(ElementInterface $element): int => (int)$element->id, $this->inUse), $viewer, 'live') : 0;
+        if ($hidden) {
+            $html .= Html::tag('p', Html::encode(Craft::t('element-relations', 'restricted-count-input', ['count' => $hidden])), ['class' => 'light', 'style' => 'margin-top: 8px;', 'data-element-relations-hidden' => $hidden]);
+        }
         return $source . $html;
     }
 

@@ -5,6 +5,8 @@ declare(strict_types=1);
 /**
  * Prints the control panel paths and ids of the demo elements (dev/demo.php) that dev/screenshots.mts shows, as JSON.
  * Run: php dev/screenshots.php <craft-project-dir>
+ *      php dev/screenshots.php <craft-project-dir> protect 0|1   the plugin's "Protect elements in use" setting, for
+ *      the shot of Craft's delete dialog without the plugin's part
  */
 
 use craft\base\ElementInterface;
@@ -34,6 +36,13 @@ function entry(string $section, string $title): Entry
     return Entry::find()->section($section)->title($title)->status(null)->one() ?? throw new RuntimeException("No demo entry $title");
 }
 
+if (($argv[2] ?? '') === 'protect') {
+    $plugin = Craft::$app->getPlugins()->getPlugin('element-relations') ?? throw new RuntimeException('Plugin not installed');
+    Craft::$app->getPlugins()->savePluginSettings($plugin, ['protectInUse' => ($argv[3] ?? '1') === '1']) or throw new RuntimeException('Settings not saved');
+    Craft::$app->getProjectConfig()->saveModifiedConfigData(); // for the web server (no EVENT_AFTER_REQUEST here)
+    exit(0);
+}
+
 $skyline = asset('train-and-city-towers.jpg');
 $editors = Craft::$app->getUserGroups()->getGroupByHandle('editors') ?? throw new RuntimeException('No Editors group');
 $usedIn = Craft::$app->getFields()->getFieldByHandle('usedIn') ?? throw new RuntimeException('No Used in field');
@@ -43,7 +52,8 @@ echo json_encode([
     'replacement' => ['id' => asset('waiting-on-the-platform.jpg')->id],
     'replaceIn' => [entry('homepage', 'Homepage')->id, entry('journal', 'How to read a station')->id],
     'social' => ['path' => editPath(asset('social-share.svg'))],
-    'guide' => ['path' => editPath(asset('rail-pass-guide-2026.pdf'))],
+    // used by a link field, rich text, a menu and a form: Craft's own delete dialog sees part of it
+    'guide' => ['id' => asset('rail-pass-guide-2026.pdf')->id, 'path' => editPath(asset('rail-pass-guide-2026.pdf'))],
     'hongKong' => ['id' => entry('destinations', 'Hong Kong')->id, 'path' => editPath(entry('destinations', 'Hong Kong'))],
     'taipei' => ['id' => entry('destinations', 'Taipei')->id, 'path' => editPath(entry('destinations', 'Taipei'))],
     'notes' => ['id' => asset('station-notes.jpg')->id, 'path' => editPath(asset('station-notes.jpg'))],

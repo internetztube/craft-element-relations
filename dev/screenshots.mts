@@ -46,7 +46,7 @@ interface DemoTargets {
     /** usages the replace shots tick */
     replaceIn: number[];
     social: { path: string };
-    guide: { path: string };
+    guide: { id: number, path: string };
     hongKong: { id: number, path: string };
     homepage: { path: string };
     usedInField: { path: string };
@@ -80,8 +80,9 @@ interface Shot {
     cover?: string;
     /** under that close-up */
     caption?: string;
-    /** instead of one page: close-ups taken one after another (`act`, then `region`), framed side by side under their labels */
-    compare?: { label: string, act: string, region: string }[];
+    /** instead of one page: close-ups taken one after another (`protect`: the plugin's "Protect elements in use" set first; then
+     * `act`, then `region`), framed under their labels */
+    compare?: { label: string, act: string, region: string, protect?: boolean }[];
     /** JavaScript run in the page before the capture (may await) */
     act?: string;
     /** reload the page after `act` (e.g. when it changed what the page shows) */
@@ -419,6 +420,45 @@ const SHOTS: Shot[] = [
             await sleep(1500);
         `,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
+    },
+    {
+        name: 'delete-compare', edition: 'Pro', user: 'jonas', viewport: { height: 1500 },
+        points: ['The same asset, the same dialog', 'Craft checks relation fields and CKEditor', 'Element Relations also finds links, menus and forms'],
+        title: 'What Craft’s delete dialog misses',
+        text: 'The same PDF, deleted by an editor: Craft 5.10 on its own, and with Element Relations.',
+        path: demo.guide.path,
+        compare: [
+            {
+                label: 'Craft 5.10',
+                protect: false,
+                act: `
+                    window.confirm = () => false; // no blocker means Craft's plain confirm(): cancelled, nothing is deleted
+                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
+                    await until(() => $$('.modal').some((m) => /Before deleting/.test(m.textContent)), 'Craft’s delete dialog', 30000);
+                    await sleep(1500);
+                    if ($$('.modal').some((m) => /Element Relations/.test(m.textContent))) throw new Error('The plugin’s part is still in the dialog');
+                    // the dialog's heading and its checks, without the empty space and the buttons below
+                    window.dialogChecks = () => { const m = $$('.modal').at(-1); return [m.querySelector('.body > h1'), m.querySelector('.edm-blockers')]; };
+                `,
+                region: `dialogChecks()`,
+            },
+            {
+                label: 'Craft 5.10 with Element Relations',
+                protect: true,
+                act: `
+                    visibleModal()?.hide();
+                    await sleep(800);
+                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
+                    await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
+                    // opened, like a user would to see which elements
+                    const ours = [...$$('.modal').at(-1).querySelectorAll('.edm-blocker')].find((b) => /Element Relations found/.test(b.textContent));
+                    ours.querySelector('button, [role="button"], .fieldtoggle')?.click();
+                    await until(() => ours.querySelector('.element-relations tbody tr[data-id], tbody tr'), 'the usage list in the dialog', 15000);
+                    await sleep(1500);
+                `,
+                region: `dialogChecks()`,
+            },
+        ],
     },
     {
         // Craft's own list of what relates to the asset next to the plugin's: Craft names the Matrix block, the plugin
@@ -895,7 +935,12 @@ try {
         }
         if (shot.compare && (!only.length || only.includes(shot.name))) {
             const parts: Part[] = [];
+            const protect = (on: boolean) => execFileSync('php', [join(here, 'screenshots.php'), projectDir, 'protect', on ? '1' : '0']);
+            try {
             for (const [i, part] of shot.compare.entries()) {
+                if (part.protect !== undefined) {
+                    protect(part.protect);
+                }
                 await evaluate(browser, part.act).catch(async (error) => {
                     writeFileSync(join(outDir, `failed-${shot.name}.png`), await captureViewport(browser));
                     throw error;
@@ -904,6 +949,11 @@ try {
                 const file = join(workDir, `${shot.name}-${i}.png`);
                 writeFileSync(file, await capture(browser, { ...found.region, x: found.region.x + found.scroll.x, y: found.region.y + found.scroll.y }));
                 parts.push({ label: part.label, file, region: found.region });
+            }
+            } finally {
+                if (shot.compare.some((part) => part.protect !== undefined)) {
+                    protect(true); // the default, what the other shots and the tests expect
+                }
             }
             comparisons.push({ shot, parts });
             console.log(`  shot ${shot.name}`);

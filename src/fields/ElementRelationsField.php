@@ -403,7 +403,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     }
 
     /** The logged-in non-admin user of a control panel request, whose view permissions apply; null otherwise. */
-    private static function restrictedViewer(): ?\craft\elements\User
+    /** The control panel user whose view permissions apply: a non-admin in a control panel request, else null. */
+    public static function restrictedViewer(): ?\craft\elements\User
     {
         $request = Craft::$app->getRequest();
         if (!$request instanceof \craft\web\Request || !$request->getIsCpRequest()) {

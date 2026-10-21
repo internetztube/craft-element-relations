@@ -125,8 +125,17 @@ class InUseGuard
             ->withQueryFactory(fn(string $type): mixed => ElementRelations::find($type)); // Craft's defaults: live entries, enabled elements, no drafts
         $siteIds = $siteId === null ? [] : [$siteId];
         $titles = [];
-        foreach ($model->getElementsIterator($siteIds, self::NAMED) as $usage) {
+        // named only when the user may view it (the count stays complete: “and N more”); ponytail: the first 50
+        // usages are looked at, an editor who may view none of them gets the count alone
+        $viewer = \internetztube\elementRelations\fields\ElementRelationsField::restrictedViewer();
+        foreach ($model->getElementsIterator($siteIds, $viewer ? 50 : self::NAMED) as $usage) {
+            if ($viewer && !Craft::$app->getElements()->canView($usage, $viewer)) {
+                continue;
+            }
             $titles[] = '“' . $usage . '”';
+            if (count($titles) === self::NAMED) {
+                break;
+            }
         }
         $global = $siteId === null ? $model->getGlobalUsages() : [];
         foreach (array_slice($global, 0, max(0, self::NAMED - count($titles))) as $usage) {

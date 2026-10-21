@@ -82,6 +82,10 @@ Editors can't delete what live content uses, or take it offline: deleting (also 
 
 On Craft 5.10 and later this starts in Craft's own delete dialog: the live usages are listed as an issue to address, with **Replace…** (the replace wizard for all of them) and, only for users with the permission, **Delete anyway**.
 
+The same PDF, deleted by an editor, once with Craft's own checks only and once with Element Relations: Craft finds one relation and the CKEditor links. Element Relations also finds the homepage's Link field, the Newsletter form and a menu. The editor may not view that menu, so it is counted but not named.
+
+![What Craft's delete dialog misses](screenshots/delete-compare.jpg)
+
 ![Before deleting: where it is used](screenshots/in-use-dialog.jpg)
 
 ![Keep what is in use](screenshots/in-use-delete.jpg)
