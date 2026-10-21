@@ -2,7 +2,7 @@
 
 ![Element Relations](screenshots/cover.jpg)
 
-Screenshots of the plugin in the demo site “Transit”, a fictional travel journal (photos by Frederic Köberl on [Unsplash](https://unsplash.com/@internetztube)). The demo is part of the dev environment: `dev/dev.sh` builds it, `dev/dev.sh screenshots` retakes every picture on this page.
+Every feature in the demo site “Transit”, a fictional travel journal (the author's own photos: [Frederic Köberl on Unsplash](https://unsplash.com/@internetztube)). Each picture shows the whole control panel page; the inset zooms into the feature where the page shows it small. The demo is part of the dev environment: `dev/dev.sh` builds it, `dev/dev.sh screenshots` retakes every picture on this page.
 
 ## See where every element is used
 
@@ -12,7 +12,7 @@ The **Element Relations** field lists everything that links to the element it si
 
 ## Filter by element type
 
-When an element is used by several element types, a dropdown with counts per type joins Craft's own search, sorting, status menu and pagination.
+When an element is used by several element types, a dropdown with counts per type joins Craft's own search, sorting, status menu and pagination. Sorting and the filter offer Craft's own options and rules of the types in the list: Section, Entry Type, Post Date, Author, Filename, File Type, Group, …
 
 ![Filter by element type](screenshots/type-menu.jpg)
 

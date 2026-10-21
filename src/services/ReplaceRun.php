@@ -31,6 +31,8 @@ final class ReplaceRun
     /** @var list<OwnerRevisions> owners that changed, with their revisions before and after */
     private array $owners = [];
     private int $replaced = 0;
+    /** @var array<int, true> top-level owners this run changed (or found changed by it) in any site */
+    private array $doneOwners = [];
     /** @var list<string> */
     private array $skipped = [];
     /** @var array<int, true> element ids saved in any site */
@@ -109,6 +111,7 @@ final class ReplaceRun
         $run->pending = $pending;
         $run->processed = is_numeric($state['processed'] ?? null) ? (int)$state['processed'] : 0;
         $run->total = is_numeric($state['total'] ?? null) ? (int)$state['total'] : null;
+        $run->doneOwners = array_fill_keys(array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, (array)($state['doneOwners'] ?? [])), true);
         return $run;
     }
 
@@ -138,6 +141,7 @@ final class ReplaceRun
         $owner = null;
         $ownerChanged = false;
         $savedHere = [];
+        $groupDone = false; // a usage (this owner in this site) counts once, however many fields or blocks point at the target
 
         foreach ($bySource as $id => $rows) {
             $element = ReplaceService::load($types[$id] ?? null, $id, $siteId);
@@ -175,8 +179,8 @@ final class ReplaceRun
                 }
             }
             if (!$elementChanges) {
-                if ($alreadyDone && !isset($this->saved[$id])) {
-                    $this->replaced++;
+                if ($alreadyDone) {
+                    $groupDone = true;
                     $this->saved[$id] = true;
                 }
                 continue;
@@ -189,7 +193,7 @@ final class ReplaceRun
                 $this->skipped[] = ReplaceService::label($element, $this->user) . ' (' . implode(' ', $element->getFirstErrors()) . ')';
                 continue;
             }
-            $this->replaced++;
+            $groupDone = true;
             $this->saved[$id] = true;
             $savedHere[] = $id;
             $ownerChanged = true;
@@ -201,6 +205,10 @@ final class ReplaceRun
             }
         }
 
+        if ($groupDone) {
+            $this->replaced++;
+            $this->doneOwners[$ownerId] = true;
+        }
         $this->processed++;
         // the owner gets a revision of the replaced state (Craft makes none for a nested-only change, and skips one
         // when the previous revision is from the same second)
@@ -216,7 +224,7 @@ final class ReplaceRun
     {
         $this->operation->revisions = json_encode($this->owners) ?: null;
         $this->operation->result = json_encode(['replaced' => $this->replaced, 'skipped' => array_values(array_unique($this->skipped)), 'withoutRevision' => $this->withoutRevision()]) ?: null;
-        $this->operation->state = json_encode(['saved' => array_keys($this->saved), 'pending' => $this->pending, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation))]) ?: null;
+        $this->operation->state = json_encode(['saved' => array_keys($this->saved), 'pending' => $this->pending, 'processed' => $this->processed, 'total' => $this->total ??= count(self::groups($this->operation)), 'doneOwners' => array_keys($this->doneOwners)]) ?: null;
         $this->operation->save(false);
     }
 
@@ -228,6 +236,10 @@ final class ReplaceRun
      */
     public function finish(?array $onlySourceIds): array
     {
+        // measured, not tallied per site: the owners this run changed that the list no longer shows (see
+        // ReplaceService::elementCount()); a source deleted or edited by someone else meanwhile is not among them
+        $done = array_keys($this->doneOwners);
+        $this->replaced = count($done) - ReplaceService::elementCount((int)$this->from->id, $done);
         // Data shared across sites (non-translatable fields, Formie forms) is swapped by whichever site got saved first;
         // the other sites then hold no reference anymore. So only elements saved in no site count as skipped.
         foreach ($this->pending as $id => $labels) {

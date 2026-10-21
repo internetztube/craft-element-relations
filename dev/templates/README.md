@@ -16,7 +16,7 @@ pages of those list the stories pointing to them. Nobody maintains a second fiel
 | Writer (`team/_entry.twig`) | Their stories, with the number | `entry.usedIn.count(sections: ['journal'])`, `.elements(sections: ['journal'], limit: 12)` |
 | Homepage (`index.twig`) | Destinations ranked by stories | `destination.usedIn.count(sections: ['journal'])` in a `sort` |
 | Journal (`journal/index.twig`) | `?destination=hong-kong` | `.usesElement(destination)` on an ordinary query |
-| Destination | In numbers: this site, every site, per element type | `entry.usedIn.count`, `.count([])`, `.countsByType`, `.sites` |
+| Destination | In numbers: this site, every site (an entry in two sites counts twice), per element type | `entry.usedIn.count`, `.count([])`, `.countsByType`, `.sites` |
 
 Every part that comes from the plugin is framed and shows its Twig inline, right above it (`_partials/hint.twig`);
 the header's **Plugin hints** switch hides them for a plain look at the site.

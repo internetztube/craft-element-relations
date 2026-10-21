@@ -177,13 +177,20 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
      */
     public function getSortOption(): array
     {
-        $count = (new \craft\db\Query())
-            ->select(['COUNT(*)'])
+        // elements as the list counts them: a relating element once (whatever its sites and however many fields point
+        // at the target), no trashed elements, revisions or provisional drafts; plugin settings count as one each
+        $usages = (new \craft\db\Query())
+            ->select(['elementrelations_cache.sourcePrimaryOwnerId', 'elementrelations_cache.globalKey'])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-            // not the usages of trashed elements (plugin settings, without a source element, do count)
             ->leftJoin(['sources' => \craft\db\Table::ELEMENTS], '[[sources.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
+            ->leftJoin(['drafts' => \craft\db\Table::DRAFTS], '[[drafts.id]] = [[sources.draftId]]')
             ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')])
-            ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null]]]);
+            ->andWhere(['or',
+                ['elementrelations_cache.sourceElementId' => null],
+                ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null], ['sources.revisionId' => null], ['or', ['drafts.id' => null], ['<>', 'drafts.provisional', true]]],
+            ])
+            ->groupBy(['elementrelations_cache.sourcePrimaryOwnerId', 'elementrelations_cache.globalKey']);
+        $count = (new \craft\db\Query())->select(['COUNT(*)'])->from(['usages' => $usages]);
         return [
             'label' => Craft::t('site', (string)$this->name),
             'orderBy' => '(' . $count->createCommand()->getRawSql() . ')',
@@ -205,17 +212,17 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             return $element->getIsUnpublishedDraft() ? '' : $this->unusedLabelHtml();
         }
 
-        $siteId = $element->siteId;
+        // every site, like the field's list (a usage is an element in one site; the first few as chips, then the total)
         $viewer = self::restrictedViewer();
         if ($viewer) {
             // control panel users with limited permissions: only what they may view, plus how much they may not
-            $visibleQuery = self::usageQuery($value, $viewer)->siteId($siteId);
+            $visibleQuery = self::usageQuery($value, $viewer);
             $elements = (clone $visibleQuery)->limit(self::PREVIEW_LIMIT)->all();
             $total = (int)$visibleQuery->count();
             $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
         } else {
-            $elements = $value->getElements($siteId, self::PREVIEW_LIMIT);
-            $total = $value->getCountFast($siteId);
+            $elements = $value->getElements([], self::PREVIEW_LIMIT);
+            $total = $value->getCountFast([]);
             $hidden = 0;
         }
         $html = Cp::elementPreviewHtml($elements, showThumb: false);
@@ -228,9 +235,6 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         }
         if ($hidden) {
             $html .= Html::tag('div', Html::encode(Craft::t('element-relations', 'restricted-count', ['count' => $hidden])), ['class' => 'light smalltext']);
-        }
-        if (!$elements && !$viewer && $value->getSitesFast()) {
-            $html .= Html::tag('span', Craft::t('element-relations', 'preview-other-sites'), ['class' => 'light']);
         }
         if ($value->getIsUsedInSeomaticGlobalSettings()) {
             $html .= Html::tag('div', Craft::t('element-relations', 'field-value-seomatic-global'), ['class' => 'light']);
@@ -261,6 +265,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $html = '';
         if ($value->getIsInUseFast([])) {
             self::$toolbarMenus = self::toolbarMenus($value);
+            Usage::$listedTypes = $value->getElementTypes(); // the View menu offers these types' columns
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',
                 'id' => 'element-relations-' . StringHelper::randomString(8),
@@ -272,6 +277,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 'defaultViewMode' => $this->viewMode,
                 'jsSettings' => [
                     'criteria' => ['usesElement' => $value->getElementId(), 'allSites' => true],
+                    // the same target as the index's base condition: Craft sends it with every request of the index,
+                    // the filter HUD's too, so the filter offers the rules of the types in this list
+                    'condition' => self::listCondition($value->getElementId())->getConfig(),
                     // not `static`: that also drops the actions (Pro: "Replace…") and their checkboxes
                     'inlineEditable' => false,
                     'canHaveDrafts' => true, // the status menu's "Drafts" option only takes effect with this
@@ -280,6 +288,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 ],
             ]);
             self::$toolbarMenus = [];
+            Usage::$listedTypes = null;
             if ($viewer = self::restrictedViewer()) {
                 // so nobody takes the element for unused when the usages are only hidden from them
                 $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
@@ -333,11 +342,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         }
         $coverage = ReplaceService::revisionCoverage($value->getElementId(), $onlyOwnerIds);
         $without = $coverage['unsupported'] + $coverage['versioningOff'];
-        return $without ? Craft::t('element-relations', 'replace-revision-hint', [
-            'count' => $without,
-            'unsupported' => $coverage['unsupported'],
-            'versioningOff' => $coverage['versioningOff'],
-        ]) : '';
+        return $without ? Craft::t('element-relations', 'replace-revision-hint', ['count' => $without]) : '';
     }
 
     /**
@@ -354,6 +359,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             $types = array_filter(array_map(fn(string $type): int => (int)self::usageQuery($value, $viewer)->elementTypes($type)->count(), array_combine(array_keys($types), array_keys($types))));
             $sites = array_filter(array_map(fn(int $siteId): int => (int)self::usageQuery($value, $viewer)->inSites($siteId)->count(), array_combine(array_keys($sites), array_keys($sites))));
         }
+        // "All …": the list's elements, each once; a site's badge counts the elements used there, so the sites can add
+        // up to more (an element in two sites counts in both)
+        $total = $viewer ? (int)self::usageQuery($value, $viewer)->count() : $value->getCountFast([]);
         $menus = [];
         if (count($types) > 1) {
             $options = [];
@@ -362,16 +370,24 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 $label = $type::pluralDisplayName();
                 $options[$type] = ['label' => $label === Craft::t('app', 'Elements') ? $type::displayName() : $label, 'count' => $count];
             }
-            $menus[] = ['param' => 'elementTypes', 'label' => Craft::t('element-relations', 'field-column-type'), 'allLabel' => Craft::t('element-relations', 'field-all-types'), 'options' => $options];
+            $menus[] = ['param' => 'elementTypes', 'label' => Craft::t('element-relations', 'field-column-type'), 'allLabel' => Craft::t('element-relations', 'field-all-types'), 'options' => $options, 'total' => $total];
         }
         if (count($sites) > 1) {
             $options = [];
             foreach ($sites as $siteId => $count) {
                 $options[$siteId] = ['label' => Craft::$app->getSites()->getSiteById($siteId, true)?->getName() ?? (string)$siteId, 'count' => $count];
             }
-            $menus[] = ['param' => 'inSites', 'label' => Craft::t('app', 'Site'), 'allLabel' => Craft::t('app', 'All sites'), 'options' => $options];
+            $menus[] = ['param' => 'inSites', 'label' => Craft::t('app', 'Site'), 'allLabel' => Craft::t('app', 'All sites'), 'options' => $options, 'total' => $total];
         }
         return $menus;
+    }
+
+    /** The list's base condition: "uses element X" (see UsesElementConditionRule). */
+    private static function listCondition(int $elementId): \craft\elements\conditions\ElementConditionInterface
+    {
+        $condition = Usage::createCondition();
+        $condition->addConditionRule(Craft::createObject(['class' => \internetztube\elementRelations\elements\conditions\UsesElementConditionRule::class, 'elementId' => $elementId]));
+        return $condition;
     }
 
     /** All usages of the element (all sites, every status, drafts included) as the given user may see them. */

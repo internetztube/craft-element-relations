@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace internetztube\elementRelations\models;
 
-use Craft;
 use craft\base\Model;
 
 class SettingsModel extends Model

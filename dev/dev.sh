@@ -4,12 +4,14 @@
 #   dev/dev.sh serve    start server in background (http://localhost:8080/admin, admin / password)
 #   dev/dev.sh stop     stop server
 #   dev/dev.sh e2e      start the server and run dev/e2e.php (control panel over HTTP: login, edit page, index + replace endpoints)
+#   dev/dev.sh ui       start the server and run dev/ui.mjs (the control panel in headless Chrome: lists, wizard, delete dialog, editor)
 #   dev/dev.sh screenshots  documentation screenshots of the demo site into docs/screenshots (dev/screenshots.mjs)
 #   dev/dev.sh queue    run queued jobs (plugin refreshes its cache via queue)
 #   dev/dev.sh seed     test fixtures (Pages section, "Page A1..A12" -> "Page B", one entry per integration) + demo site
 #   dev/dev.sh smoke    run dev/smoke.php assertions against the seeded project
 #   dev/dev.sh reset    drop DB and reinstall from scratch
-#   dev/dev.sh ci       scaffold + install + smoke against an already running DB (what GitHub Actions runs)
+#   dev/dev.sh ci       scaffold + install + smoke + e2e + ui against an already running DB (what GitHub Actions runs)
+#   dev/dev.sh coverage ci with line coverage of src/ (pcov), then the report: total, files below the bar, HTML
 # Env: PROJECT_DIR (default ../craft-element-relations-dev), PORT (8080), DB_DRIVER (pgsql|mysql, default pgsql),
 #      DB_NAME (default: project dir name), DB_SERVER (127.0.0.1), DB_PORT, DB_USER, DB_PASSWORD (local defaults: no password).
 set -euo pipefail
@@ -27,6 +29,12 @@ DB_PASSWORD="${DB_PASSWORD:-}"
 PIDFILE="$PROJECT_DIR/storage/serve.pid"
 export PATH="/opt/homebrew/opt/postgresql@14/bin:/opt/homebrew/opt/mysql@8.0/bin:$PATH"
 MYSQL="mysql -u$DB_USER -h$DB_SERVER -P$DB_PORT --protocol=tcp${DB_PASSWORD:+ -p$DB_PASSWORD}"
+# COVERAGE=1: every PHP process the suites run (the console scripts, the dev server, the queue) prepends
+# dev/coverage.php (pcov, line coverage of src/ into storage/coverage); dev/coverage-report.php merges and prints it
+# (no opcache: the built-in server uses it, and its optimizer drops lines such as `continue;` from what pcov sees)
+PHP=(php)
+ROUTER="$PROJECT_DIR/vendor/craftcms/cms/bootstrap/router.php"
+if [ "${COVERAGE:-0}" = 1 ]; then export COVERAGE_PROJECT_DIR="$PROJECT_DIR"; PHP=(php -d pcov.enabled=1 -d opcache.enable=0 -d "pcov.directory=$PLUGIN_DIR/src" -d "auto_prepend_file=$PLUGIN_DIR/dev/coverage.php"); ROUTER="$PLUGIN_DIR/dev/coverage-router.php"; fi
 
 db_up() {
   if [ "$DB_DRIVER" = "mysql" ]; then
@@ -52,6 +60,7 @@ scaffold() {
   composer config minimum-stability dev
   composer config prefer-stable true
   composer require internetztube/craft-element-relations:@dev --no-interaction
+  composer require --dev phpunit/php-code-coverage --no-interaction
   cat > .env <<ENV
 CRAFT_APP_ID=
 CRAFT_ENVIRONMENT=dev
@@ -75,6 +84,7 @@ ENV
 
 install() {
   cd "$PROJECT_DIR"
+  composer show phpunit/php-code-coverage >/dev/null 2>&1 || composer require --dev phpunit/php-code-coverage --no-interaction --quiet
   php craft install/check >/dev/null 2>&1 && return
   php craft install --interactive=0 --email=admin@example.com --username=admin --password=password \
     --siteName="Element Relations Dev" --siteUrl='$PRIMARY_SITE_URL' --language=en-US
@@ -92,8 +102,10 @@ seed()  { install_plugins && php craft migrate/all --no-backup --interactive=0 &
 # the tests switch the plugin edition in console processes; write the project config YAML back afterwards so the
 # control panel does not report pending changes
 syncpc() { (cd "$PROJECT_DIR" && php craft project-config/write >/dev/null 2>&1) || true; }
-smoke() { seed && php "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; local rc=$?; syncpc; return $rc; }
+smoke() { seed && "${PHP[@]}" "$PLUGIN_DIR/dev/smoke.php" "$PROJECT_DIR"; local rc=$?; syncpc; return $rc; }
 e2e()   { serve && php "$PLUGIN_DIR/dev/e2e.php" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; syncpc; return $rc; }
+# the control panel in a real browser (headless Chrome), dev/ui.mjs: what a person sees and does
+ui()    { serve && (cd "$PROJECT_DIR" && "${PHP[@]}" craft queue/run >/dev/null) && node "$PLUGIN_DIR/dev/ui.mjs" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; syncpc; return $rc; }
 # documentation screenshots of the demo site into docs/screenshots (queue first: pending image transforms show a job
 # indicator in the control panel)
 screenshots() { serve && (cd "$PROJECT_DIR" && php craft queue/run >/dev/null) && (cd "$PLUGIN_DIR" && node dev/screenshots.mjs "$PROJECT_DIR" "http://localhost:$PORT" docs/screenshots); }
@@ -103,22 +115,34 @@ stop() { [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true; rm -
 serve() {
   stop
   cd "$PROJECT_DIR"
-  nohup php -S localhost:$PORT -t "$PROJECT_DIR/web" "$PROJECT_DIR/vendor/craftcms/cms/bootstrap/router.php" > storage/serve.log 2>&1 &
+  nohup "${PHP[@]}" -S localhost:$PORT -t "$PROJECT_DIR/web" "$ROUTER" > storage/serve.log 2>&1 &
   echo $! > "$PIDFILE"
   for _ in $(seq 1 10); do curl -sf -o /dev/null "http://localhost:$PORT/admin/login" && break; sleep 1; done
   echo "Craft running at http://localhost:$PORT/admin  (admin / password)  log: $PROJECT_DIR/storage/serve.log"
+}
+
+# ci logs to storage/ci.log; dev/tests-md.php turns the "ok" lines into dev/TESTS.md, the list of what is tested
+ci() { scaffold; install; { smoke && e2e && ui; } 2>&1 | tee "$PROJECT_DIR/storage/ci.log"; local rc=${PIPESTATUS[0]}; php "$PLUGIN_DIR/dev/tests-md.php" "$PROJECT_DIR/storage/ci.log" > "$PLUGIN_DIR/dev/TESTS.md"; return $rc; }
+coverage() {
+  [ "${COVERAGE:-0}" = 1 ] || COVERAGE=1 exec "$0" coverage
+  rm -rf "${PROJECT_DIR:?}/storage/coverage"
+  local rc=0
+  ci || rc=$? # set -e: report the coverage of a failing run too
+  php "$PLUGIN_DIR/dev/coverage-report.php" "$PROJECT_DIR" && return $rc
 }
 
 case "${1:-up}" in
   up)    db_up; scaffold; install; seed; serve ;;
   serve) serve ;;
   stop)  stop ;;
-  queue) cd "$PROJECT_DIR" && php craft queue/run ;;
+  queue) cd "$PROJECT_DIR" && "${PHP[@]}" craft queue/run ;;
   seed)  seed ;;
   smoke) smoke ;;
   reset) stop; db_drop; db_up; install; seed; serve ;;
   e2e)   e2e ;;
+  ui)    ui ;;
   screenshots) screenshots ;;
-  ci)    scaffold; install; smoke; e2e ;;
+  ci)    ci ;;
+  coverage) coverage ;;
   *)     sed -n "2,14p" "$0"; exit 1 ;;
 esac

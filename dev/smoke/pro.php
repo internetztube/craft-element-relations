@@ -208,7 +208,7 @@ return function (array $ctx): void {
     $flush();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
     $titles = relatingTitles($target);
-    check($record->status === 'applied' && $record->getResult()['replaced'] === $siteRows && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], $titles)) === 3, 'in batches of one owner group, every source is replaced and the result adds up (' . $record->result . ')');
+    check($record->status === 'applied' && $record->getResult()['replaced'] === count($batchIds) && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], $titles)) === 3, 'in batches of one owner group, every source is replaced and the result adds up (' . $record->result . ')');
     check($record->plan === null && $record->state === null && count($record->getChanges()) === $siteRows, 'afterwards the plan and state are gone, the changes are complete');
     ReplaceService::queueRollback($record);
     (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
@@ -245,7 +245,7 @@ return function (array $ctx): void {
     $flush();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
     $result = $record->getResult();
-    check($record->status === 'applied' && $result['replaced'] === $siteRows && empty($result['skipped']), 'after a broken-off batch, the resumed replacement counts what was already done and reports nothing to fix (' . $record->result . ')');
+    check($record->status === 'applied' && $result['replaced'] === count($batchIds) && empty($result['skipped']), 'after a broken-off batch, the resumed replacement counts what was already done and reports nothing to fix (' . $record->result . ')');
     ReplaceService::queueRollback($record);
     (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
@@ -254,7 +254,7 @@ return function (array $ctx): void {
     $flush();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
     $result = $record->getResult();
-    check($record->status === 'rolledBack' && ($result['restored'] ?? 0) === $siteRows && empty($result['rollbackSkipped']) && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the same for a rollback: everything restored, nothing reported (' . $record->result . ')');
+    check($record->status === 'rolledBack' && ($result['restored'] ?? 0) === count($batchIds) && empty($result['rollbackSkipped']) && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the same for a rollback: everything restored, nothing reported (' . $record->result . ')');
 
     foreach ($batchSources as $batchSource) {
         $elements->deleteElement($batchSource, true);

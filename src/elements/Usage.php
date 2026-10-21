@@ -36,9 +36,17 @@ abstract class Usage extends Element
      * that element uses the queried target (empty without a `usesElement` param); `disabledIn` is the disabled nested
      * element (e.g. a Matrix block) the relation is in. Also tells the attribute HTML hook which elements are
      * being rendered in a Usage index.
-     * @var array<string, array<int, array{fieldId: int|null, type: string, disabledIn: int|null}>>
+     * Keyed by element id: one row per element, the fields of every site it uses the target in.
+     * @var array<int, array<int, array{fieldId: int|null, type: string, disabledIn: int|null}>>
      */
     public static array $via = [];
+
+    /**
+     * Filled with $via: the sites each loaded element uses the queried target in, `<elementId>` => `<siteId>` => true.
+     * A list spanning every site shows an element once; the Site column names these.
+     * @var array<int, array<int, true>>
+     */
+    public static array $sites = [];
 
     public static function displayName(): string
     {
@@ -120,7 +128,19 @@ abstract class Usage extends Element
         return [['key' => '*', 'label' => Craft::t('app', 'All elements')]];
     }
 
-    /** @return array<string, array{label: string, icon?: string}> */
+    /**
+     * Element types of the list being rendered, set by whoever renders one (the field, the delete dialog) before
+     * Craft reads the table attributes; null = work them out from the request (see listedTypes()).
+     * @var list<class-string<\craft\base\ElementInterface>>|null
+     */
+    public static ?array $listedTypes = null;
+
+    /**
+     * The plugin's columns, then every column of the element types the list contains (Section and Entry Type when
+     * entries use the element, Filename and File Size for assets, Group, Email, …), like Craft's own indexes offer
+     * them. A row whose type lacks a column (Section on a product) renders an empty cell, see ElementRelations::init().
+     * @return array<string, array{label: string, icon?: string}>
+     */
     protected static function defineTableAttributes(): array
     {
         $attributes = [
@@ -128,24 +148,64 @@ abstract class Usage extends Element
             self::ATTR_WHERE => ['label' => Craft::t('element-relations', 'field-column-where')],
             self::ATTR_FIELD => ['label' => Craft::t('element-relations', 'field-column-field')],
             self::ATTR_SITE => ['label' => Craft::t('app', 'Site')],
-            // Craft's own attributes; a type without one (e.g. Authors on an asset) renders an empty cell, see ElementRelations::init()
             'status' => ['label' => Craft::t('app', 'Status')],
-            'authors' => ['label' => Craft::t('app', 'Authors')],
-            'postDate' => ['label' => Craft::t('app', 'Post Date')],
-            'expiryDate' => ['label' => Craft::t('app', 'Expiry Date')],
-            'link' => ['label' => Craft::t('app', 'Link'), 'icon' => 'world'],
-            'slug' => ['label' => Craft::t('app', 'Slug')],
-            'uri' => ['label' => Craft::t('app', 'URI')],
-            'revisionCreator' => ['label' => Craft::t('app', 'Last Edited By')],
             'dateUpdated' => ['label' => Craft::t('app', 'Date Updated')],
-            'dateCreated' => ['label' => Craft::t('app', 'Date Created')],
-            'id' => ['label' => Craft::t('app', 'ID')],
-            'uid' => ['label' => Craft::t('app', 'UID')],
         ];
+        foreach (self::listedTypes() as $type) {
+            foreach ($type::tableAttributes() as $key => $attribute) {
+                // the first type's label wins (Entry Type, then Product Type both as `type`): each row renders its own
+                if (is_string($key) && is_array($attribute) && isset($attribute['label']) && !isset($attributes[$key])) {
+                    $attributes[$key] = ['label' => (string)$attribute['label']] + (isset($attribute['icon']) ? ['icon' => (string)$attribute['icon']] : []);
+                }
+            }
+        }
         if (Craft::$app->edition === CmsEdition::Solo) { // like Entry
             unset($attributes['authors'], $attributes['revisionCreator']);
         }
         return $attributes;
+    }
+
+    /**
+     * Element types of the list: as set by its renderer ($listedTypes), else those using the element(s) of the request's
+     * `usesElement` criteria (the index's AJAX requests), else every type a list can contain.
+     * @return list<class-string<\craft\base\ElementInterface>>
+     */
+    public static function listedTypes(): array
+    {
+        if (self::$listedTypes !== null) {
+            return self::$listedTypes;
+        }
+        $request = Craft::$app->getRequest();
+        if ($request instanceof \craft\web\Request) {
+            // the list's base condition (every request of the index, the filter HUD's too), or its criteria
+            $ids = \internetztube\elementRelations\elements\conditions\UsesElementConditionRule::idsIn($request->getBodyParam('condition') ?? $request->getQueryParam('condition'));
+            $criteria = $request->getBodyParam('criteria') ?? $request->getQueryParam('criteria');
+            $targets = is_array($criteria) ? (array)($criteria['usesElement'] ?? []) : [];
+            $ids = $ids ?: array_values(array_filter(array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, $targets)));
+            if ($ids) {
+                return self::typesUsing($ids);
+            }
+        }
+        $types = [Entry::class, \craft\elements\Asset::class, \craft\elements\Category::class, \craft\elements\Tag::class, \craft\elements\User::class, \craft\elements\GlobalSet::class, \craft\elements\Address::class, 'craft\\commerce\\elements\\Product'];
+        foreach (\internetztube\elementRelations\services\ExtractorService::elementExtractors() as $extractor) {
+            array_push($types, ...$extractor::elementTypes());
+        }
+        return array_values(array_filter(array_unique($types), fn(string $type): bool => is_subclass_of($type, \craft\base\ElementInterface::class)));
+    }
+
+    /**
+     * The element types using any of these elements (one grouped count query each, all sites).
+     * @param list<int> $ids
+     * @return list<class-string<\craft\base\ElementInterface>>
+     */
+    public static function typesUsing(array $ids): array
+    {
+        $siteId = (int)Craft::$app->getSites()->getPrimarySite()->id;
+        $types = [];
+        foreach ($ids as $id) {
+            array_push($types, ...(new \internetztube\elementRelations\models\RelationsModel($id, $siteId))->getElementTypes());
+        }
+        return array_values(array_unique($types));
     }
 
     /** @return list<string> */
@@ -159,16 +219,56 @@ abstract class Usage extends Element
         return $attributes;
     }
 
-    /** @return list<array{label: string, orderBy: string, attribute: string, defaultDir?: string}> */
+    /** Columns of the joined tables a stock sort option may name unqualified (unambiguous across them). */
+    private const SORTABLE_COLUMNS = ['title', 'slug', 'uri', 'filename', 'size', 'kind', 'dateModified', 'width', 'height', 'username', 'fullName', 'firstName', 'lastName', 'email', 'lastLoginDate'];
+
+    /** Element types whose stock sort options and filter rules the list takes over (their tables are joined, see UsageQuery). */
+    public const STOCK_TYPES = [Entry::class, \craft\elements\Asset::class, \craft\elements\Category::class, \craft\elements\Tag::class, \craft\elements\User::class];
+
+    /**
+     * The plugin's sort options, then Craft's own of the element types in the list (Section, Entry Type, Post Date,
+     * Filename, File Size, Group, Email, …), as they are: UsageQuery joins their tables, so their expressions resolve.
+     * @return list<array<string, mixed>>
+     */
     protected static function defineSortOptions(): array
     {
-        return [
+        $options = [
             ['label' => Craft::t('app', 'Title'), 'orderBy' => 'title', 'attribute' => 'title'],
             ['label' => Craft::t('element-relations', 'field-column-type'), 'orderBy' => 'elements.type', 'attribute' => self::ATTR_TYPE],
             ['label' => Craft::t('app', 'Site'), 'orderBy' => 'elements_sites.siteId', 'attribute' => self::ATTR_SITE],
             ['label' => Craft::t('app', 'Date Updated'), 'orderBy' => 'elements.dateUpdated', 'attribute' => 'dateUpdated', 'defaultDir' => 'desc'],
             ['label' => Craft::t('app', 'Date Created'), 'orderBy' => 'elements.dateCreated', 'attribute' => 'dateCreated', 'defaultDir' => 'desc'],
             ['label' => Craft::t('app', 'ID'), 'orderBy' => 'elements.id', 'attribute' => 'id'],
+            ['label' => Craft::t('app', 'UID'), 'orderBy' => 'elements.uid', 'attribute' => 'uid'],
+            // qualified: Commerce products have these columns too
+            ['label' => Craft::t('app', 'Post Date'), 'orderBy' => 'entries.postDate', 'attribute' => 'postDate', 'defaultDir' => 'desc'],
+            ['label' => Craft::t('app', 'Expiry Date'), 'orderBy' => 'entries.expiryDate', 'attribute' => 'expiryDate', 'defaultDir' => 'desc'],
         ];
+        $seen = array_fill_keys(array_column($options, 'attribute'), true);
+        foreach (array_intersect(self::listedTypes(), self::STOCK_TYPES) as $type) {
+            foreach ($type::sortOptions() as $key => $option) {
+                // Craft's shorthand: 'slug' => 'Slug'
+                $option = is_string($option) ? ['label' => $option, 'orderBy' => $key, 'attribute' => $key] : $option;
+                // a closure (Section, Entry Type, Group: Craft's fixed-order expressions on the joined tables) or a column
+                // that resolves on them; `is_callable` would take 'link' for PHP's link()
+                $orderBy = $option['orderBy'] ?? null;
+                if (!is_array($option) || !is_string($option['label'] ?? null) || !($orderBy instanceof \Closure || (is_string($orderBy) && in_array($orderBy, self::SORTABLE_COLUMNS, true)))) {
+                    continue;
+                }
+                $attribute = $option['attribute'] ?? (is_string($option['orderBy']) ? $option['orderBy'] : null);
+                if (!is_string($attribute) || isset($seen[$attribute])) {
+                    continue;
+                }
+                $seen[$attribute] = true;
+                $options[] = $option + ['attribute' => $attribute];
+            }
+        }
+        return $options;
+    }
+
+    /** The stock filter rules of the element types in the list, on top of Craft's generic ones. */
+    public static function createCondition(): \craft\elements\conditions\ElementConditionInterface
+    {
+        return Craft::createObject(\internetztube\elementRelations\elements\conditions\UsageCondition::class, [static::class]);
     }
 }

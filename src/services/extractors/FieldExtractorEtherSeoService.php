@@ -23,10 +23,8 @@ class FieldExtractorEtherSeoService implements InterfaceFieldExtractor, Interfac
             return false;
         }
 
+        /** @var \ether\seo\models\data\SeoData $value the field's normalized value */
         $value = $element->{$field->handle};
-        if (!($value instanceof \ether\seo\models\data\SeoData)) {
-            return false;
-        }
 
         $assetIds = [];
         foreach ((array)$value->social as $social) {

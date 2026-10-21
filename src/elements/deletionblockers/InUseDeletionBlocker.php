@@ -21,9 +21,6 @@ use internetztube\elementRelations\services\InUseGuard;
  */
 class InUseDeletionBlocker extends BaseDeletionBlocker
 {
-    /** Titles named in the summary. */
-    private const NAMED = 3;
-
     private int $count = 0;
 
     /** @var list<string> */
@@ -48,7 +45,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
             }
             $this->inUse[] = $element;
             $this->count += $usages['count'];
-            $this->titles = array_slice(array_values(array_unique([...$this->titles, ...$usages['titles']])), 0, self::NAMED);
+            $this->titles = array_slice(array_values(array_unique([...$this->titles, ...$usages['titles']])), 0, InUseGuard::NAMED);
         }
     }
 
@@ -59,10 +56,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
 
     public function getSummary(): string
     {
-        $names = implode(', ', $this->titles);
-        if ($this->count > count($this->titles)) {
-            $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $this->count - count($this->titles)]);
-        }
+        $names = InUseGuard::names($this->titles, $this->count);
         $summary = Craft::t('element-relations', 'in-use-blocker-summary', [
             'numTargets' => count($this->inUse),
             'type' => $this->inUse[0]::lowerDisplayName(),
@@ -79,7 +73,8 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
     /** The live usages, as the field lists them (Craft's index in a pane, no actions). */
     public function getDetails(): ?string
     {
-        return Cp::elementIndexHtml(Usage::class, [
+        Usage::$listedTypes = Usage::typesUsing(array_map(fn(ElementInterface $element): int => (int)$element->id, $this->inUse));
+        $html = Cp::elementIndexHtml(Usage::class, [
             'context' => 'pane',
             'sources' => false,
             'showSiteMenu' => false,
@@ -92,6 +87,8 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
                 ],
             ],
         ]);
+        Usage::$listedTypes = null;
+        return $html;
     }
 
     /** @return list<array<string, mixed>> */
@@ -113,7 +110,7 @@ slideout.on('submit', (event) => {
     submitted = true;
     const operationId = event.response && event.response.data && event.response.data.operationId;
     if (!operationId) {
-        resolve();
+        reject(); // nothing was replaced, the usages are still there
         return;
     }
     Craft.cp.runQueue?.();

@@ -55,6 +55,44 @@ class UsageQuery extends ElementQuery
     public mixed $inSites = null;
 
     /**
+     * With `allSites`: the site the index asked for before it was widened, so an element used in several sites is
+     * shown in that one when it is among them (ElementQueryBehavior picks one row per element).
+     */
+    public ?int $preferredSiteId = null;
+
+    /**
+     * Craft's own query params for the element types a list can contain, so the stock filter rules (Section, Entry
+     * Type, Author, Post Date, Volume, Filename, File Type, Group, Email, …; see conditions/UsageCondition) and sort
+     * options work on it. Each applies to its type's table (left-joined, see beforePrepare()); rows of other types
+     * never match. Values as Craft's queries take them (ids, `['not', …]`, `'*.pdf'`, `'>= 2026-01-01'`).
+     */
+    public mixed $sectionId = null;
+    public mixed $section = null;
+    public mixed $typeId = null;
+    public mixed $authorId = null;
+    public mixed $postDate = null;
+    public mixed $expiryDate = null;
+    public mixed $volumeId = null;
+    public mixed $filename = null;
+    public mixed $kind = null;
+    public mixed $size = null;
+    public mixed $width = null;
+    public mixed $height = null;
+    public mixed $dateModified = null;
+    /** A category or tag group id (they are numbered separately; the filter rules use the two below). */
+    public mixed $groupId = null;
+    public mixed $categoryGroupId = null;
+    public mixed $tagGroupId = null;
+    public mixed $email = null;
+    public mixed $username = null;
+    public mixed $firstName = null;
+    public mixed $lastName = null;
+    public mixed $lastLoginDate = null;
+
+    /** Which tables the stock params and sort options need: joined into Craft's inner and outer query. */
+    private const TYPE_TABLES = ['assets' => Table::ASSETS, 'categories' => Table::CATEGORIES, 'tags' => Table::TAGS, 'users' => Table::USERS];
+
+    /**
      * Only what this user may view. Applied automatically for non-admin users in control panel requests (the field's
      * list, the wizard's modal, any element index request for this type); `false` switches it off (server code only).
      *
@@ -118,6 +156,29 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    // the stock params as fluent setters, the way Craft's filter rules call them
+    public function sectionId(mixed $value): static { $this->sectionId = $value; return $this; }
+    public function section(mixed $value): static { $this->section = $value; return $this; }
+    public function typeId(mixed $value): static { $this->typeId = $value; return $this; }
+    public function authorId(mixed $value): static { $this->authorId = $value; return $this; }
+    public function postDate(mixed $value): static { $this->postDate = $value; return $this; }
+    public function expiryDate(mixed $value): static { $this->expiryDate = $value; return $this; }
+    public function volumeId(mixed $value): static { $this->volumeId = $value; return $this; }
+    public function filename(mixed $value): static { $this->filename = $value; return $this; }
+    public function kind(mixed $value): static { $this->kind = $value; return $this; }
+    public function size(mixed $value): static { $this->size = $value; return $this; }
+    public function width(mixed $value): static { $this->width = $value; return $this; }
+    public function height(mixed $value): static { $this->height = $value; return $this; }
+    public function dateModified(mixed $value): static { $this->dateModified = $value; return $this; }
+    public function groupId(mixed $value): static { $this->groupId = $value; return $this; }
+    public function categoryGroupId(mixed $value): static { $this->categoryGroupId = $value; return $this; }
+    public function tagGroupId(mixed $value): static { $this->tagGroupId = $value; return $this; }
+    public function email(mixed $value): static { $this->email = $value; return $this; }
+    public function username(mixed $value): static { $this->username = $value; return $this; }
+    public function firstName(mixed $value): static { $this->firstName = $value; return $this; }
+    public function lastName(mixed $value): static { $this->lastName = $value; return $this; }
+    public function lastLoginDate(mixed $value): static { $this->lastLoginDate = $value; return $this; }
+
     /** @param int|int[]|string|null $value site id(s), see $inSites */
     public function inSites(mixed $value): static
     {
@@ -128,6 +189,7 @@ class UsageQuery extends ElementQuery
     protected function beforePrepare(): bool
     {
         if ($this->allSites) {
+            $this->preferredSiteId ??= is_numeric($this->siteId) ? (int)$this->siteId : (int)Craft::$app->getSites()->getCurrentSite()->id;
             $all = Craft::$app->getSites()->getAllSiteIds();
             $only = array_map(intval(...), array_filter((array)$this->inSites, is_numeric(...)));
             // siteId is normalized before beforePrepare()
@@ -135,6 +197,8 @@ class UsageQuery extends ElementQuery
         }
         /** @var Query<array-key, mixed> $subQuery prepare() creates it before calling beforePrepare() */
         $subQuery = $this->subQuery;
+        // elements of a type Craft no longer knows (a plugin removed or disabled) cannot be shown, so they are not counted
+        $subQuery->andWhere(['elements.type' => Craft::$app->getElements()->getAllElementTypes()]);
         $viewer = $this->viewer();
         if ($this->elementTypes) {
             $subQuery->andWhere(['elements.type' => (array)$this->elementTypes]);
@@ -145,6 +209,15 @@ class UsageQuery extends ElementQuery
         if (self::hasProducts()) {
             $subQuery->leftJoin(['commerce_products' => '{{%commerce_products}}'], '[[commerce_products.id]] = [[elements.id]]');
         }
+        // the types' tables in both of Craft's queries, so the stock sort options (`entries.sectionId`, `postDate`,
+        // `assets.filename`, …) and the stock params resolve, like in Craft's own queries
+        $outer = $this->query;
+        $outer?->leftJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]');
+        foreach (self::TYPE_TABLES as $alias => $table) {
+            $subQuery->leftJoin([$alias => $table], "[[$alias.id]] = [[elements.id]]");
+            $outer?->leftJoin([$alias => $table], "[[$alias.id]] = [[elements.id]]");
+        }
+        $this->applyStockParams($subQuery);
         if ($viewer) {
             // a restricted user only ever sees usages of elements they may view, and only usages they may view
             $targetIds = $this->targetIds();
@@ -169,6 +242,77 @@ class UsageQuery extends ElementQuery
             $subQuery->andWhere($condition);
         }
         return parent::beforePrepare();
+    }
+
+    /**
+     * The stock params on their tables; a param of a type not in the list makes the query empty, like on Craft's own
+     * queries (an asset never has a section).
+     * @param Query<array-key, mixed> $subQuery
+     */
+    private function applyStockParams(Query $subQuery): void
+    {
+        if ($this->section === '*') {
+            $subQuery->andWhere(['not', ['entries.sectionId' => null]]);
+        }
+        // a type's param narrows the list to that type: "expiry date is empty" means entries without one, not every
+        // asset (which has no expiry date at all); the column's table alias says the type
+        $where = function (array|string|null $condition, ?string $column = null) use ($subQuery): void {
+            if ($condition) {
+                $subQuery->andWhere($condition);
+                if ($column !== null) {
+                    $subQuery->andWhere(['not', [strtok($column, '.') . '.id' => null]]);
+                }
+            }
+        };
+        foreach ([
+            'entries.sectionId' => $this->sectionId, 'entries.typeId' => $this->typeId,
+            'assets.volumeId' => $this->volumeId, 'assets.size' => $this->size, 'assets.width' => $this->width, 'assets.height' => $this->height,
+        ] as $column => $value) {
+            if (($value = self::param($value)) !== null) {
+                $where(Db::parseNumericParam($column, $value), $column);
+            }
+        }
+        foreach (['entries.postDate' => $this->postDate, 'entries.expiryDate' => $this->expiryDate, 'assets.dateModified' => $this->dateModified, 'users.lastLoginDate' => $this->lastLoginDate] as $column => $value) {
+            if ($value instanceof \DateTimeInterface) {
+                $where(Db::parseDateParam($column, $value), $column);
+            } elseif (($value = self::param($value)) !== null) {
+                $where(Db::parseDateParam($column, $value), $column);
+            }
+        }
+        foreach (['assets.filename' => $this->filename, 'assets.kind' => $this->kind, 'users.email' => $this->email, 'users.username' => $this->username, 'users.firstName' => $this->firstName, 'users.lastName' => $this->lastName] as $column => $value) {
+            if (($value = self::param($value)) !== null) {
+                $where(Db::parseParam($column, $value, '=', true), $column);
+            }
+        }
+        $inGroup = fn(string $table, string|array $groupId): array => ['and', ['not', ["$table.id" => null]], Db::parseNumericParam("$table.groupId", $groupId) ?: '0=1'];
+        if (($groupId = self::param($this->groupId)) !== null) {
+            $where(['or', $inGroup('categories', $groupId), $inGroup('tags', $groupId)]);
+        }
+        if (($groupId = self::param($this->categoryGroupId)) !== null) {
+            $where($inGroup('categories', $groupId));
+        }
+        if (($groupId = self::param($this->tagGroupId)) !== null) {
+            $where($inGroup('tags', $groupId));
+        }
+        if (($authorId = self::param($this->authorId)) !== null) {
+            $where(['exists', (new Query())
+                ->from(['entries_authors' => Table::ENTRIES_AUTHORS])
+                ->where('[[entries_authors.entryId]] = [[elements.id]]')
+                ->andWhere(Db::parseNumericParam('entries_authors.authorId', $authorId) ?: '0=1'),
+            ]);
+        }
+    }
+
+    /**
+     * A param value as Craft's parsers take it: a string, or a list of strings (ids, `['not', 3, 4]`, `'*.pdf'`).
+     * @return list<string>|string|null
+     */
+    private static function param(mixed $value): array|string|null
+    {
+        if (is_array($value)) {
+            return array_values(array_map(fn(mixed $item): string => is_scalar($item) ? (string)$item : '', $value));
+        }
+        return is_scalar($value) ? (string)$value : null;
     }
 
     /**
@@ -241,7 +385,7 @@ class UsageQuery extends ElementQuery
         $cached = $cache->getOrSet(
             'element-relations:viewable:' . md5($key),
             fn(): array => self::computeViewablePairs($targetIds, $viewer),
-            600, // a safety net: permissions saved in code without saving the user fire no event
+            600, // a safety net for what no event reports (a plugin's view rule that depends on something else)
             new \yii\caching\TagDependency(['tags' => [self::PERMISSION_CACHE_TAG]]),
         );
         return self::$_pairs[$key] = $cached;
@@ -263,7 +407,8 @@ class UsageQuery extends ElementQuery
             ->leftJoin(['assets' => Table::ASSETS], '[[assets.id]] = [[elements.id]]')
             ->leftJoin(['categories' => Table::CATEGORIES], '[[categories.id]] = [[elements.id]]')
             ->where(['cache.targetElementId' => $targetIds, 'elements.dateDeleted' => null, 'elements.revisionId' => null])
-            ->andWhere(['not', ['cache.sourceElementId' => null]]);
+            ->andWhere(['not', ['cache.sourceElementId' => null]])
+            ->andWhere(['elements.type' => Craft::$app->getElements()->getAllElementTypes()]); // like beforePrepare()
         /** @var list<array{id: int|string, siteId: int|string, type: string}> $candidates */
         $candidates = $base->andWhere(self::viewCondition($viewer))->all();
 
@@ -273,10 +418,8 @@ class UsageQuery extends ElementQuery
         }
         $elementsService = Craft::$app->getElements();
         $pairs = [];
+        /** @var class-string<ElementInterface> $type registered types only (see $base) */
         foreach ($byTypeAndSite as $type => $sites) {
-            if (!is_subclass_of($type, ElementInterface::class)) {
-                continue;
-            }
             foreach ($sites as $siteId => $ids) {
                 foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
                     /** @var ElementInterface[] $loaded */
@@ -395,12 +538,11 @@ class UsageQuery extends ElementQuery
         foreach ($rows as $row) {
             $idsByTypeAndSite[$types[$row['id']] ?? ''][$row['siteId']][] = (int)$row['id'];
         }
+        unset($idsByTypeAndSite['']); // hard-deleted since the query ran
 
         $elements = [];
+        /** @var class-string<ElementInterface> $type the query lists registered types only (see beforePrepare()) */
         foreach ($idsByTypeAndSite as $type => $sites) {
-            if (!is_subclass_of($type, ElementInterface::class)) {
-                continue;
-            }
             foreach ($sites as $siteId => $ids) {
                 /** @var ElementInterface[] $loaded */
                 $loaded = $type::find()
@@ -414,7 +556,7 @@ class UsageQuery extends ElementQuery
                     ->all();
                 foreach ($loaded as $element) {
                     $elements["$type:$siteId:$element->id"] = $element;
-                    Usage::$via["$element->id:$siteId"] = []; // reset: an earlier list in this request may have used another target
+                    Usage::$via[(int)$element->id] = []; // reset: an earlier list in this request may have used another target
                 }
             }
         }
@@ -436,11 +578,15 @@ class UsageQuery extends ElementQuery
                 ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
                 ->leftJoin(['sources_sites' => Table::ELEMENTS_SITES], '[[sources_sites.elementId]] = [[cache.sourceElementId]] AND [[sources_sites.siteId]] = [[cache.sourceSiteId]]')
                 ->where(['cache.targetElementId' => $targetIds, 'cache.sourcePrimaryOwnerId' => array_column($rows, 'id')])
+                // a list spanning every site names the fields and sites of all of them; one site's list, that site's
+                ->andFilterWhere(['cache.sourceSiteId' => $this->allSites ? null : array_values(array_unique(array_map(intval(...), array_column($rows, 'siteId'))))])
                 ->all();
+            Usage::$sites = [];
             foreach ($rowsVia as $via) {
+                Usage::$sites[(int)$via['sourcePrimaryOwnerId']][(int)$via['sourceSiteId']] = true;
                 $nested = $via['sourceElementId'] !== null && (int)$via['sourceElementId'] !== (int)$via['sourcePrimaryOwnerId'];
                 $disabled = $nested && (($via['enabled'] !== null && !(bool)$via['enabled']) || ($via['enabledForSite'] !== null && !(bool)$via['enabledForSite']));
-                Usage::$via["{$via['sourcePrimaryOwnerId']}:{$via['sourceSiteId']}"][] = [
+                Usage::$via[(int)$via['sourcePrimaryOwnerId']][] = [
                     'fieldId' => $via['fieldId'] ? (int)$via['fieldId'] : null,
                     'type' => $via['type'],
                     'disabledIn' => $disabled ? (int)$via['sourceElementId'] : null,

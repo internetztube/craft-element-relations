@@ -17,8 +17,8 @@ return function (array $ctx): void {
     $siteIds = array_map(fn($site) => $site->id, $rel->getSites());
     sort($siteIds);
     check($siteIds === [$en, $de], 'target is used in both sites (sites: ' . implode(',', $siteIds) . ')');
-    check((int)$rel->getCount([$en]) === 1 && (int)$rel->getCount([$de]) === 1 && (int)$rel->getCount([]) === 2, 'counts per site: 1 (en), 1 (de), 2 (all sites)');
-    check((int)$rel->getCountFast([$en]) === 1 && (int)$rel->getCountFast([]) === 2, 'fast counts agree');
+    check((int)$rel->getCount([$en]) === 1 && (int)$rel->getCount([$de]) === 1 && (int)$rel->getCount([]) === 1, 'counts per site: 1 (en), 1 (de), 1 (all sites: the element once)');
+    check((int)$rel->getCountFast([$en]) === 1 && (int)$rel->getCountFast([]) === 1, 'fast counts agree');
 
     check((int)Usage::find()->usesElement($target)->site('*')->count() === 2 && (int)Usage::find()->usesElement($target)->siteId($de)->count() === 1, 'Usage query: one row per site, filterable by site');
     check((int)Entry::find()->usesElement($target)->siteId($en)->count() === 1, 'usesElement on an entry query respects the site');
@@ -38,7 +38,8 @@ return function (array $ctx): void {
     check(Usage::find()->usesElement($target)->siteId($de)->one()->getAttributeHtml(Usage::ATTR_SITE) === 'German', 'Site column names the site');
     check(in_array(Usage::ATTR_SITE, Usage::defaultTableAttributes('*'), true), 'Site column is shown by default on multi-site installs');
 
-    check((int)Usage::find()->usesElement($target)->siteId($en)->allSites()->count() === 2, 'allSites overrides the siteId the index JS always sends');
+    check((int)Usage::find()->usesElement($target)->siteId($en)->allSites()->count() === 1 && (int)Usage::find()->usesElement($target)->siteId($en)->allSites()->one()->siteId === $en && (int)Usage::find()->usesElement($target)->siteId($de)->allSites()->one()->siteId === $de, 'allSites overrides the siteId the index JS always sends: the element once, shown in the site asked for');
+    check(Usage::find()->usesElement($target)->siteId($en)->allSites()->one()->getAttributeHtml(Usage::ATTR_SITE) === 'English, German', 'the Site column names every site it is used in');
     $field = Craft::$app->getFields()->getFieldByHandle('relations');
     Craft::$app->getView()->clear();
     $input = withWebRequest(fn() => $field->getInputHtml($target->getFieldValue('relations'), $target));
@@ -50,7 +51,7 @@ return function (array $ctx): void {
     $relDe = new RelationsModel($targetDe->id, $en);
     check((int)$relDe->getCount([$en]) === 0 && (int)$relDe->getCount([$de]) === 1 && $relDe->getIsInUse([]) && array_values(array_map(fn($site) => $site->id, $relDe->getSites())) === [$de], 'target used on the German site only: 0 (en), 1 (de), in use, sites = [de]');
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDe->getFieldValue('relations'), $targetDe));
-    check(str_contains($preview, Craft::t('element-relations', 'preview-other-sites')) && !str_contains($preview, 'Unused'), 'index column on en says it is used in other sites');
+    check(str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused'), 'index column on en lists the German usage: the column shows every site, like the field');
     $targetDeOnDe = Entry::find()->id($targetDe->id)->siteId($de)->one();
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDeOnDe->getFieldValue('relations'), $targetDeOnDe));
     check(str_contains($preview, 'Multi Source'), 'index column on de lists the source');
@@ -67,4 +68,30 @@ return function (array $ctx): void {
     Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
     Craft::$app->getQueue()->run();
     check((int)$relDe->getCount([]) === 1, 'restored');
+
+    // a deleted element leaves no rows behind, in any site (a full rebuild would not bring them back either)
+    $rowsOf = fn(int $id, ?int $siteId = null): int => (int)(new craft\db\Query())->from('{{%elementrelations_cache}}')
+        ->where(['or', ['sourceElementId' => $id], ['sourcePrimaryOwnerId' => $id]])->andFilterWhere(['sourceSiteId' => $siteId])->count();
+    $temp = function () use ($source, $target, $targetDe, $de): Entry {
+        $entry = new Entry(['sectionId' => $source->sectionId, 'typeId' => $source->typeId, 'title' => 'Multi temp ' . uniqid()]);
+        $entry->setFieldValue('relatedEntries', [$target->id]);
+        Craft::$app->getElements()->saveElement($entry) or throw new RuntimeException(json_encode($entry->getErrors()));
+        $entryDe = Entry::find()->id($entry->id)->siteId($de)->one();
+        $entryDe->setFieldValue('relatedEntriesLocalized', [$targetDe->id]);
+        Craft::$app->getElements()->saveElement($entryDe) or throw new RuntimeException(json_encode($entryDe->getErrors()));
+        Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
+        Craft::$app->getQueue()->run();
+        return $entry;
+    };
+    $doomed = $temp();
+    check($rowsOf($doomed->id, $en) > 0 && $rowsOf($doomed->id, $de) > 0, 'a new entry has rows in both sites');
+    Craft::$app->getElements()->deleteElement($doomed);
+    check($rowsOf($doomed->id, $en) > 0 && $rowsOf($doomed->id, $de) > 0, 'trashed: its rows stay in both sites (it can be restored)');
+    Craft::$app->getElements()->deleteElement($doomed, true);
+    check($rowsOf($doomed->id) === 0, 'deleted for good: no rows left in any site, not only the site it was loaded in');
+    $halved = $temp();
+    Craft::$app->getElements()->deleteElementForSite(Entry::find()->id($halved->id)->siteId($de)->one());
+    check($rowsOf($halved->id, $de) === 0 && $rowsOf($halved->id, $en) > 0, 'deleted for German only: its German rows go, the English ones stay');
+    Craft::$app->getElements()->deleteElement($halved, true);
+    check($rowsOf($halved->id) === 0, 'and deleted for good: none left');
 };

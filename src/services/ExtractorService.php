@@ -199,6 +199,19 @@ class ExtractorService
         return [];
     }
 
+    /**
+     * Drops the rows of an element that is gone (deleted, or a nested element removed from its owner), in every site
+     * or in one (deleted for that site): its own rows and those of its nested elements, of which it is the owner.
+     */
+    public static function forgetElement(ElementInterface $element, ?int $siteId = null): void
+    {
+        \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        ElementRelationsCacheRecord::deleteAll(['and',
+            ['or', ['sourceElementId' => $element->id], ['sourcePrimaryOwnerId' => $element->id]],
+            $siteId === null ? [] : ['sourceSiteId' => $siteId],
+        ]);
+    }
+
     public static function deleteRelationsForElement(ElementInterface $element): void
     {
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();

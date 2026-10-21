@@ -76,11 +76,12 @@ class ReplacementRecord extends ActiveRecord
     /** How many elements (per site) the operation changed, without loading the changes. */
     public function getChangedElementCount(): int
     {
+        // elements, as the list and the wizard count them (an entry in two sites, or with two fields pointing at the
+        // target, is one)
         if ($this->changes !== null) {
-            return count(array_unique(array_map(fn(array $change): string => $change['elementId'] . ':' . $change['siteId'], $this->getChanges())));
+            return count(array_unique(array_map(fn(array $change): int => (int)($change['ownerId'] ?? $change['elementId']), $this->getChanges())));
         }
-        $distinct = (new \craft\db\Query())->select(['elementId', 'siteId'])->distinct()->from(self::CHANGES_TABLE)->where(['operationId' => $this->id]);
-        return (int)(new \craft\db\Query())->from(['changes' => $distinct])->count();
+        return (int)(new \craft\db\Query())->from(self::CHANGES_TABLE)->where(['operationId' => $this->id])->count('DISTINCT [[ownerId]]');
     }
 
     /**

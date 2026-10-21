@@ -216,9 +216,9 @@ class ReplaceController extends Controller
             (string)$element,
             strip_tags($element->getAttributeHtml(Usage::ATTR_WHERE)),
             strip_tags($element->getAttributeHtml(Usage::ATTR_FIELD)),
-            $element->getSite()->getName(),
+            strip_tags($element->getAttributeHtml(Usage::ATTR_SITE)), // every site it uses $from in
         ], $query->all());
-        $this->stdout(sprintf("“%s” (#%d) → “%s” (#%d): would change %d %s.\n", $from, $from->id, $to, $to->id, count($rows), count($rows) === 1 ? 'usage' : 'usages'), Console::FG_CYAN);
+        $this->stdout(sprintf("“%s” (#%d) → “%s” (#%d): would change %d %s.\n", $from, $from->id, $to, $to->id, count($rows), count($rows) === 1 ? 'element' : 'elements'), Console::FG_CYAN);
         if ($rows) {
             $this->table(['Id', 'Element', 'Where', 'Field', 'Site'], $rows);
         }
@@ -249,10 +249,7 @@ class ReplaceController extends Controller
     private static function readPairs(string $file): array
     {
         $pairs = [];
-        $handle = fopen($file, 'rb');
-        if ($handle === false) {
-            return [];
-        }
+        $handle = fopen($file, 'rb') ?: throw new \RuntimeException("Cannot read $file."); // checked readable before
         for ($line = 1; ($row = fgetcsv($handle, escape: '\\')) !== false; $line++) {
             $from = trim((string)($row[0] ?? ''));
             $to = trim((string)($row[1] ?? ''));

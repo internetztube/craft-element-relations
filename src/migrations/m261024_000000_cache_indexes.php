@@ -28,6 +28,8 @@ class m261024_000000_cache_indexes extends Migration
         foreach (self::INDEXES as $columns) {
             $this->createIndexIfMissing('{{%elementrelations_cache}}', $columns);
         }
+        // 2.x's index on the owner alone: the owner-and-site one above covers it (a fresh install has only that)
+        $this->dropIndexIfExists('{{%elementrelations_cache}}', ['sourcePrimaryOwnerId']);
         return true;
     }
 

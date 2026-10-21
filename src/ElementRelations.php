@@ -125,7 +125,7 @@ class ElementRelations extends Plugin
 
     /** Control panel actions that edit, delete or change the status of an element (Craft's queue runner and settings
      * changes, e.g. deleting a section with its entries, are not among them). */
-    private const IN_USE_GUARDED_CONTROLLERS = ['elements', 'element-indexes', 'delete-elements', 'assets'];
+    private const IN_USE_GUARDED_CONTROLLERS = ['elements', 'element-indexes', 'delete-elements', 'assets', 'users'];
 
     /**
      * Pro: whether elements in use are protected in this request (services/InUseGuard): the control panel's element
@@ -210,7 +210,7 @@ class ElementRelations extends Plugin
             if ($element instanceof RestrictedUsage) {
                 $event->html = match ($event->attribute) {
                     Usage::ATTR_TYPE => is_subclass_of($element->realType, ElementInterface::class) ? Html::encode($element->realType::displayName()) : '',
-                    Usage::ATTR_SITE => Html::encode(Craft::t('site', $element->getSite()->name)),
+                    Usage::ATTR_SITE => ElementSummary::sitesHtml($element),
                     default => '',
                 };
                 return;
@@ -218,11 +218,11 @@ class ElementRelations extends Plugin
             $event->html = match ($event->attribute) {
                 Usage::ATTR_TYPE => Html::encode($element::displayName()),
                 Usage::ATTR_WHERE => Html::encode(ElementSummary::where($element)),
-                Usage::ATTR_SITE => Html::encode(Craft::t('site', $element->getSite()->name)),
+                Usage::ATTR_SITE => ElementSummary::sitesHtml($element),
                 Usage::ATTR_FIELD => ElementSummary::viaHtml($element),
                 // a Usage index mixes element types: a column this type doesn't have (Authors on an asset) stays empty
                 // instead of Craft reading an unknown property
-                default => isset(Usage::$via["$element->id:$element->siteId"])
+                default => isset(Usage::$via[(int)$element->id])
                     && !isset($element::tableAttributes()[$event->attribute])
                     && !str_contains($event->attribute, ':')
                     ? '' : $event->html,
@@ -256,10 +256,7 @@ class ElementRelations extends Plugin
                 ];
             }
         });
-        foreach (self::PRO_ELEMENT_TYPES as $class) {
-            if (!class_exists($class)) {
-                continue;
-            }
+        foreach (self::PRO_ELEMENT_TYPES as $class) { // a type that is not installed (Commerce) never fires the event
             Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event): void {
                 if (self::canReplace()) {
                     $event->actions[] = ReplaceRelations::class;
@@ -280,8 +277,9 @@ class ElementRelations extends Plugin
         }
 
         // what a user may view among the usages is cached; forget it whenever that could change: a usage (relating
-        // element) or a user saved, deleted or restored, group assignments, project config (sections, volumes, group
-        // permissions); new or changed relations reset it in ExtractorService
+        // element) or a user saved, deleted or restored, group assignments, a user's permissions (Craft's permissions
+        // screen saves no element), project config (sections, volumes, group permissions); new or changed relations
+        // reset it in ExtractorService
         $forgetPermissions = fn() => \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         $forgetIfUsage = function (\craft\events\ElementEvent $event) use ($forgetPermissions): void {
             $element = $event->element;
@@ -297,6 +295,7 @@ class ElementRelations extends Plugin
             Event::on(\craft\services\Elements::class, $eventName, $forgetIfUsage);
         }
         Event::on(\craft\services\Users::class, \craft\services\Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, $forgetPermissions);
+        Event::on(UserPermissions::class, UserPermissions::EVENT_AFTER_SAVE_USER_PERMISSIONS, $forgetPermissions);
         foreach ([\craft\services\ProjectConfig::EVENT_ADD_ITEM, \craft\services\ProjectConfig::EVENT_UPDATE_ITEM, \craft\services\ProjectConfig::EVENT_REMOVE_ITEM] as $eventName) {
             Event::on(\craft\services\ProjectConfig::class, $eventName, $forgetPermissions);
         }
@@ -338,8 +337,12 @@ class ElementRelations extends Plugin
             // usage it would otherwise still be; restoring the owner refreshes them (below).
             $nested = $element instanceof \craft\base\NestedElementInterface && $element->getPrimaryOwnerId() !== null;
             if ($element->hardDelete || $nested) {
-                ExtractorService::deleteRelationsForElement($element);
+                ExtractorService::forgetElement($element); // every site: a deleted element is gone in all of them
             }
+        });
+        // deleted for one site: that site's rows go, the other sites keep theirs
+        Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_AFTER_DELETE_FOR_SITE, function (\craft\events\ElementEvent $event): void {
+            ExtractorService::forgetElement($event->element, (int)$event->element->siteId);
         });
         Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_AFTER_RESTORE_ELEMENT, function (\craft\events\ElementEvent $event): void {
             $element = $event->element;

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace internetztube\elementRelations\records;
 
-use Craft;
 use craft\db\ActiveRecord;
 
 /**

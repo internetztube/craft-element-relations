@@ -19,8 +19,10 @@ class m261019_120000_global_usages extends Migration
         $this->alterColumn($table, 'sourceElementId', $this->integer()->null());
         $this->alterColumn($table, 'sourceSiteId', $this->integer()->null());
         $this->alterColumn($table, 'sourcePrimaryOwnerId', $this->integer()->null());
-        $this->addColumn($table, 'globalKey', $this->string()->null()->after('type'));
-        $this->createIndex(null, $table, ['type', 'globalKey']);
+        if (!$this->db->columnExists($table, 'globalKey')) {
+            $this->addColumn($table, 'globalKey', $this->string()->null()->after('type'));
+        }
+        $this->createIndexIfMissing($table, ['type', 'globalKey']);
         $this->db->getSchema()->refresh();
 
         RelationsModel::refreshGlobalUsages();
@@ -31,6 +33,8 @@ class m261019_120000_global_usages extends Migration
     {
         $table = '{{%elementrelations_cache}}';
         $this->delete($table, ['sourceElementId' => null]);
+        // first: MySQL would keep the index, shrunk to (type)
+        $this->dropIndexIfExists($table, ['type', 'globalKey']);
         $this->dropColumn($table, 'globalKey');
         $this->alterColumn($table, 'sourceElementId', $this->integer()->notNull());
         $this->alterColumn($table, 'sourceSiteId', $this->integer()->notNull());

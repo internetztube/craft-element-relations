@@ -26,8 +26,8 @@ use internetztube\elementRelations\models\RelationsModel;
  */
 class InUseGuard
 {
-    /** Titles named in the message. */
-    private const NAMED = 3;
+    /** Titles named in a message: all of them up to this many, else one less and “and N more”. */
+    public const NAMED = 3;
 
     public static function register(): void
     {
@@ -52,7 +52,7 @@ class InUseGuard
         }
         $message = self::check($element, (int)$element->siteId, 'in-use-delete-site');
         if ($message !== null) {
-            throw new \yii\base\UserException($message);
+            throw new \yii\web\BadRequestHttpException($message); // a 400 with the reason, not a server error
         }
     }
 
@@ -99,8 +99,10 @@ class InUseGuard
             if (!$element instanceof ElementInterface || !self::guards($element)) {
                 continue;
             }
-            $message = $forSite
-                ? self::check($element, (int)$element->siteId, 'in-use-delete-site')
+            // Craft's "Set status → Disabled" disables only the current site of a multi-site element
+            $oneSite = $forSite || ($disable && count(\craft\helpers\ElementHelper::supportedSitesForElement($element)) > 1);
+            $message = $oneSite
+                ? self::check($element, (int)$element->siteId, $forSite ? 'in-use-delete-site' : 'in-use-disable-site')
                 : self::check($element, null, $disable ? 'in-use-disable' : 'in-use-delete');
             if ($message !== null) {
                 $event->isValid = false;
@@ -111,20 +113,20 @@ class InUseGuard
     }
 
     /**
-     * Live usages of the element: the number of places using it (an element in one of its sites; a page in English and
-     * German is two) and the first few, named with their site on multi-site installs. With a site, only the usages in
-     * that site (a disable for one site); plugin settings count for the element as a whole.
-     * @return array{count: int, titles: list<string>} titles quoted, e.g. “Travel slowly” (English)
+     * Live usages of the element: how many elements use it (each once, whatever sites it uses it in) and the first few
+     * titles. With a site, only the usages in that site (a disable for one site); plugin settings count for the element
+     * as a whole. The sites are left out of the titles: the message names the site when it is about one, and the
+     * "Used in" field lists every usage with its sites.
+     * @return array{count: int, titles: list<string>} titles quoted, e.g. “Travel slowly”
      */
     public static function liveUsages(ElementInterface $element, ?int $siteId = null): array
     {
         $model = (new RelationsModel((int)($element->getCanonicalId() ?? $element->id), (int)$element->siteId))
             ->withQueryFactory(fn(string $type): mixed => $type::find()); // Craft's defaults: live entries, enabled elements, no drafts
         $siteIds = $siteId === null ? [] : [$siteId];
-        $multiSite = Craft::$app->getIsMultiSite();
         $titles = [];
         foreach ($model->getElementsIterator($siteIds, self::NAMED) as $usage) {
-            $titles[] = '“' . $usage . '”' . ($multiSite ? ' (' . $usage->getSite()->getName() . ')' : '');
+            $titles[] = '“' . $usage . '”';
         }
         $global = $siteId === null ? $model->getGlobalUsages() : [];
         foreach (array_slice($global, 0, max(0, self::NAMED - count($titles))) as $usage) {
@@ -137,6 +139,21 @@ class InUseGuard
     private static function guards(ElementInterface $element): bool
     {
         return ElementRelations::isPro() && ElementRelations::guardsInUse() && self::counts($element);
+    }
+
+    /**
+     * The usages for a message: all titles when there are at most NAMED, else the first NAMED - 1 and “and N more”, so
+     * it never says “and 1 more” where the title would fit.
+     * @param list<string> $titles
+     */
+    public static function names(array $titles, int $count): string
+    {
+        $shown = $count <= self::NAMED ? array_slice($titles, 0, self::NAMED) : array_slice($titles, 0, self::NAMED - 1);
+        $names = implode(', ', $shown);
+        if ($count > count($shown)) {
+            $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $count - count($shown)]);
+        }
+        return $names;
     }
 
     /** Whether the element's live usages matter at all: the live element itself, and it has any usage. */
@@ -156,26 +173,33 @@ class InUseGuard
     }
 
     /**
-     * What a save changes about the element being live: disabled everywhere, disabled for this site, expired or
-     * scheduled (entries). Null when it stays live or was not live before.
+     * What a save changes about the element being live: disabled everywhere, disabled for a site, expired or
+     * scheduled (entries). Null when it stays live everywhere it was live.
      * @return array{why: string, attribute: string, siteId: int|null}|null
      */
     private static function goesOffline(ElementInterface $element): ?array
     {
+        $live = [Element::STATUS_ENABLED, \craft\elements\Entry::STATUS_LIVE];
         $before = $element::find()->id($element->id)->siteId($element->siteId)->status(null)->one();
-        if (!$before instanceof ElementInterface || !in_array($before->getStatus(), [Element::STATUS_ENABLED, \craft\elements\Entry::STATUS_LIVE], true)) {
-            return null;
-        }
-        if (in_array($element->getStatus(), [Element::STATUS_ENABLED, \craft\elements\Entry::STATUS_LIVE], true)) {
-            return null;
-        }
-        if (!$element->enabled) {
+        $wasLive = $before instanceof ElementInterface && in_array($before->getStatus(), $live, true);
+        if ($wasLive && !$element->enabled) {
             return ['why' => 'disable', 'attribute' => 'enabled', 'siteId' => null];
         }
-        if (!$element->getEnabledForSite()) {
-            return ['why' => 'disable-site', 'attribute' => 'enabled', 'siteId' => (int)$element->siteId];
+        // the edit page's sidebar can switch any site off, not just the one being edited (which may stay live)
+        foreach (\craft\helpers\ElementHelper::supportedSitesForElement($element) as $site) {
+            $siteId = (int)$site['siteId'];
+            if ($element->getEnabledForSite($siteId) !== false) {
+                continue;
+            }
+            $stored = $siteId === (int)$element->siteId ? $before : $element::find()->id($element->id)->siteId($siteId)->status(null)->one();
+            if ($stored instanceof ElementInterface && in_array($stored->getStatus(), $live, true)) {
+                return ['why' => 'disable-site', 'attribute' => 'enabled', 'siteId' => $siteId];
+            }
         }
         $status = $element->getStatus();
+        if (!$wasLive || in_array($status, $live, true)) {
+            return null;
+        }
         return [
             'why' => $status === \craft\elements\Entry::STATUS_PENDING ? 'schedule' : 'expire',
             'attribute' => $status === \craft\elements\Entry::STATUS_PENDING ? 'postDate' : 'expiryDate',
@@ -190,15 +214,11 @@ class InUseGuard
         if ($usages['count'] === 0) {
             return null;
         }
-        $names = implode(', ', $usages['titles']);
-        if ($usages['count'] > count($usages['titles'])) {
-            $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $usages['count'] - count($usages['titles'])]);
-        }
         return Craft::t('element-relations', $key, [
             'element' => (string)$element,
             'count' => $usages['count'],
-            'names' => $names,
+            'names' => self::names($usages['titles'], $usages['count']),
             'site' => $siteId !== null ? (string)Craft::$app->getSites()->getSiteById($siteId)?->getName() : '',
-        ]) . ' ' . Craft::t('element-relations', 'in-use-hint');
+        ]) . ' ' . Craft::t('element-relations', 'in-use-hint', ['count' => $usages['count']]);
     }
 }

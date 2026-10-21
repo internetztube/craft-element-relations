@@ -69,10 +69,10 @@
 {% for class, n in entry.usedIn.countsByType %}…{% endfor %}
 {{ entry.usedIn.sites|map(s => s.name)|join(', ') }}
         {% endverbatim %}{% endset %}
-        {{ er.hint('In numbers', code, '`siteIds` is the site of the element that links here; `[]` means every site. `countsByType` is per element type, most used first.') }}
+        {{ er.hint('In numbers', code, '`siteIds` is the site of the element that links here; `[]` means every site, where an entry that exists in two sites counts twice (a usage is an element in one site). `countsByType` is per element type across every site, most used first.') }}
         <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))">
             <div class="panel"><div class="meta">{{ 'In this site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count }}</div></div>
-            <div class="panel"><div class="meta">{{ 'In every site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count([]) }}</div></div>
+            <div class="panel"><div class="meta">{{ 'In every site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count([]) }}</div><div class="meta">{{ 'an entry in two sites counts twice'|t('site') }}</div></div>
             <div class="panel">
                 <div class="meta">{{ 'By element type'|t('site') }}</div>
                 {% for class, n in entry.usedIn.countsByType %}<div><strong>{{ n }}</strong> {{ class|split('\\')|last }}</div>{% endfor %}

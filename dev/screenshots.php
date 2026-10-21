@@ -45,6 +45,8 @@ echo json_encode([
     'social' => ['path' => editPath(asset('social-share.svg'))],
     'guide' => ['path' => editPath(asset('rail-pass-guide-2026.pdf'))],
     'hongKong' => ['id' => entry('destinations', 'Hong Kong')->id, 'path' => editPath(entry('destinations', 'Hong Kong'))],
+    'taipei' => ['id' => entry('destinations', 'Taipei')->id, 'path' => editPath(entry('destinations', 'Taipei'))],
+    'notes' => ['id' => asset('station-notes.jpg')->id, 'path' => editPath(asset('station-notes.jpg'))],
     'homepage' => ['path' => editPath(entry('homepage', 'Homepage'))],
     'usedInField' => ['path' => "/admin/settings/fields/edit/$usedIn->id"],
     'editors' => ['path' => "/admin/settings/users/groups/$editors->id"],

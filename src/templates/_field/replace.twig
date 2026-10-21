@@ -20,6 +20,7 @@
  * @property {number} siteId
  * @property {number[]|null} sourceIds the usages to replace it in (element ids); null: everywhere
  * @property {Object<string, *>} [criteria] the field's index criteria, for the wizard's "All … in the list"
+ * @property {boolean} [allTicked] every row of the page was ticked
  */
 window.ElementRelationsReplace = window.ElementRelationsReplace || (() => {
     'use strict';
@@ -98,7 +99,7 @@ window.ElementRelationsReplace = window.ElementRelationsReplace || (() => {
             const params = { fromId: request.fromId, siteId: request.siteId };
             const slideout = new Craft.CpScreenSlideout('element-relations/replace/wizard', {
                 params: request.sourceIds
-                    ? { ...params, sourceIds: request.sourceIds, criteria: JSON.stringify(request.criteria || {}) }
+                    ? { ...params, sourceIds: request.sourceIds, criteria: JSON.stringify(request.criteria || {}), allTicked: request.allTicked ? 1 : 0 }
                     : { ...params, scope: 'everywhere' },
             });
             slideout.on('submit', (event) => {

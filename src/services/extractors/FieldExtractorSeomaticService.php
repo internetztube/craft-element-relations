@@ -7,17 +7,13 @@ namespace internetztube\elementRelations\services\extractors;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
-use Craft;
 
 class FieldExtractorSeomaticService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
     /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
-        if (!Craft::$app->plugins->isPluginEnabled('seomatic')) {
-            return false;
-        }
-
+        // a disabled plugin's fields are Craft's MissingField, so the type check covers that too
         if (!($field instanceof \nystudio107\seomatic\fields\SeoSettings)) {
             return false;
         }

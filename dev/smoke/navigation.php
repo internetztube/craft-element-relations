@@ -15,6 +15,7 @@ return function (array $ctx): void {
     $elements = Craft::$app->getElements();
     $roundTrip = function (string $title, $from, $target) use ($menu, $elements): void {
         $node = fn() => Node::find()->menuId($menu->id)->title($title)->status(null)->one();
+        check(ReplaceService::replaceInElement($node(), $target, $from) === false, "$title: nothing to replace in a node that links another element");
         $result = ReplaceService::replace($from, $target, [$menu->id]);
         flushQueue();
         check($result['replaced'] === 1 && !$result['skipped'], "$title: replace rewrites the node (" . json_encode($result) . ')');

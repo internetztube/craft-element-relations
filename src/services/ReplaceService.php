@@ -11,11 +11,9 @@ use craft\db\Query;
 use craft\db\Table;
 use craft\elements\Entry;
 use craft\elements\User;
-use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\events\ReplaceEvent;
 use internetztube\elementRelations\jobs\ReplaceElementJob;
 use internetztube\elementRelations\jobs\RollbackJob;
-use internetztube\elementRelations\models\RelationsModel;
 use internetztube\elementRelations\records\ReplacementRecord;
 use internetztube\elementRelations\services\extractors\InterfaceElementReplacer;
 use internetztube\elementRelations\services\extractors\InterfaceFieldReplacer;
@@ -369,6 +367,26 @@ class ReplaceService
             return $current;
         }
         return Craft::$app->getRevisions()->createRevision($entry, $userId, $notes ?: null, force: true);
+    }
+
+    /**
+     * Usages of an element among these relating elements, as the list counts them: an element in one site once,
+     * whatever the number of fields or blocks (no trashed elements, no plugin settings). The replacement and the
+     * rollback measure what they did by this, among the owners they changed, so their numbers match the list: a shared
+     * field swapped by one site's save takes the other sites' usages with it, without a change row of its own.
+     * @param list<int> $ownerIds
+     * @internal used by ReplaceRun / RollbackRun
+     */
+    public static function elementCount(int $targetId, array $ownerIds): int
+    {
+        if (!$ownerIds) {
+            return 0;
+        }
+        return (int)(new Query())
+            ->from(['cache' => '{{%elementrelations_cache}}'])
+            ->innerJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
+            ->where(['cache.targetElementId' => $targetId, 'cache.sourcePrimaryOwnerId' => $ownerIds, 'sources.dateDeleted' => null])
+            ->count('DISTINCT [[cache.sourcePrimaryOwnerId]]');
     }
 
     /**

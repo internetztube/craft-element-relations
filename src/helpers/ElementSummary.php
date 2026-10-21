@@ -38,9 +38,28 @@ class ElementSummary
      * "Field" column of the index: the field(s) through which `$element` uses the target (see Usage::$via).
      * Relations that don't come from a field (user photo, navigation node, ...) get a label instead.
      */
+    /**
+     * The sites the element uses the listed target in, like the Field column lists the fields (a list spanning every
+     * site shows the element once): "English, German". Its own site when nothing is known.
+     */
+    public static function sitesHtml(ElementInterface $element): string
+    {
+        $siteIds = array_keys(Usage::$sites[(int)$element->id] ?? []);
+        if (!$siteIds) {
+            return Html::encode(Craft::t('site', $element->getSite()->name));
+        }
+        $names = [];
+        foreach (Craft::$app->getSites()->getAllSites() as $site) { // in the sites' own order
+            if (in_array((int)$site->id, $siteIds, true)) {
+                $names[] = Html::encode(Craft::t('site', $site->name));
+            }
+        }
+        return implode(', ', $names);
+    }
+
     public static function viaHtml(ElementInterface $element): string
     {
-        $vias = Usage::$via["$element->id:$element->siteId"] ?? [];
+        $vias = Usage::$via[(int)$element->id] ?? []; // the fields of every site it uses the target in
         $parts = [];
         // per field: the disabled blocks (nested elements) it is used in, and whether it is used anywhere live
         $disabled = [];

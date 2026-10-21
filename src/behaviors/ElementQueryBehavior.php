@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace internetztube\elementRelations\behaviors;
 
+use Craft;
 use craft\base\ElementInterface;
 use craft\db\Query;
 use craft\db\Table;
@@ -74,7 +75,7 @@ class ElementQueryBehavior extends Behavior
                 // plugin settings (no source element) do
                 ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
                 ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')])
-                ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null]]]),
+                ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null], ['sources.type' => Craft::$app->getElements()->getAllElementTypes()]]]),
             ]);
         }
         if ($this->usesElement === null) {
@@ -95,5 +96,20 @@ class ElementQueryBehavior extends Behavior
                 'elementrelations_cache.targetElementId' => $targetIds,
             ]),
         ]);
+        // a list spanning every site shows each element once, in the site the index asked for when it uses the
+        // target there, else its first site that does (the Site column names all of them)
+        $owner = $this->owner;
+        if ($owner instanceof \internetztube\elementRelations\elements\db\UsageQuery && $owner->allSites) {
+            $ids = implode(',', array_map(intval(...), $targetIds));
+            $only = array_map(intval(...), array_filter((array)$owner->inSites, is_numeric(...)));
+            $preferred = (int)($owner->preferredSiteId ?? 0);
+            $subQuery->andWhere(new Expression(sprintf(
+                '[[elements_sites.siteId]] = (SELECT [[c.sourceSiteId]] FROM %s [[c]] WHERE [[c.targetElementId]] IN (%s) AND [[c.sourcePrimaryOwnerId]] = [[elements.id]]%s ORDER BY CASE WHEN [[c.sourceSiteId]] = %d THEN 0 ELSE 1 END, [[c.sourceSiteId]] LIMIT 1)',
+                Craft::$app->getDb()->quoteTableName('{{%elementrelations_cache}}'),
+                $ids ?: '0',
+                $only ? ' AND [[c.sourceSiteId]] IN (' . implode(',', $only) . ')' : '',
+                $preferred,
+            )));
+        }
     }
 }

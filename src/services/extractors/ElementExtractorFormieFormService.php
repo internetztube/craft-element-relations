@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace internetztube\elementRelations\services\extractors;
 
-use Craft;
 use craft\base\ElementInterface;
 use craft\elements\Asset;
 use craft\elements\db\ElementQueryInterface;
@@ -33,9 +32,7 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
     /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
-        if (!Craft::$app->getPlugins()->isPluginEnabled('formie')) {
-            return false;
-        }
+        // a disabled plugin's elements are never loaded (Craft treats their type as missing)
         if ($element instanceof Form) {
             $targets = self::formTargets($element);
         } elseif ($element instanceof Submission && !$element->hasLockedContent()) {
@@ -138,10 +135,10 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
                 return false; // encrypted values cannot be rewritten here
             }
             $count = 0;
-            foreach ($element->getFieldValuesForField(ElementField::class) as $key => $value) {
-                if (!($value instanceof ElementQueryInterface)) {
-                    continue;
-                }
+            // element fields hold a query (Formie normalizes every value to one); anything else holds no reference
+            $queries = array_filter($element->getFieldValuesForField(ElementField::class), fn(mixed $value): bool => $value instanceof ElementQueryInterface);
+            /** @var array<string, ElementQueryInterface> $queries */
+            foreach ($queries as $key => $value) {
                 /** @var int[] $ids swap() keeps the shape of what it gets */
                 $ids = self::swap(array_map(intval(...), (clone $value)->status(null)->ids()), $from, $to, $count);
                 if (in_array($to->id, $ids, true)) {

@@ -31,10 +31,8 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
             return false;
         }
 
+        /** @var \verbb\vizy\models\NodeCollection $value the field's normalized value */
         $value = $element->getFieldValue($field->handle);
-        if (!($value instanceof \verbb\vizy\models\NodeCollection)) {
-            return false;
-        }
 
         $targets = [];
         foreach ($value->getRawNodes() as $node) {
@@ -84,10 +82,8 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         if (!Craft::$app->getPlugins()->isPluginEnabled('vizy') || !($field instanceof \verbb\vizy\fields\VizyField)) {
             return null;
         }
+        /** @var \verbb\vizy\models\NodeCollection $value the field's normalized value */
         $value = $element->getFieldValue($field->handle);
-        if (!($value instanceof \verbb\vizy\models\NodeCollection)) {
-            return false;
-        }
 
         /** @var string $json */
         $json = $field->serializeValue($value, $element);
@@ -117,12 +113,13 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         return true;
     }
 
-    /** Inverse of refs(): `#entry:12@1`, `%23asset:3:url`, `{entry:12}` in `href`/`src`/`url`, plus `attrs.id` of an image node. */
-    private static function rewrite(mixed $node, ElementInterface $from, ElementInterface $to, int &$count): mixed
+    /**
+     * Inverse of refs(): `#entry:12@1`, `%23asset:3:url`, `{entry:12}` in `href`/`src`/`url`, plus `attrs.id` of an image node.
+     * @param array<mixed> $node
+     * @return array<mixed>
+     */
+    private static function rewrite(array $node, ElementInterface $from, ElementInterface $to, int &$count): array
     {
-        if (!is_array($node)) {
-            return $node;
-        }
         $refHandle = (string)$from::refHandle();
         foreach (['href', 'src', 'url'] as $attr) {
             if (is_string($node['attrs'][$attr] ?? null)) {
@@ -135,7 +132,7 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
             $count++;
         }
         foreach (['marks', 'content'] as $key) {
-            foreach ((array)($node[$key] ?? []) as $j => $child) {
+            foreach (array_filter((array)($node[$key] ?? []), is_array(...)) as $j => $child) {
                 $node[$key][$j] = self::rewrite($child, $from, $to, $count);
             }
         }
@@ -144,13 +141,11 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
 
     /**
      * Ref matches in `href`/`src`/`url` attributes of a raw node, its marks and its child nodes (not block field values).
+     * @param array<mixed> $node
      * @return list<array{0: string, 1: string, 2: string, 3: string|null}> [match, ref handle, element id, site id]
      */
-    private static function refs(mixed $node): array
+    private static function refs(array $node): array
     {
-        if (!is_array($node)) {
-            return [];
-        }
         $refs = [];
         foreach (['href', 'src', 'url'] as $attr) {
             $url = $node['attrs'][$attr] ?? null;
@@ -158,7 +153,7 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
                 $refs = [...$refs, ...$matches];
             }
         }
-        foreach ([...(array)($node['marks'] ?? []), ...(array)($node['content'] ?? [])] as $child) {
+        foreach (array_filter([...(array)($node['marks'] ?? []), ...(array)($node['content'] ?? [])], is_array(...)) as $child) {
             $refs = [...$refs, ...self::refs($child)];
         }
         return $refs;

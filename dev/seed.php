@@ -26,7 +26,6 @@ function onlySelected(string $file): bool
 use craft\base\FieldInterface;
 use craft\elements\Asset;
 use craft\elements\Entry;
-use craft\elements\User;
 use craft\fieldlayoutelements\CustomField;
 use craft\fieldlayoutelements\entries\EntryTitleField;
 use craft\fields\Entries as EntriesField;

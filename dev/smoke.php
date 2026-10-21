@@ -31,6 +31,23 @@ function check(bool $ok, string $what): void
     }
 }
 
+/**
+ * The PHP binary plus the coverage flags this process runs with (dev/dev.sh coverage), for subprocesses that should
+ * count towards the coverage of src/ too: the command line, a fresh process for GraphQL schema caches.
+ * @return list<string>
+ */
+function phpCommand(): array
+{
+    $command = [PHP_BINARY];
+    if (ini_get('pcov.enabled')) {
+        foreach (['pcov.enabled', 'pcov.directory', 'auto_prepend_file'] as $ini) {
+            $command[] = '-d';
+            $command[] = $ini . '=' . ini_get($ini);
+        }
+    }
+    return $command;
+}
+
 /** Runs `$fn` with web request/response components (Craft's index templates read request params and the response). */
 function withWebRequest(callable $fn): mixed
 {
@@ -88,10 +105,21 @@ function replaceRoundTrip(ElementInterface $source, ElementInterface $from, stri
     }
     $elements->saveElement($target) or throw new RuntimeException(json_encode($target->getErrors()));
     $reload = fn() => $source::find()->id($source->id)->siteId($source->siteId)->status(null)->one();
-
+    // an element it does not use (the new target): every replacer says there is nothing to change
+    $copy = $reload();
+    $changed = [];
+    foreach ($copy->getFieldLayout()?->getCustomFields() ?? [] as $field) {
+        if ($field instanceof craft\base\Field && internetztube\elementRelations\services\ReplaceService::replaceInField($field, $copy, $target, $from)) {
+            $changed[] = $field->handle;
+        }
+    }
+    if (internetztube\elementRelations\services\ReplaceService::replaceInElement($copy, $target, $from)) {
+        $changed[] = 'the element itself';
+    }
+    check(!$changed, "$what: nothing to replace where the element does not use it (" . implode(', ', $changed) . ')');
     $result = internetztube\elementRelations\services\ReplaceService::replace($from, $target, [$source->id]);
     flushQueue();
-    check($result['replaced'] === 1 && !$result['skipped'], "$what: replace rewrites the element (" . json_encode($result) . ')');
+    check($result['replaced'] === 1 && !$result['skipped'], "$what: replace rewrites the element, counted once whatever its sites (" . json_encode($result) . ')');
     check(in_array((string)$source, relatingTitles($target), true) && !in_array((string)$source, relatingTitles($from), true), "$what: the relation moved to the target");
     check((bool)$pointsTo($reload(), $target), "$what: the field value points to the target");
 
@@ -134,6 +162,10 @@ check($rel->getCount(entryTypes: 'page') === 12 && $rel->getCount(entryTypes: 'n
 check($rel->getIsInUse() && $rel->getIsInUseFast(), 'isInUse / isInUseFast');
 check(count($rel->getElements(limit: 10)) === 10 && count($rel->getElements(limit: 10, offset: 10)) === 2, 'limit/offset pagination');
 check(count($rel->getSourceElementIds()) === 12, 'getSourceElementIds() = 12 ids');
+check(count(iterator_to_array($rel->getElementsIterator([], batchSize: 4), false)) === 12 && count(iterator_to_array($rel->getElementsIterator([], limit: 6, offset: 3, batchSize: 4), false)) === 6, 'the iterator walks every batch (4 at a time), with limit and offset');
+$firstTitle = (string)($rel->getElements([], limit: 1)[0] ?? '');
+check($firstTitle !== '' && in_array($firstTitle, array_map('strval', $rel->getElements([], search: 'title:"' . $firstTitle . '"')), true) && $rel->getElements([], search: 'title:"no such title anywhere"') === [], 'search narrows the relating elements');
+check((clone $rel)->withQueryFactory(fn(string $type) => null)->getElements([]) === [], 'a query factory that gives no query lists nothing (e.g. GraphQL without Commerce)');
 check(count($rel->getSitesFast()) === 1, 'sitesFast');
 
 echo "Field\n";
@@ -177,6 +209,7 @@ check(!str_contains($input, 'export-btn') || str_contains($input, 'export-btn" c
 $js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
 $colOpts = html_entity_decode($input);
 check(str_contains($colOpts, '"attr":"status"') && str_contains($colOpts, '"attr":"postDate"') && str_contains($colOpts, '"attr":"link"'), 'the View menu offers Status, Post Date and Link as table columns');
+check(str_contains($colOpts, '"attr":"section"') && str_contains($colOpts, '"attr":"type"') && !str_contains($colOpts, '"attr":"filename"'), 'the View menu offers the columns of the element types in this list (Section, Entry Type; no Filename: no asset uses it), like Craft\'s indexes');
 check(str_contains($js, 'Craft.createElementIndex') && str_contains($js, 'usesElement') && str_contains($js, '"inlineEditable":false') && str_contains($js, '"canHaveDrafts":true') && str_contains($js, 'Usage'), 'the index JS is bound to the Usage type, without inline editing, filtered by usesElement');
 $settingsHtml = withWebRequest(fn() => $field->getSettingsHtml());
 check(str_contains($settingsHtml, 'name="viewMode"') && str_contains($settingsHtml, 'name="showStatusMenu"') && str_contains($settingsHtml, 'name="pageSize"'), 'field settings offer View Mode, status menu and page size');
@@ -201,8 +234,39 @@ $a1Usage = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
 $a1Usage->setAuthorIds([craft\elements\User::find()->username('admin')->one()->id]); // seeded entries have no author
 $authorsHtml = $a1Usage->getAttributeHtml('authors'); // Craft Solo has no Authors column
 check((Craft::$app->edition === craft\enums\CmsEdition::Solo ? $authorsHtml === '' : str_contains($authorsHtml, 'chip')) && str_contains($a1Usage->getAttributeHtml('status'), 'status-label') && $a1Usage->getAttributeHtml('postDate') !== '' && str_contains($a1Usage->getAttributeHtml('link'), 'href'), 'Authors / Status / Post Date / Link columns render on an entry loaded through Usage');
+$craftEdition = Craft::$app->edition;
+$columns = [];
+foreach ([craft\enums\CmsEdition::Pro, craft\enums\CmsEdition::Solo] as $edition) {
+    Craft::$app->edition = $edition; // in memory, like permissions.php
+    $columns[$edition->name] = array_keys(Usage::tableAttributes());
+}
+Craft::$app->edition = $craftEdition;
+check(in_array('authors', $columns['Pro'], true) && !array_intersect(['authors', 'revisionCreator'], $columns['Solo']), 'Craft Solo: no Authors or Last Edited By column to choose (like Entry), Craft Pro: both');
+$viaBefore = Usage::$via[(int)$a1->id] ?? null;
+Usage::$via[(int)$a1->id] = [['fieldId' => 999999, 'type' => 'field', 'disabledIn' => null]];
+check(internetztube\elementRelations\helpers\ElementSummary::viaHtml($a1) === '', 'Field column: a field deleted since the cache row was written names nothing (no error)');
+Usage::$via[(int)$a1->id] = $viaBefore ?? [];
+$relationsField = Craft::$app->getFields()->getFieldByHandle('relations');
+$goneLayout = new craft\models\FieldLayout(['type' => Entry::class]);
+$goneTab = new craft\models\FieldLayoutTab(['name' => 'Usages', 'layout' => $goneLayout]);
+$goneTab->setElements([new craft\fieldlayoutelements\CustomField(null, ['fieldUid' => craft\helpers\StringHelper::UUID()]), new craft\fieldlayoutelements\CustomField($relationsField)]);
+$goneLayout->setTabs([$goneTab]);
+$withGoneField = new class extends Entry {
+    public ?craft\models\FieldLayout $layout = null;
+
+    public function getFieldLayout(): ?craft\models\FieldLayout
+    {
+        return $this->layout;
+    }
+};
+$withGoneField->layout = $goneLayout;
+check($relationsField->getTabHash($withGoneField) === $goneTab->getHtmlId(), 'the link to the tab of the field: a deleted field still in the layout is passed over');
+$cacheRowsOfB = fn(): int => (int)(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $b->id])->count();
+$rowsOfB = $cacheRowsOfB();
+(new internetztube\elementRelations\jobs\ResaveElementRelationsJob(['items' => [['elementId' => 999999999, 'siteId' => $b->siteId], ['elementId' => $b->id, 'siteId' => 999999]]]))->execute(Craft::$app->getQueue());
+check(!(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => 999999999])->exists() && $cacheRowsOfB() === $rowsOfB, "a queued refresh of an element deleted for good since, or of a site it is no longer in, does nothing ($rowsOfB rows of Page B kept)");
 $assetUsage = Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one(); // the seeded test asset (seed.php)
-Usage::$via["$assetUsage->id:$assetUsage->siteId"] ??= [];
+Usage::$via[(int)$assetUsage->id] ??= [];
 check($assetUsage->getAttributeHtml('authors') === '' && $assetUsage->getAttributeHtml('postDate') === '' && str_contains($assetUsage->getAttributeHtml('filename'), '.png'), 'columns an element type lacks render empty in a Usage index (asset: Authors, Post Date), its own still work (Filename)');
 $a1Loaded = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
 $via = $a1Loaded->getAttributeHtml(Usage::ATTR_FIELD);
