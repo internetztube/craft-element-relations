@@ -1,7 +1,8 @@
 // @ts-check
 /**
  * Documentation screenshots of the plugin in the demo site (dev/demo.php), taken with headless Chrome over the
- * DevTools protocol (no packages needed, Node 22+) and framed as a browser window on a soft gradient.
+ * DevTools protocol (no packages needed, Node 22+): the whole control panel page in a browser window, rings on the
+ * feature and a zoomed inset of it where the page shows it small.
  *
  *   dev/dev.sh screenshots            all shots into docs/screenshots/
  *   ONLY=replace dev/dev.sh screenshots
@@ -22,29 +23,18 @@ if (!projectDir) {
 }
 
 /**
- * Browser viewport of the control panel, in CSS pixels, captured at 3× (sharp at the zoom below). Tall, so nothing
- * scrolls: no sticky header over the content, and the capture boxes are plain page coordinates. As wide as makes an
- * edit page's content pane a little narrower than the side window (shots on other pages set their own width).
+ * Browser viewport of the control panel, in CSS pixels (a laptop's), captured at 3× so the insets stay sharp. Shots of
+ * wide tables set a wider one.
  */
-const VIEWPORT = { width: 1368, height: 1400, scale: 3 };
-/** The framed image: canvas size in CSS pixels and its device scale (2400 × 1500 px). */
-const FRAME = { width: 1600, height: 1000, scale: 1.5 };
-/** Frame pixels per control panel pixel, the same in every shot, so the UI has the same size everywhere. */
-const ZOOM = 1.2;
+const VIEWPORT = { width: 1368, height: 820, scale: 3 };
+/** The framed image: canvas size in CSS pixels and its device scale (2400 × 1800 px). */
+const FRAME = { width: 1600, height: 1200, scale: 1.5 };
+/** Where the browser window sits, in frame pixels: below the copy, as large as fits, centred. */
+const STAGE = { left: 88, top: 300, width: 1424, height: 830 };
 /** Height of the window's title bar, in frame pixels. */
 const BAR = 36;
-/**
- * The window, in frame pixels, the same in every shot of a layout: right of the text (side), or below it (wide, for
- * tables). It shows a part of the page as big as fits at ZOOM, starting just above and left of the shot's focus.
- */
-const LAYOUTS = {
-    side: { left: 620, top: 90, width: 900, height: 820 },
-    wide: { left: 88, top: 304, width: 1424, height: 616 },
-};
-/** Space around the focus in the window, in CSS pixels. */
-const PAD = 24;
-/** Short shots get a shorter window, but not shorter than this, in CSS pixels of the page. */
-const MIN_HEIGHT = 200;
+/** The zoomed inset: at most this much of the window, at most this many frame pixels per CSS pixel, this far from the edge. */
+const INSET = { maxWidth: 0.42, maxHeight: 0.5, maxZoom: 2, margin: 28, pad: 10 };
 const DEBUGGING_PORT = 9333;
 
 /**
@@ -68,12 +58,10 @@ const DEBUGGING_PORT = 9333;
  * @property {'Lite' | 'Pro'} edition
  * @property {string} [path] page to open first; without it the shot continues on the current page
  * @property {string} [user] who the shot is taken as (default: CP_USER, an admin); e.g. the demo's editor `jonas`
- * @property {'side' | 'wide'} [layout] where the window sits (default: side)
  * @property {{width?: number, height?: number}} [viewport] another browser viewport for this shot, in CSS pixels
  * @property {string[]} points two or three key points next to the shot
- * @property {string} [focus] JavaScript expression for the element(s) the window starts at (default: the page's top left)
- * @property {string} [place] JavaScript run once the window's part of the page (`region`) is known, e.g. to move a notice into it
- * @property {string} [highlight] JavaScript expression for groups of elements that get a glowing ring
+ * @property {string} [focus] JavaScript expression for the element(s) the page is scrolled to (default: the top); without `highlight` what the inset zooms into
+ * @property {string} [highlight] JavaScript expression for groups of elements that get a ring; the inset zooms into the first group
  * @property {string} [act] JavaScript run in the page before the capture (may await)
  * @property {boolean} [reload] reload the page after `act` (e.g. when it changed what the page shows)
  * @property {string} [afterReload] JavaScript run after that reload
@@ -152,18 +140,9 @@ window.waitForOperation = async (operationId) => {
 };
 /** The type dropdown's open menu (Garnish renders it at the end of the page). */
 window.typeMenu = () => $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn')?.menu?.$container?.[0];
-/** Moves Craft's notices (fixed at the bottom of the viewport) into the shot, bottom left. */
-window.placeNotices = (region) => {
-    const container = $$('.notification')[0]?.parentElement;
-    if (!container) throw new Error('No notice');
-    Object.assign(container.style, { position: 'fixed', left: region.x + 24 + 'px', right: 'auto', bottom: 'auto' });
-    container.style.top = region.y + region.height - 24 - container.offsetHeight + 'px';
-};
 // index actions ask with the browser's confirm() (e.g. Delete): answered "OK" like the user would; a native dialog
 // would block the headless page
 window.confirm = () => true;
-/** The sources next to an index would show at the window's left edge, cut. */
-window.hideSources = () => { document.querySelector('#sidebar').style.visibility = 'hidden'; };
 /** The usage list's "Replace…" button, once usages are ticked. */
 window.replaceButton = () => $$('.element-relations button').find((button) => button.textContent.trim() === 'Replace…');
 /** The open replace wizard's slideout. */
@@ -194,7 +173,7 @@ const SHOTS = [
         name: 'usage-list', edition: 'Lite',
         points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
         focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[...column('Field'), ...column('Site')]]`,
+        highlight: `[[...column('Field').slice(0, 3), ...column('Site').slice(0, 3)]]`,
         title: 'See where every element is used',
         text: 'One list of everything that links to it: entries, Matrix blocks, products, menus, forms, in every site.',
         path: demo.skyline.path,
@@ -237,14 +216,14 @@ const SHOTS = [
         act: `clickTab('Used in'); await sleep(300); await indexReady(fieldIndex(), 'the usage list');`,
     },
     {
-        name: 'index-column', edition: 'Lite', layout: 'wide', viewport: { width: 1600 },
+        name: 'index-column', edition: 'Lite', viewport: { width: 1600 },
         points: ['The first usages at a glance, plus the total', 'Sortable by the number of usages'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 7)]`,
-        highlight: `[column('Used in')]`,
+        highlight: `[column('Used in').slice(0, 5)]`,
         title: 'Right in the element index',
         text: 'As a column, with a preview of the first usages and the total. Sortable by number of usages.',
         path: '/admin/assets/images',
-        act: `await indexReady(pageIndex(), 'the asset index'); document.querySelector('[data-view="table"]')?.click(); await indexReady(pageIndex(), 'the table'); hideSources();`,
+        act: `await indexReady(pageIndex(), 'the asset index'); document.querySelector('[data-view="table"]')?.click(); await indexReady(pageIndex(), 'the table');`,
     },
     {
         name: 'global-usages', edition: 'Lite',
@@ -257,7 +236,7 @@ const SHOTS = [
         act: `await sleep(800);`,
     },
     {
-        name: 'used-filter', edition: 'Pro', layout: 'wide', viewport: { width: 1600 },
+        name: 'used-filter', edition: 'Pro', viewport: { width: 1600 },
         points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
@@ -295,7 +274,6 @@ const SHOTS = [
             const filter = $$('.hud').find((h) => h.querySelector('.condition-container'));
             filter.style.top = document.querySelector('.elements table').getBoundingClientRect().bottom + window.scrollY + 12 + 'px';
             filter.querySelector('.tip')?.remove();
-            hideSources();
             $$('.hud-shade').forEach((shade) => { shade.style.background = 'transparent'; });
             await sleep(200);
         `,
@@ -321,8 +299,6 @@ const SHOTS = [
     },
     {
         name: 'wizard', edition: 'Pro',
-        // as tall as the window, so the whole slideout (it fills the viewport's height) is in it
-        viewport: { width: 1280, height: Math.round((LAYOUTS.side.height - BAR) / ZOOM) },
         points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
         focus: `wizardSlideout()`,
         highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
@@ -341,8 +317,6 @@ const SHOTS = [
             await until(() => document.querySelector('.element-relations-wizard [data-review-to] .chip'), 'the chosen replacement');
             // the whole review (summary and the sites line) in view, step 1 may scroll off
             document.querySelector('.element-relations-wizard').lastElementChild.scrollIntoView({ block: 'end' });
-            // the page shows through the shade left of the slideout; just the shade looks cleaner
-            document.querySelector('#global-container').style.visibility = 'hidden';
             await sleep(700);
         `,
     },
@@ -350,12 +324,10 @@ const SHOTS = [
         name: 'background', edition: 'Pro',
         points: ['Saving many or large entries never blocks the page', 'Keep working while it runs'],
         focus: `inPane(document.querySelector('.element-relations'))`,
-        place: `placeNotices(region);`,
         highlight: `[$$('.notification')]`,
         title: 'Runs in the background',
         text: 'Replacements and rollbacks run as queue jobs, as the user who started them. The notice follows the job.',
         act: `
-            document.querySelector('#global-container').style.visibility = '';
             wizardSlideout().querySelector('button[type="submit"]').click();
             await until(() => $$('.notification').some((n) => /background/.test(n.textContent)), 'the running notice');
             await sleep(400);
@@ -365,7 +337,6 @@ const SHOTS = [
         name: 'undo', edition: 'Pro',
         points: ['Undo right in the notice', 'Entries get a revision with a note'],
         focus: `inPane(document.querySelector('.element-relations'))`,
-        place: `placeNotices(region);`,
         highlight: `[[document.querySelector('[data-element-relations-undo]').closest('.notification') ?? document.querySelector('[data-element-relations-undo]')]]`,
         title: 'Undo in one click',
         text: 'When the job is done, the list refreshes and the notice offers Undo.',
@@ -382,8 +353,7 @@ const SHOTS = [
         `,
     },
     {
-        // the table needs 1180 px; as wide as that with the sidebar hidden
-        name: 'history', edition: 'Pro', layout: 'wide', viewport: { width: 1480 },
+        name: 'history', edition: 'Pro', viewport: { width: 1600 },
         points: ['Roll back keeps changes made since', 'Revert to revisions uses Craft’s own revisions'],
         focus: `[byText('h2, h3', 'Replacements')[0], document.querySelector('#element-relations-history')]`,
         highlight: `[[...byText('button', 'Roll back'), ...byText('button', 'Revert to revisions')]]`,
@@ -401,6 +371,7 @@ const SHOTS = [
         `,
         reload: true,
         afterReload: `
+            // the table is wider than the content next to the nav: collapse it, like a user with a small screen would
             [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Toggle sidebar')?.click();
             // only the demo's replacements (the tests leave theirs in the same project)
             const rows = [...document.querySelectorAll('#element-relations-history tbody tr')];
@@ -417,10 +388,9 @@ const SHOTS = [
         `,
     },
     {
-        name: 'in-use-delete', edition: 'Pro', layout: 'wide', viewport: { width: 1600 }, user: 'jonas',
+        name: 'in-use-delete', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
         points: ['Delete, disable, expire, schedule', 'Only live usages count', 'A permission lets editors through'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
-        place: `placeNotices(region);`,
         highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
         title: 'Keep what is in use',
         text: 'Editors can’t delete or take offline what live content uses. The error says where it is used.',
@@ -429,12 +399,11 @@ const SHOTS = [
             await indexReady(pageIndex(), 'the asset index');
             document.querySelector('[data-view="table"]')?.click();
             await indexReady(pageIndex(), 'the table');
-            hideSources();
             await findAndRun(pageIndex(), 'city towers', ${demo.skyline.id}, 'craft\\\\elements\\\\actions\\\\DeleteAssets', {}, /can’t be deleted/);
         `,
     },
     {
-        name: 'in-use-dialog', edition: 'Pro', user: 'jonas', viewport: { width: 1100, height: 900 },
+        name: 'in-use-dialog', edition: 'Pro', user: 'jonas',
         points: ['In Craft’s own delete dialog', 'The usages listed, “Replace…” right there', 'No “Delete anyway” without the permission'],
         focus: `$$('.modal').filter((m) => /visitors see/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /visitors see/.test(e.textContent)).slice(-1)]`,
@@ -449,17 +418,15 @@ const SHOTS = [
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
     },
     {
-        name: 'in-use-disable', edition: 'Pro', layout: 'wide', viewport: { width: 1600 }, user: 'jonas',
+        name: 'in-use-disable', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
         points: ['Also for one site, an expiry date or a later post date', 'Drafts and disabled entries don’t count'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
-        place: `placeNotices(region);`,
         highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
         title: 'Disabling is checked too',
         text: 'Hong Kong has 33 stories pointing to it: it stays live until they are replaced or an editor with the permission decides.',
         path: '/admin/content/entries/destinations',
         act: `
             await indexReady(pageIndex(), 'the destinations');
-            hideSources();
             await findAndRun(pageIndex(), 'Hong Kong', ${demo.hongKong.id}, 'craft\\\\elements\\\\actions\\\\SetStatus', { status: 'disabled' }, /can’t be disabled/);
         `,
     },
@@ -473,8 +440,7 @@ const SHOTS = [
         act: `await sleep(500);`,
     },
     {
-        // below 1000 px the nav collapses: the pane is the viewport minus 48 px
-        name: 'permissions', edition: 'Pro', viewport: { width: 770, height: 4000 },
+        name: 'permissions', edition: 'Pro',
         points: ['Replacing, rolling back, deleting what is in use', 'Everything else follows Craft’s view and save permissions'],
         focus: `inPane(permissionGroup())`,
         highlight: `[[permissionGroup()]]`,
@@ -485,11 +451,10 @@ const SHOTS = [
             await sleep(500);
             const heading = [...document.querySelectorAll('h3, h2, legend, .heading')].find((h) => h.textContent.trim().startsWith('Element Relations'));
             window.permissionGroup = () => heading.closest('.user-permissions') ?? heading.parentElement;
-            permissionGroup().style.margin = '40px 0'; // keep the neighbouring groups out of the shot
         `,
     },
     {
-        name: 'plugin-settings', edition: 'Lite', viewport: { width: 770 },
+        name: 'plugin-settings', edition: 'Lite',
         points: ['Per environment in config/element-relations.php', 'Rebuild any time under Utilities or on the command line'],
         focus: `$$('#content .field').map(inPane)`,
         title: 'Plugin settings',
@@ -618,15 +583,23 @@ async function resize(browser, size) {
  */
 
 /**
+ * A part of the page at the viewport's device scale.
  * @param {Browser} browser
- * @param {Region} clip the part of the page, in page coordinates
- * @param {number} viewportHeight
+ * @param {Region} clip in page coordinates
  * @returns {Promise<Buffer>}
  */
-async function capture(browser, clip, viewportHeight) {
-    const { data } = await browser.send('Page.captureScreenshot', {
-        format: 'png', clip: { ...clip, scale: 1 }, captureBeyondViewport: clip.y + clip.height > viewportHeight,
-    });
+async function capture(browser, clip) {
+    const { data } = await browser.send('Page.captureScreenshot', { format: 'png', clip: { ...clip, scale: 1 } });
+    return Buffer.from(data, 'base64');
+}
+
+/**
+ * The whole viewport at its device scale.
+ * @param {Browser} browser
+ * @returns {Promise<Buffer>}
+ */
+async function captureViewport(browser) {
+    const { data } = await browser.send('Page.captureScreenshot', { format: 'png' });
     return Buffer.from(data, 'base64');
 }
 
@@ -641,59 +614,54 @@ async function captureFramed(browser) {
 }
 
 /**
- * The part of the page a layout's window shows at ZOOM, in CSS pixels.
- * @param {'side' | 'wide'} layout
- */
-function regionSize(layout) {
-    return { width: Math.round(LAYOUTS[layout].width / ZOOM), height: Math.round((LAYOUTS[layout].height - BAR) / ZOOM) };
-}
-
-/**
- * @typedef {{region: Region, highlights: Region[]}} Area what a window shows: the part of the page and the rings on it
+ * @typedef {object} Area what a shot shows, in CSS pixels of the viewport
+ * @property {{width: number, height: number}} viewport
+ * @property {{x: number, y: number}} scroll the page's scroll position (CDP clips are in page coordinates)
+ * @property {Region[]} highlights the groups that get a ring
+ * @property {Region | null} target what the inset zooms into: the first highlight, else the focus
+ * @property {Region} [inset] the part of the page captured for the inset (the target with some padding)
  */
 
 /**
- * The window's part of the page: as wide as the layout's window, the focus centred in it (or starting at its left edge
- * when it is wider), starting just above the focus. As tall as the layout's window, or as the focus when that is shorter (shots
- * that `place` something keep the full height for it). Highlights are relative to it.
+ * Scrolls the page so the shot's focus is in view and measures the highlights and the inset's target.
  * @param {Browser} browser
  * @param {Shot} shot
  * @returns {Promise<Area>}
  */
-async function areaOf(browser, shot) {
-    const max = regionSize(shot.layout ?? 'side');
-    /** @type {{focus: Region | null, pageWidth: number, pageHeight: number}} */
-    const found = await evaluate(browser, `
-        window.scrollTo(0, 0);
+async function measure(browser, shot) {
+    /** @type {Area} */
+    const area = await evaluate(browser, `
+        const focus = () => ${shot.focus ? `regionOf(${shot.focus})` : 'null'};
+        const first = focus();
+        // under Craft's sticky header when scrolled
+        if (first && (first.y < 0 || first.y + first.height > innerHeight)) {
+            window.scrollBy(0, Math.round(first.y) - 100);
+            await sleep(400);
+        }
+        const groups = (${shot.highlight ?? '[]'}).filter((group) => [group].flat().filter(Boolean).length).map((group) => regionOf(group, 6));
         return {
-            focus: ${shot.focus ? `regionOf(${shot.focus})` : 'null'},
-            pageWidth: document.documentElement.scrollWidth,
-            pageHeight: document.documentElement.scrollHeight,
+            viewport: { width: innerWidth, height: innerHeight },
+            scroll: { x: window.scrollX, y: window.scrollY },
+            highlights: groups,
+            target: groups[0] ?? focus(),
         };
     `);
-    const focus = found.focus ?? { x: PAD, y: PAD, width: 0, height: 0 };
-    /** @param {number} value @param {number} max */
-    const clamp = (value, max) => Math.round(Math.max(0, Math.min(value, max)));
-    const size = { width: max.width, height: shot.place ? max.height : Math.min(max.height, Math.max(MIN_HEIGHT, Math.ceil(focus.height) + 2 * PAD)) };
-    const left = focus.x - Math.max(0, (size.width - focus.width) / 2);
-    /** @type {Region} */
-    const region = { x: clamp(left, found.pageWidth - size.width), y: clamp(focus.y - PAD, found.pageHeight - size.height), ...size };
-    if (shot.place) {
-        await evaluate(browser, `const region = ${JSON.stringify(region)}; ${shot.place}`);
-        await sleep(300);
+    /** Cut to the viewport (a column may continue below it). @param {Region} r */
+    const clip = (r) => {
+        const x = Math.max(r.x, 0), y = Math.max(r.y, 0);
+        const right = Math.min(r.x + r.width, area.viewport.width), bottom = Math.min(r.y + r.height, area.viewport.height);
+        return { x, y, width: right - x, height: bottom - y };
+    };
+    /** @param {Region} r */
+    const visible = (r) => r.width > 0 && r.height > 0;
+    area.highlights = area.highlights.map(clip).filter(visible);
+    const target = area.target && clip(area.target);
+    area.target = target && visible(target) ? target : null;
+    if (area.target) {
+        const t = area.target, pad = INSET.pad;
+        area.inset = clip({ x: t.x - pad, y: t.y - pad, width: t.width + 2 * pad, height: t.height + 2 * pad });
     }
-    /** @type {Region[]} */
-    const boxes = await evaluate(browser, `
-        return (${shot.highlight ?? '[]'}).filter((group) => [group].flat().filter(Boolean).length).map((group) => regionOf(group, 6));
-    `);
-    // relative to the region, and cut to it (a column may continue below the window)
-    const inset = 4;
-    const highlights = boxes.map((h) => {
-        const left = Math.max(h.x - region.x, inset), top = Math.max(h.y - region.y, inset);
-        const right = Math.min(h.x + h.width - region.x, region.width - inset), bottom = Math.min(h.y + h.height - region.y, region.height - inset);
-        return { x: left, y: top, width: right - left, height: bottom - top };
-    }).filter((h) => h.width > 0 && h.height > 0);
-    return { region, highlights };
+    return area;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -708,42 +676,109 @@ function escapeHtml(text) {
 /** The plugin icon (src/icon.svg) as a data URL for the frames. */
 const PLUGIN_ICON = `data:image/svg+xml;base64,${readFileSync(join(here, '..', 'src', 'icon.svg')).toString('base64')}`;
 
-/** Background of the frames and the cover: deep navy, soft colour blobs, a dot grid. */
+/** The accent of the rings, the inset and the Pro badge: the icon's coral. */
+const ACCENT = '#ff5a3c';
+
+/** Background of the frames and the cover: near-black navy, one warm glow from the icon's colour, a faint cool one, a fine grid. */
 const BACKDROP_CSS = `
     background:
-        radial-gradient(700px 520px at 8% 12%, rgba(229, 66, 43, .55), transparent 70%),
-        radial-gradient(760px 560px at 96% 8%, rgba(123, 97, 255, .45), transparent 70%),
-        radial-gradient(900px 620px at 70% 115%, rgba(54, 197, 240, .35), transparent 70%),
-        radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px) 0 0 / 22px 22px,
-        linear-gradient(160deg, #10152a 0%, #1b2238 55%, #131a2e 100%);
+        radial-gradient(900px 640px at 0% 0%, rgba(255, 90, 60, .34), transparent 70%),
+        radial-gradient(800px 600px at 100% 100%, rgba(72, 118, 255, .22), transparent 70%),
+        linear-gradient(rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 48px 48px,
+        linear-gradient(90deg, rgba(255, 255, 255, .035) 1px, transparent 1px) 0 0 / 48px 48px,
+        linear-gradient(165deg, #0d1020 0%, #141a2f 60%, #0f1426 100%);
 `;
 /** A little film grain over the gradients, so they don't band. */
 const GRAIN = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='.5'/></svg>")`;
 
 const WINDOW_CSS = `
-    .window { border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 60px 120px -30px rgba(0, 0, 0, .6), 0 24px 48px -24px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .12); }
-    .bar { height: 36px; display: flex; align-items: center; gap: 7px; padding: 0 14px; background: #f1f2f6; border-bottom: 1px solid #e2e4ea; }
+    .window { position: relative; border-radius: 14px; overflow: hidden; background: #fff;
+        box-shadow: 0 70px 140px -40px rgba(0, 0, 0, .75), 0 30px 60px -30px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .14); }
+    .bar { height: ${BAR}px; display: flex; align-items: center; gap: 7px; padding: 0 14px; background: #f3f4f7; border-bottom: 1px solid #e3e5ec; }
     .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
     .address { margin-left: 12px; font-size: 12.5px; color: #7a8296; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .shot { position: relative; }
-    .shot img { display: block; }
-    .ring { position: absolute; border-radius: 10px; border: 2.5px solid #ff6a3d; box-shadow: 0 0 0 5px rgba(255, 106, 61, .22), 0 0 34px 6px rgba(255, 106, 61, .45); }
+    .shot > img { display: block; }
+    .ring { position: absolute; border-radius: 8px; border: 2.5px solid ${ACCENT}; box-shadow: 0 0 0 4px rgba(255, 90, 60, .2), 0 6px 18px rgba(255, 90, 60, .3); }
+    .link { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+    .inset { position: absolute; border-radius: 12px; overflow: hidden; background: #fff;
+        box-shadow: 0 0 0 3px ${ACCENT}, 0 0 0 8px rgba(255, 90, 60, .22), 0 40px 80px -20px rgba(0, 0, 0, .75); }
+    .inset img { display: block; }
 `;
 
 /**
- * The captured part of the page in a browser window, with glowing rings on the highlights.
+ * The window's size and place on the stage, in frame pixels: the whole viewport, as large as fits, centred.
+ * @param {Area} area
+ */
+function layoutOf(area) {
+    const scale = Math.min(STAGE.width / area.viewport.width, (STAGE.height - BAR) / area.viewport.height);
+    const width = Math.round(area.viewport.width * scale), height = Math.round(area.viewport.height * scale);
+    return {
+        scale, width, height,
+        left: Math.round(STAGE.left + (STAGE.width - width) / 2),
+        top: Math.round(STAGE.top + (STAGE.height - height - BAR) / 2),
+    };
+}
+
+/** @param {Region} r @param {number} scale */
+const scaled = (r, scale) => ({ x: r.x * scale, y: r.y * scale, width: r.width * scale, height: r.height * scale });
+
+/**
+ * The zoomed inset: the first highlight (or the focus) captured at 3× and shown larger, in the corner of the window
+ * farthest from it, with a line from the ring to it. Nothing when the page already shows it big enough.
+ * @param {Area} area
+ * @param {string} insetUrl
+ * @param {number} scale frame pixels per CSS pixel of the page
+ * @param {number} width the window's content, in frame pixels
+ * @param {number} height
+ */
+function insetHtml(area, insetUrl, scale, width, height) {
+    if (!area.inset || !area.target) return '';
+    const zoom = Math.min(INSET.maxZoom, INSET.maxWidth * width / area.inset.width, INSET.maxHeight * height / area.inset.height);
+    if (zoom < scale * 1.35) return '';
+    const iw = Math.round(area.inset.width * zoom), ih = Math.round(area.inset.height * zoom);
+    const ring = scaled(area.target, scale);
+    const m = INSET.margin;
+    const corners = [{ x: m, y: m }, { x: width - m - iw, y: m }, { x: m, y: height - m - ih }, { x: width - m - iw, y: height - m - ih }];
+    /** @param {{x: number, y: number}} c */
+    const overlap = (c) => Math.max(0, Math.min(c.x + iw, ring.x + ring.width) - Math.max(c.x, ring.x))
+        * Math.max(0, Math.min(c.y + ih, ring.y + ring.height) - Math.max(c.y, ring.y));
+    /** @param {{x: number, y: number}} c */
+    const distance = (c) => Math.hypot(c.x + iw / 2 - ring.x - ring.width / 2, c.y + ih / 2 - ring.y - ring.height / 2);
+    // least over the ring; then on the right (Craft's nav is on the left); then farthest from the ring
+    const at = corners.sort((a, b) => overlap(a) - overlap(b) || (b.x > width / 2 ? 1 : 0) - (a.x > width / 2 ? 1 : 0) || distance(b) - distance(a))[0];
+    // the line: between the facing edges of the ring and the inset
+    const dx = at.x + iw / 2 - ring.x - ring.width / 2, dy = at.y + ih / 2 - ring.y - ring.height / 2;
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const start = horizontal
+        ? { x: dx > 0 ? ring.x + ring.width : ring.x, y: ring.y + ring.height / 2 }
+        : { x: ring.x + ring.width / 2, y: dy > 0 ? ring.y + ring.height : ring.y };
+    const end = horizontal
+        ? { x: dx > 0 ? at.x : at.x + iw, y: at.y + ih / 2 }
+        : { x: at.x + iw / 2, y: dy > 0 ? at.y : at.y + ih };
+    const apart = horizontal ? (dx > 0 ? end.x > start.x : end.x < start.x) : (dy > 0 ? end.y > start.y : end.y < start.y);
+    const line = apart
+        ? `<svg class="link" width="${width}" height="${height}"><line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${ACCENT}" stroke-width="2.5" stroke-opacity=".9"/><circle cx="${start.x}" cy="${start.y}" r="5" fill="${ACCENT}"/></svg>`
+        : '';
+    return `${line}<div class="inset" style="left:${at.x}px;top:${at.y}px;width:${iw}px;height:${ih}px"><img src="${insetUrl}" alt="" style="width:${iw}px;height:${ih}px"></div>`;
+}
+
+/**
+ * The whole page in a browser window, with rings on the highlights (and, in the frames, the zoomed inset).
  * @param {string} imageUrl
  * @param {Area} area
  * @param {string} address shown in the window's title bar
+ * @param {number} scale
+ * @param {string} [inset]
  */
-function windowHtml(imageUrl, area, address) {
-    const width = area.region.width * ZOOM, height = area.region.height * ZOOM;
-    const rings = area.highlights
-        .map((h) => `<span class="ring" style="left:${h.x * ZOOM}px;top:${h.y * ZOOM}px;width:${h.width * ZOOM}px;height:${h.height * ZOOM}px"></span>`)
+function windowHtml(imageUrl, area, address, scale, inset = '') {
+    const width = Math.round(area.viewport.width * scale), height = Math.round(area.viewport.height * scale);
+    const rings = area.highlights.map((h) => scaled(h, scale))
+        .map((h) => `<span class="ring" style="left:${h.x}px;top:${h.y}px;width:${h.width}px;height:${h.height}px"></span>`)
         .join('');
     return `<div class="window" style="width:${width}px">
         <div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="address">${escapeHtml(address)}</span></div>
-        <div class="shot" style="width:${width}px;height:${height}px"><img src="${imageUrl}" alt="" style="width:${width}px;height:${height}px">${rings}</div>
+        <div class="shot" style="width:${width}px;height:${height}px"><img src="${imageUrl}" alt="" style="width:${width}px;height:${height}px">${rings}${inset}</div>
     </div>`;
 }
 
@@ -751,79 +786,87 @@ function windowHtml(imageUrl, area, address) {
 const PAGE_CSS = `
     * { box-sizing: border-box; }
     body { margin: 0; width: ${FRAME.width}px; height: ${FRAME.height}px; overflow: hidden; position: relative; color: #fff;
-        font-family: -apple-system, 'SF Pro Display', 'Avenir Next', 'Helvetica Neue', sans-serif; ${BACKDROP_CSS} }
-    body::after { content: ''; position: absolute; inset: 0; background: ${GRAIN}; opacity: .08; mix-blend-mode: overlay; pointer-events: none; z-index: 5; }
+        font-family: -apple-system, 'SF Pro Display', 'Inter', 'Helvetica Neue', sans-serif; -webkit-font-smoothing: antialiased; ${BACKDROP_CSS} }
+    body::after { content: ''; position: absolute; inset: 0; background: ${GRAIN}; opacity: .07; mix-blend-mode: overlay; pointer-events: none; z-index: 5; }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; letter-spacing: .01em; color: rgba(255, 255, 255, .85); }
+    .brand img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 6px 16px rgba(0, 0, 0, .4); }
+    .badge { padding: 4px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .badge.lite { background: rgba(255, 255, 255, .14); }
+    .badge.pro { background: linear-gradient(135deg, #e5422b, #ff9a3d); }
+    h1 { margin: 0; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; }
+    p { margin: 0; color: #c4cce0; }
     ${WINDOW_CSS}
 `;
 
 /**
- * @param {Shot} shot
- * @param {string} imageUrl the captured part of the page
- * @param {Area} area
- * @param {string} address
+ * @param {{shot: Shot, base: string, inset: string | null, area: Area, address: string}} taken
  */
-function frameHtml(shot, imageUrl, area, address) {
-    const layout = shot.layout ?? 'side';
-    const box = LAYOUTS[layout];
+function frameHtml({ shot, base, inset, area, address }) {
+    const box = layoutOf(area);
+    const insetMarkup = inset ? insetHtml(area, pathToFileURL(inset).href, box.scale, box.width, box.height) : '';
     const points = shot.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('');
     return `<!doctype html><html><head><meta charset="utf-8"><style>
         ${PAGE_CSS}
-        /* side: a column left of the window, centred on it; wide: a row above it, the points on the right */
-        .copy { position: absolute; left: 88px; top: ${box.top}px; height: ${box.height}px; width: ${box.left - 88 - 64}px; display: flex; flex-direction: column; justify-content: center; }
-        .wide .copy { top: 0; height: ${box.top}px; width: auto; right: 88px; display: grid; grid-template-columns: 1fr 440px; column-gap: 64px; align-content: center; align-items: end; }
-        .wide .copy .brand, .wide .copy h1, .wide .copy p { grid-column: 1; }
-        .wide .copy ul { grid-column: 2; grid-row: 1 / span 3; margin: 0; align-self: end; }
-        .wide h1 { font-size: 48px; margin: 20px 0 12px; }
-        .brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; letter-spacing: .02em; color: rgba(255, 255, 255, .85); }
-        .brand img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
-        .badge { padding: 4px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
-            background: ${shot.edition === 'Pro' ? 'linear-gradient(135deg, #e5422b, #ff9a3d)' : 'rgba(255, 255, 255, .16)'}; }
-        h1 { margin: 26px 0 16px; font-size: 54px; line-height: 1.05; font-weight: 800; letter-spacing: -.03em; }
-        p { margin: 0; font-size: 20px; line-height: 1.5; color: #c4cce0; }
-        ul { margin: 30px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
-        li { position: relative; padding-left: 34px; font-size: 17px; color: #e7ebf5; }
-        li::before { content: ''; position: absolute; left: 0; top: 1px; width: 22px; height: 22px; border-radius: 50%;
-            background: rgba(255, 106, 61, .18) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 12.5l4 4 8-9' fill='none' stroke='%23ff8a5c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 15px no-repeat; }
-        .stage { position: absolute; left: ${box.left}px; top: ${layout === 'side' ? box.top + (box.height - BAR - area.region.height * ZOOM) / 2 : box.top}px; }
-    </style></head><body class="${layout}">
+        /* the copy above the window: brand, headline and line on the left, the points on the right */
+        .copy { position: absolute; left: ${STAGE.left}px; right: ${STAGE.left}px; top: 0; height: ${STAGE.top}px;
+            display: grid; grid-template-columns: 1fr 420px; column-gap: 72px; align-content: center; align-items: end; }
+        .copy .brand, .copy h1, .copy p { grid-column: 1; }
+        .copy ul { grid-column: 2; grid-row: 1 / span 3; align-self: end; margin: 0; padding: 0; list-style: none; display: grid; gap: 11px; }
+        h1 { font-size: 50px; margin: 18px 0 10px; }
+        p { font-size: 19px; line-height: 1.45; max-width: 980px; }
+        li { position: relative; padding-left: 32px; font-size: 16.5px; line-height: 1.3; color: #e7ebf5; }
+        li::before { content: ''; position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%;
+            background: rgba(255, 90, 60, .2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 12.5l4 4 8-9' fill='none' stroke='%23ff8a5c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 14px no-repeat; }
+        .stage { position: absolute; left: ${box.left}px; top: ${box.top}px; }
+    </style></head><body>
         <div class="copy">
-            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations <span class="badge">${shot.edition}</span></div>
+            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations <span class="badge ${shot.edition.toLowerCase()}">${shot.edition}</span></div>
             <h1>${escapeHtml(shot.title)}</h1>
             <p>${escapeHtml(shot.text)}</p>
             <ul>${points}</ul>
         </div>
-        <div class="stage">${windowHtml(imageUrl, area, address)}</div>
+        <div class="stage">${windowHtml(pathToFileURL(base).href, area, address, box.scale, insetMarkup)}</div>
     </body></html>`;
 }
 
-/** Shots on the cover, left to right (the middle one in front); all in the side layout, so the windows match. */
-const COVER_SHOTS = ['usage-list', 'wizard', 'replace'];
+/** Shots on the cover, left to right (the middle one in front). */
+const COVER_SHOTS = ['usage-list', 'wizard', 'used-filter'];
+/** What the cover promises, under the title. */
+const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 12,000 usages', 'Craft CMS 5'];
 
 /**
  * The cover for the README: the plugin's name over three of the shots, fanned out.
- * @param {{shot: Shot, raw: string, area: Area, address: string}[]} cards
+ * @param {{shot: Shot, base: string, area: Area, address: string}[]} cards
  */
 function coverHtml(cards) {
-    const scale = 0.58;
-    const width = LAYOUTS.side.width * scale;
+    const scale = 0.52;
     const placements = [
-        { left: 800 - width / 2 - 390, top: 410, rotate: -6 },
-        { left: 800 - width / 2, top: 372, rotate: 0 },
-        { left: 800 - width / 2 + 390, top: 410, rotate: 6 },
+        { dx: -380, top: 570, rotate: -5, z: 1 },
+        { dx: 0, top: 530, rotate: 0, z: 3 },
+        { dx: 380, top: 570, rotate: 5, z: 1 },
     ];
     const windows = cards.map((card, i) => {
-        const place = placements[i];
-        return `<div class="card" style="left:${place.left}px;top:${place.top}px;transform:rotate(${place.rotate}deg) scale(${scale});z-index:${i === 1 ? 3 : 1}">${windowHtml(pathToFileURL(card.raw).href, card.area, card.address)}</div>`;
+        const box = layoutOf(card.area), place = placements[i];
+        const left = FRAME.width / 2 - box.width / 2 + place.dx; // scaled about its top centre
+        return `<div class="card" style="left:${left}px;top:${place.top}px;transform:rotate(${place.rotate}deg) scale(${scale});z-index:${place.z}">${windowHtml(pathToFileURL(card.base).href, card.area, card.address, box.scale)}</div>`;
     }).join('');
+    const chips = COVER_CHIPS.map((chip) => `<span>${escapeHtml(chip)}</span>`).join('');
     return `<!doctype html><html><head><meta charset="utf-8"><style>
         ${PAGE_CSS}
-        .head { position: absolute; left: 0; right: 0; top: 76px; text-align: center; }
-        .head img { width: 84px; height: 84px; border-radius: 22px; box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
-        h1 { margin: 26px 0 12px; font-size: 76px; line-height: 1; font-weight: 800; letter-spacing: -.035em; }
-        p { margin: 0; font-size: 26px; color: #c4cce0; }
-        .card { position: absolute; transform-origin: top left; }
+        .head { position: absolute; left: 0; right: 0; top: 96px; text-align: center; }
+        .head img { width: 92px; height: 92px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, .5); }
+        h1 { margin: 28px 0 14px; font-size: 80px; letter-spacing: -.035em; }
+        p { font-size: 27px; }
+        .chips { margin-top: 30px; display: flex; justify-content: center; gap: 12px; }
+        .chips span { padding: 9px 18px; border-radius: 99px; font-size: 16px; font-weight: 600; color: #e7ebf5;
+            background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); backdrop-filter: blur(6px); }
+        .card { position: absolute; transform-origin: top center; }
     </style></head><body>
-        <div class="head"><img src="${PLUGIN_ICON}" alt=""><h1>Element Relations</h1><p>See where every element is used in Craft CMS, and replace it everywhere.</p></div>
+        <div class="head">
+            <img src="${PLUGIN_ICON}" alt=""><h1>Element Relations</h1>
+            <p>See where every element is used in Craft CMS. Replace it everywhere, safely.</p>
+            <div class="chips">${chips}</div>
+        </div>
         ${windows}
     </body></html>`;
 }
@@ -859,7 +902,7 @@ try {
     await login(defaultUser);
     let currentUser = defaultUser;
 
-    /** @type {{shot: Shot, raw: string, area: Area, address: string}[]} */
+    /** @type {{shot: Shot, base: string, inset: string | null, area: Area, address: string}[]} */
     const taken = [];
     let currentPath = '';
     // with ONLY, run each wanted shot together with the shots it continues from (back to the one opening its page)
@@ -889,7 +932,7 @@ try {
         if (shot.act) {
             await evaluate(browser, shot.act).catch(async (error) => {
                 // what the page looked like, to see why
-                writeFileSync(join(outDir, `failed-${shot.name}.png`), await capture(browser, { x: 0, y: 0, ...viewport }, viewport.height));
+                writeFileSync(join(outDir, `failed-${shot.name}.png`), await captureViewport(browser));
                 throw error;
             });
         }
@@ -901,10 +944,15 @@ try {
             }
         }
         if (!only.length || only.includes(shot.name)) {
-            const raw = join(workDir, `${shot.name}.png`);
-            const area = await areaOf(browser, shot);
-            writeFileSync(raw, await capture(browser, area.region, viewport.height));
-            taken.push({ shot, raw, area, address: `transit.test${currentPath.replace(/\?.*$/, '')}` });
+            const area = await measure(browser, shot);
+            const base = join(workDir, `${shot.name}.png`);
+            writeFileSync(base, await captureViewport(browser));
+            let inset = null;
+            if (area.inset) {
+                inset = join(workDir, `${shot.name}-inset.png`);
+                writeFileSync(inset, await capture(browser, { ...area.inset, x: area.inset.x + area.scroll.x, y: area.inset.y + area.scroll.y }));
+            }
+            taken.push({ shot, base, inset, area, address: `transit.test${currentPath.replace(/\?.*$/, '')}` });
             console.log(`  shot ${shot.name}`);
         }
         if (process.env.DEBUG_EVAL && shot.name === only.at(-1)) {
@@ -916,11 +964,11 @@ try {
     }
 
     await resize(browser, FRAME);
-    for (const { shot, raw, area, address } of taken) {
-        const html = join(workDir, `${shot.name}.html`);
-        writeFileSync(html, frameHtml(shot, pathToFileURL(raw).href, area, address));
+    for (const card of taken) {
+        const html = join(workDir, `${card.shot.name}.html`);
+        writeFileSync(html, frameHtml(card));
         await open(browser, pathToFileURL(html).href);
-        const target = resolve(outDir, `${shot.name}.jpg`);
+        const target = resolve(outDir, `${card.shot.name}.jpg`);
         writeFileSync(target, await captureFramed(browser));
         console.log(`  framed ${target}`);
     }

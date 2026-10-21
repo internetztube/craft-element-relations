@@ -2,7 +2,7 @@
 
 ![Element Relations](screenshots/cover.jpg)
 
-Screenshots of the plugin in the demo site “Transit”, a fictional travel journal (photos by Frederic Köberl on [Unsplash](https://unsplash.com/@internetztube)). The demo is part of the dev environment: `dev/dev.sh` builds it, `dev/dev.sh screenshots` retakes every picture on this page.
+Every feature in the demo site “Transit”, a fictional travel journal (photos by Frederic Köberl on [Unsplash](https://unsplash.com/@internetztube)). Each picture shows the whole control panel page; the inset zooms into the feature where the page shows it small. The demo is part of the dev environment: `dev/dev.sh` builds it, `dev/dev.sh screenshots` retakes every picture on this page.
 
 ## See where every element is used
 

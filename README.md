@@ -1,24 +1,38 @@
 # Element Relations for Craft CMS
 
-See where every element is used. One native list of everything that links to an entry, asset, category, product or any other element, across all element types, sites and the plugins your project uses.
+**See where every element is used. Replace it everywhere, safely.**
+
+One list of everything that links to an entry, asset, category, product or any other element: across element types, sites, rich text and the plugins your project uses. It is Craft's own element index, so it looks and works like the rest of the control panel.
 
 ![Element Relations](docs/screenshots/cover.jpg)
 
-More in the [tour](docs/README.md).
+[Tour with screenshots](docs/README.md) · [Installation](#installation) · [Twig, GraphQL and element queries](#usage) · [Supported fields and plugins](#supported-fields-and-plugins) · [Pro](#editions)
 
-## Features
+## Why
 
-- **One list, every element type.** The field is Craft's own element index: search, sort, status and Drafts filter, table or card view, chips that link to the edit pages. Craft's own sort options and filter rules of the element types in the list (Section, Post Date, Author, Filename, Group, …), type and site dropdowns with counts, plus columns for where the element lives, the field that holds the link (and whether it sits in a disabled Matrix block) and the site.
-- **Everything that can link to an element.** Anything Craft stores in its relations table works out of the box. Rich text, link fields and plugins that store references elsewhere are read by dedicated extractors (see [Supported fields and plugins](#supported-fields-and-plugins)).
-- **Plugin settings, too.** Usages that are not elements, such as SEOmatic's global or per-section SEO image, are listed below the field.
-- **Templates, GraphQL and element queries.** `isInUse`, counts and the relating elements in Twig and GraphQL; `usesElement` on any element query.
-- **Fast, also at scale.** Relations are extracted when an element is saved and cached in one indexed table; saves that change no custom field skip the work. Lists, counts and the index column stay paginated and SQL-based for elements with tens of thousands of usages; replacements and rollbacks run in batches.
+Every Craft project ends up asking the same things: *Can I delete this asset? Which pages show this category? Where is the old logo still used?* Craft's relations table knows a part of the answer. It knows nothing about CKEditor links, Link fields of plugins, SEOmatic images, Navigation menus, Formie forms or Vizy blocks. Element Relations answers in one place, for all of it, and with Pro lets you act on the answer.
 
-**Pro** (behind a feature flag for now, see [Editions](#editions)):
+## What you get
 
-- **Unused:** a “Used anywhere” rule in Craft's index filter (on top of any source, with the bulk actions) and in custom sources, `craft.assets().unused()`.
-- **Replace:** swap an element for another everywhere or in the usages you pick, in a slideout right from the field, or from the command line (also with a CSV mapping, for migrations). Every supported field and plugin is rewritten the way it was read, in the background.
-- **Undo and rollback:** Undo right in the notice, a history with Roll back in Utilities, revisions with notes for entries.
+- **One answer, every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms. Each row names where it lives, the field that holds the link and the site; an element used in two sites or through two fields is one row and counts once, everywhere.
+- **Everything that can link.** Anything in Craft's relations table works out of the box. Rich text, link fields and plugins that store references elsewhere are read by dedicated extractors, 13 plugins today (see [Supported fields and plugins](#supported-fields-and-plugins)).
+- **Plugin settings count.** Usages that are not elements, such as SEOmatic's global or per-section SEO image, are listed below the field.
+- **Native, not bolted on.** Craft's search, sorting, status and Drafts filter, table or card view, the View menu's columns, Craft's own filter rules and sort options of the types in the list (Section, Post Date, Author, Filename, Group, …), plus type and site dropdowns with counts. An index column shows the first usages and the total, and sorts by it.
+- **Permission-aware.** Users only see usages they may view; a line says how many are hidden, so nobody takes an element for unused.
+- **In code, too.** `isInUse`, counts and the relating elements in Twig and GraphQL, `usesElement` on any element query.
+- **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 12,000 entries ([`dev/stress.php`](dev/stress.php)).
+
+**Pro** (ready behind a feature flag, see [Editions](#editions)):
+
+- **Find what nobody uses.** A “Used anywhere” rule in Craft's filter, on top of any source and with Craft's bulk actions; `craft.assets().unused()`.
+- **Replace anywhere.** Swap an element for another everywhere, or in the usages you tick, in a slideout right from the field, or on the command line (also with a CSV mapping, for migrations). Every supported field and plugin is rewritten the way it was read.
+- **Undo, roll back, revisions.** Undo in the notice, a history with Roll back in Utilities, revisions with notes for entries, Revert to revisions.
+- **Keep what is in use.** Editors can't delete or take offline what live content uses; Craft's delete dialog lists the usages with “Replace…” right there.
+- **Never blocks the page.** Replacements and rollbacks run as batched queue jobs, as the user who started them, and resume when a worker dies.
+
+## Tested
+
+Three suites run on every push, on PHP 8.2 and 8.3 against MySQL 8 and PostgreSQL 14: the console smoke test, the control panel over HTTP and the control panel in headless Chrome. 1,444 assertions, every supported plugin seeded and round-tripped (extract, replace, roll back), 100 % line coverage of `src/`. [`dev/TESTS.md`](dev/TESTS.md) lists every assertion in one sentence each.
 
 ## Requirements
 

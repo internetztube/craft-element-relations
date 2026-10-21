@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - The field no longer stores anything in the element content column; its value is computed from the relations cache.
 - Drafts show the relations of their canonical element instead of a "Drafts cannot be used in relations" hint.
 - `siteIds` consistently means the site of the *relating* (source) element in every method. Previously `count()`/`elements()` filtered by the target site while `countFast()` filtered by the source site, so the two could disagree on multi-site installs with cross-site relations.
+- The plugin icon keeps its glyph on a brighter coral-to-crimson background.
 - Element chips in element index columns link to the element's edit page again on Craft 5. Supersedes [#59](https://github.com/internetztube/craft-element-relations/pull/59). Thank you, [@sebastian-works](https://github.com/sebastian-works)!
 
 ### Added
