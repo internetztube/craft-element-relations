@@ -20,7 +20,7 @@ Every Craft project ends up asking the same things: *Can I delete this asset? Wh
 - **Native, not bolted on.** Craft's search, sorting, status and Drafts filter, table or card view, the View menu's columns, Craft's own filter rules and sort options of the types in the list (Section, Post Date, Author, Filename, Group, …), plus type and site dropdowns with counts. An index column shows the first usages and the total, and sorts by it.
 - **Permission-aware.** Users only see usages they may view; a line says how many are hidden, so nobody takes an element for unused.
 - **In code, too.** `isInUse`, counts and the relating elements in Twig and GraphQL, `usesElement` on any element query.
-- **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 12,000 entries ([`dev/stress.php`](dev/stress.php)).
+- **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 100,000 entries ([`dev/stress.php`](dev/stress.php)): its list opens in under a second.
 
 **Pro** (ready behind a feature flag, see [Editions](#editions)):
 

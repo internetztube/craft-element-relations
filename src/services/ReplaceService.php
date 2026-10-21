@@ -263,7 +263,7 @@ class ReplaceService
             ->where(['cache.targetElementId' => $elementId])
             ->andWhere(['not', ['cache.sourceElementId' => null]])
             ->andWhere(['owners.dateDeleted' => null, 'owners.revisionId' => null])
-            ->andFilterWhere(['owners.id' => $onlyOwnerIds === null ? null : ($onlyOwnerIds ?: [0])])
+            ->andWhere($onlyOwnerIds === null ? [] : ElementRelations::idIn('owners.id', $onlyOwnerIds))
             ->all();
         $coverage = ['total' => count($owners), 'versioningOff' => 0, 'unsupported' => 0];
         foreach ($owners as $owner) {

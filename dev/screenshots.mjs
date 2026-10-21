@@ -946,7 +946,7 @@ function compareHtml({ shot, parts }) {
 /** Close-ups on the cover: the first two stacked on the left, the third (tall) on the right. */
 const COVER_SHOTS = ['usage-list', 'used-filter', 'wizard'];
 /** What the cover promises, under the title. */
-const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 12,000 usages', 'Craft CMS 5'];
+const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 100,000 usages', 'Craft CMS 5'];
 
 /**
  * The cover for the README: the plugin's name over three close-ups of the control panel, so a reader sees what to

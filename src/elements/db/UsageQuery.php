@@ -238,7 +238,7 @@ class UsageQuery extends ElementQuery
             }
             $condition = ['or'];
             foreach ($pairs as $siteId => $ids) {
-                $condition[] = ['and', ['elements_sites.siteId' => $siteId], ['elements.id' => $ids]];
+                $condition[] = ['and', ['elements_sites.siteId' => $siteId], ElementRelations::idIn('elements.id', $ids)];
             }
             $subQuery->andWhere($condition);
         }

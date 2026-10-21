@@ -167,6 +167,16 @@ class ElementRelations extends Plugin
 
     /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
     /**
+     * `column IN (1, 2, …)` with the ids written into the SQL instead of bound one parameter each: PostgreSQL takes at
+     * most 65,535 parameters per query, and an editor may see 100,000 usages (dev/stress.php).
+     * @param int[] $ids
+     */
+    public static function idIn(string $column, array $ids): \yii\db\Expression
+    {
+        return new \yii\db\Expression("[[$column]] IN (" . (implode(',', array_map(intval(...), $ids)) ?: '0') . ')');
+    }
+
+    /**
      * `$type::find()` for loading elements of any type by id. Formie's form query limits itself to the forms the
      * control panel user may access, and for a user with none it is invalid SQL on PostgreSQL (Formie 4.0); the plugin
      * checks permissions itself (UsageQuery, canView), so it uses Formie's opt-out, like Craft's own types behave.
