@@ -122,7 +122,7 @@ class InUseGuard
     public static function liveUsages(ElementInterface $element, ?int $siteId = null): array
     {
         $model = (new RelationsModel((int)($element->getCanonicalId() ?? $element->id), (int)$element->siteId))
-            ->withQueryFactory(fn(string $type): mixed => $type::find()); // Craft's defaults: live entries, enabled elements, no drafts
+            ->withQueryFactory(fn(string $type): mixed => ElementRelations::find($type)); // Craft's defaults: live entries, enabled elements, no drafts
         $siteIds = $siteId === null ? [] : [$siteId];
         $titles = [];
         foreach ($model->getElementsIterator($siteIds, self::NAMED) as $usage) {

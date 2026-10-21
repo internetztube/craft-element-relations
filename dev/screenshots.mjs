@@ -65,6 +65,8 @@ const DEBUGGING_PORT = 9333;
  * @property {boolean} [inset] false: rings only, no zoomed inset (the page shows the feature big enough)
  * @property {string} [cover] JavaScript expression for the part of the page the cover shows as a close-up (COVER_SHOTS)
  * @property {string} [caption] under that close-up
+ * @property {{label: string, act: string, region: string}[]} [compare] instead of one page: close-ups taken one after another (`act`, then
+ *   `region`), framed side by side under their labels
  * @property {string} [act] JavaScript run in the page before the capture (may await)
  * @property {boolean} [reload] reload the page after `act` (e.g. when it changed what the page shows)
  * @property {string} [afterReload] JavaScript run after that reload
@@ -415,18 +417,65 @@ const SHOTS = [
     },
     {
         name: 'in-use-dialog', edition: 'Pro', user: 'jonas',
-        points: ['In Craft’s own delete dialog', 'The usages listed, “Replace…” right there', 'No “Delete anyway” without the permission'],
-        focus: `$$('.modal').filter((m) => /live elements? uses? the/.test(m.textContent)).at(-1)`,
-        highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /live elements? uses? the/.test(e.textContent)).slice(-1)]`,
-        title: 'Before deleting: where it is used',
-        text: 'Craft’s delete dialog lists the live usages and offers “Replace…”; no way past without the permission.',
-        path: demo.skyline.path,
+        points: ['Usages Craft can’t see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
+        highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
+        title: 'Nothing breaks by accident',
+        text: 'Two forms redirect to “Thank you”. Craft would delete it without a word; Element Relations stops it first.',
+        path: demo.thankYou.path,
         act: `
-            new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
+            new Craft.ElementDeletionManager('craft\\\\elements\\\\Entry', [${demo.thankYou.id}], { siteId: 1 });
+            await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
+            await sleep(800);
+            // open the usages, like clicking the toggle
+            $$('.modal .fieldtoggle').at(-1)?.click();
             await sleep(1500);
         `,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
+    },
+    {
+        // Craft's own list of what relates to the asset next to the plugin's: Craft names the Matrix block, the plugin
+        // the page that holds it, with the field and the sites
+        name: 'compare', edition: 'Pro',
+        points: ['The page, not the Matrix block inside it', 'Where it sits, which field, which sites', 'Rich text, links, menus, forms and SEO too'],
+        title: 'Know what you replace',
+        text: 'The same asset: Craft lists the blocks that relate to it, Element Relations the pages your editors know.',
+        path: demo.skyline.path,
+        compare: [
+            {
+                label: 'Craft’s delete dialog',
+                act: `
+                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
+                    await until(() => $$('.modal h2, .modal h3').some((h) => /is related by/.test(h.textContent)), 'the delete dialog', 30000);
+                    await sleep(800);
+                    window.craftBlocker = () => $$('.modal h2, .modal h3').find((h) => /is related by/.test(h.textContent)).parentElement.parentElement;
+                    craftBlocker().querySelector('.fieldtoggle')?.click();
+                    await sleep(2500); // the related elements load into the expanded part
+                `,
+                region: `craftBlocker()`,
+            },
+            {
+                label: 'Element Relations',
+                act: `
+                    $$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click();
+                    await sleep(500);
+                    await indexReady(fieldIndex(), 'the usage list');
+                    const index = fieldIndex();
+                    $$('.element-relations tbody tr[data-id]').forEach((row) => index.view.elementSelect.selectItem($(row)));
+                    await until(() => replaceButton(), 'the Replace… button');
+                    replaceButton().click();
+                    await until(() => document.querySelector('.element-relations-wizard'), 'the wizard');
+                    await sleep(1200);
+                    window.wizardUsages = () => {
+                        const boxes = $$('.element-relations-wizard input[type="checkbox"]');
+                        const heading = $$('.element-relations-wizard h2, .element-relations-wizard h3, .element-relations-wizard legend').find((h) => /Where/.test(h.textContent));
+                        return [heading, ...boxes.map((box) => box.closest('li, tr, label, div'))];
+                    };
+                `,
+                region: `wizardUsages()`,
+            },
+        ],
+        after: `wizardSlideout()?.querySelector('button:not([type="submit"])')?.click(); await sleep(300);`,
     },
     {
         name: 'in-use-disable', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
@@ -465,11 +514,11 @@ const SHOTS = [
         `,
     },
     {
-        name: 'plugin-settings', edition: 'Lite',
-        points: ['Per environment in config/element-relations.php', 'Rebuild under Utilities or on the command line'],
+        name: 'plugin-settings', edition: 'Pro',
+        points: ['Protection on or off, per environment too', 'Rebuild under Utilities or on the command line'],
         focus: `$$('#content .field').map(inPane)`,
         title: 'Plugin settings',
-        text: 'How many elements a queue job handles when the cache is rebuilt; set per environment in config.',
+        text: 'Protect elements in use, and how many elements a queue job handles when the cache is rebuilt.',
         path: '/admin/settings/plugins/element-relations',
         act: `await sleep(500);`,
     },
@@ -840,6 +889,60 @@ function frameHtml({ shot, base, inset, area, address }) {
     </body></html>`;
 }
 
+/**
+ * Two close-ups side by side under their labels, with the shot's copy above, like frameHtml(); the second (the
+ * plugin's) gets the accent ring.
+ * @param {{shot: Shot, parts: {label: string, file: string, region: Region}[]}} comparison
+ */
+function compareHtml({ shot, parts }) {
+    // stacked, one zoom for both (the same UI size), as large as the stage allows
+    const gap = 36, label = 44, top = STAGE.top;
+    const zoom = Math.min(
+        STAGE.width / Math.max(...parts.map((part) => part.region.width)),
+        (STAGE.height - parts.length * label - (parts.length - 1) * gap) / parts.reduce((sum, part) => sum + part.region.height, 0),
+        2.4,
+    );
+    let y = top;
+    const cards = parts.map((part, i) => {
+        const width = Math.round(part.region.width * zoom), height = Math.round(part.region.height * zoom);
+        const html = `<figure class="part${i === parts.length - 1 ? ' ours' : ''}" style="left:${Math.round(STAGE.left + (STAGE.width - width) / 2)}px;top:${y}px;width:${width}px">
+            <figcaption><i></i>${escapeHtml(part.label)}</figcaption>
+            <div class="pic"><img src="${pathToFileURL(part.file).href}" alt="" style="width:${width}px;height:${height}px"></div>
+        </figure>`;
+        y += label + height + gap;
+        return html;
+    }).join('');
+    const points = shot.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('');
+    return `<!doctype html><html><head><meta charset="utf-8"><style>
+        ${PAGE_CSS}
+        .copy { position: absolute; left: ${STAGE.left}px; right: ${STAGE.left}px; top: 0; height: ${STAGE.top}px; padding-bottom: 30px;
+            display: grid; grid-template-columns: 1fr 460px; column-gap: 64px; align-content: end; align-items: end; }
+        .copy .brand, .copy h1, .copy p { grid-column: 1; }
+        .copy ul { grid-column: 2; grid-row: 1 / span 3; align-self: end; margin: 0; padding: 0; list-style: none; display: grid; gap: 11px; }
+        h1 { font-size: 48px; margin: 16px 0 8px; }
+        p { font-size: 19px; line-height: 1.45; text-wrap: balance; }
+        li { position: relative; padding-left: 32px; font-size: 16.5px; line-height: 1.3; color: #e7ebf5; }
+        li::before { content: ''; position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%;
+            background: rgba(255, 90, 60, .2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 12.5l4 4 8-9' fill='none' stroke='%23ff8a5c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 14px no-repeat; }
+        .part { position: absolute; margin: 0; }
+        .pic { border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 60px 120px -30px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .16); }
+        .ours .pic { box-shadow: 0 0 0 3px ${ACCENT}, 0 0 0 9px rgba(255, 90, 60, .2), 0 60px 120px -30px rgba(0, 0, 0, .8); }
+        .pic img { display: block; }
+        figcaption { height: ${label}px; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 600; color: #c4cce0; }
+        .ours figcaption { color: #fff; }
+        figcaption i { width: 9px; height: 9px; border-radius: 50%; background: #7a8296; }
+        .ours figcaption i { background: ${ACCENT}; box-shadow: 0 0 10px rgba(255, 90, 60, .9); }
+    </style></head><body>
+        <div class="copy">
+            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations <span class="badge ${shot.edition.toLowerCase()}">${shot.edition}</span></div>
+            <h1>${escapeHtml(shot.title)}</h1>
+            <p>${escapeHtml(shot.text)}</p>
+            <ul>${points}</ul>
+        </div>
+        ${cards}
+    </body></html>`;
+}
+
 /** Close-ups on the cover: the first two stacked on the left, the third (tall) on the right. */
 const COVER_SHOTS = ['usage-list', 'used-filter', 'wizard'];
 /** What the cover promises, under the title. */
@@ -941,6 +1044,8 @@ try {
 
     /** @type {{shot: Shot, base: string, inset: string | null, cover: string | null, coverRegion: Region | null, area: Area, address: string}[]} */
     const taken = [];
+    /** @type {{shot: Shot, parts: {label: string, file: string, region: Region}[]}[]} */
+    const comparisons = [];
     let currentPath = '';
     // with ONLY, run each wanted shot together with the shots it continues from (back to the one opening its page)
     const needed = new Set(SHOTS.map((_, i) => i));
@@ -980,7 +1085,22 @@ try {
                 await evaluate(browser, shot.afterReload);
             }
         }
-        if (!only.length || only.includes(shot.name)) {
+        if (shot.compare && (!only.length || only.includes(shot.name))) {
+            /** @type {{label: string, file: string, region: Region}[]} */
+            const parts = [];
+            for (const [i, part] of shot.compare.entries()) {
+                await evaluate(browser, part.act).catch(async (error) => {
+                    writeFileSync(join(outDir, `failed-${shot.name}.png`), await captureViewport(browser));
+                    throw error;
+                });
+                const found = /** @type {{region: Region, scroll: {x: number, y: number}}} */ (await evaluate(browser, `return { region: regionOf(${part.region}, 6), scroll: { x: scrollX, y: scrollY } };`));
+                const file = join(workDir, `${shot.name}-${i}.png`);
+                writeFileSync(file, await capture(browser, { ...found.region, x: found.region.x + found.scroll.x, y: found.region.y + found.scroll.y }));
+                parts.push({ label: part.label, file, region: found.region });
+            }
+            comparisons.push({ shot, parts });
+            console.log(`  shot ${shot.name}`);
+        } else if (!only.length || only.includes(shot.name)) {
             const area = await measure(browser, shot);
             const base = join(workDir, `${shot.name}.png`);
             writeFileSync(base, await captureViewport(browser));
@@ -1012,6 +1132,15 @@ try {
         writeFileSync(html, frameHtml(card));
         await open(browser, pathToFileURL(html).href);
         const target = resolve(outDir, `${card.shot.name}.jpg`);
+        writeFileSync(target, await captureFramed(browser));
+        console.log(`  framed ${target}`);
+    }
+
+    for (const comparison of comparisons) {
+        const html = join(workDir, `${comparison.shot.name}.html`);
+        writeFileSync(html, compareHtml(comparison));
+        await open(browser, pathToFileURL(html).href);
+        const target = resolve(outDir, `${comparison.shot.name}.jpg`);
         writeFileSync(target, await captureFramed(browser));
         console.log(`  framed ${target}`);
     }

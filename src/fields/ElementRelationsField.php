@@ -20,6 +20,7 @@ use craft\helpers\StringHelper;
 use craft\models\FieldLayoutTab;
 use craft\models\GqlSchema;
 use GraphQL\Type\Definition\Type;
+use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\Usage;
 use internetztube\elementRelations\elements\db\UsageQuery;
 use internetztube\elementRelations\gql\types\Relations as RelationsType;
@@ -296,6 +297,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                     $html .= Html::tag('p', Html::encode(Craft::t('element-relations', 'restricted-count-input', ['count' => $hidden])), ['class' => 'light', 'data-element-relations-hidden' => $hidden]);
                 }
             }
+            if (ElementRelations::upsells()) {
+                $html .= self::upsellHtml('upsell-replace');
+            }
         }
         if ($globalUsages) {
             // Craft's `flex` utility would center (and shrink) the index, so plain block layout with a spaced heading
@@ -411,7 +415,20 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
 
     private function unusedLabelHtml(): string
     {
-        return (string)Cp::statusLabelHtml(['color' => Color::Red, 'label' => Craft::t('element-relations', 'field-value-unused')]);
+        $html = (string)Cp::statusLabelHtml(['color' => Color::Red, 'label' => Craft::t('element-relations', 'field-value-unused')]);
+        return ElementRelations::upsells() ? $html . self::upsellHtml('upsell-unused') : $html;
+    }
+
+    /** One quiet line under the list pointing out what Pro would do here, with the link to buy it (admins on Lite). */
+    private static function upsellHtml(string $key): string
+    {
+        $icon = Html::tag('span', Html::svg(Craft::getAlias('@internetztube/elementRelations/icon-mask.svg')), ['class' => 'cp-icon small', 'aria-hidden' => 'true']);
+        $link = Html::a(Html::encode(Craft::t('element-relations', 'upsell-link')), ElementRelations::upgradeUrl());
+        return Html::tag('p', $icon . Html::tag('span', Html::encode(Craft::t('element-relations', $key)) . ' ' . $link), [
+            'class' => 'light smalltext flex gap-xs',
+            'style' => 'margin-top: var(--s); flex-wrap: nowrap;',
+            'data-element-relations-upsell' => true,
+        ]);
     }
 
     private function hintHtml(string $text): string

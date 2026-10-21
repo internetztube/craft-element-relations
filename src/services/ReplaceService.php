@@ -18,6 +18,7 @@ use internetztube\elementRelations\records\ReplacementRecord;
 use internetztube\elementRelations\services\extractors\InterfaceElementReplacer;
 use internetztube\elementRelations\services\extractors\InterfaceFieldReplacer;
 use yii\base\Event;
+use internetztube\elementRelations\ElementRelations;
 
 /**
  * Pro: replaces usages of one element by another of the same type, going through the relating elements' field values
@@ -459,7 +460,7 @@ class ReplaceService
         if ($type === null || !is_subclass_of($type, ElementInterface::class)) {
             return null;
         }
-        $element = $type::find()->id($id)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->one();
+        $element = ElementRelations::find($type)->id($id)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->one();
         return $element instanceof ElementInterface ? $element : null;
     }
 
@@ -476,7 +477,7 @@ class ReplaceService
                 continue;
             }
             /** @var ElementInterface[] $siteElements */
-            $siteElements = $type::find()->id($id)->site('*')->status(null)->drafts(null)->provisionalDrafts(null)->all();
+            $siteElements = ElementRelations::find($type)->id($id)->site('*')->status(null)->drafts(null)->provisionalDrafts(null)->all();
             foreach ($siteElements as $siteElement) {
                 ExtractorService::refreshRelationsForElement($siteElement);
             }

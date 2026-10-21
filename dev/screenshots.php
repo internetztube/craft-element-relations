@@ -48,6 +48,8 @@ echo json_encode([
     'taipei' => ['id' => entry('destinations', 'Taipei')->id, 'path' => editPath(entry('destinations', 'Taipei'))],
     'notes' => ['id' => asset('station-notes.jpg')->id, 'path' => editPath(asset('station-notes.jpg'))],
     'homepage' => ['path' => editPath(entry('homepage', 'Homepage'))],
+    // the form redirect target: only Formie knows it is used, Craft's own delete dialog does not
+    'thankYou' => ['id' => entry('company', 'Thank you')->id, 'path' => editPath(entry('company', 'Thank you'))],
     'usedInField' => ['path' => "/admin/settings/fields/edit/$usedIn->id"],
     'editors' => ['path' => "/admin/settings/users/groups/$editors->id"],
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), "\n";

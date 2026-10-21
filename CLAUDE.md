@@ -32,6 +32,7 @@ Craft
 
 Plugins
 - Hyper memoizes `getLinkTypes()`; a `setLinkTypes()` after it is not saved. Read `fields.<uid>.settings.linkTypes` from project config instead.
+- Formie's form query limits itself to the control panel user's forms and builds `id = false` for a user with none, invalid SQL on PostgreSQL (4.0): load elements of any type through `ElementRelations::find()`, which uses Formie's `withoutCpIndexScope()`; the plugin checks permissions itself.
 - Formie keeps encrypted (locked) values in `getContentState()->lockedValuesByUid`; call `hasLockedContent()` first, it loads the state. Form data is shared across sites (refresh the sibling sites, don't report them as skipped).
 - Rich text: `||` appears in plain text; match reference tags as a whole.
 - JSDoc inline object types `{ … }` in Twig-rendered scripts clash with `{{ }}`: use named typedefs.
@@ -40,6 +41,8 @@ Tests and coverage
 - PHP's built-in server runs no `auto_prepend_file` for its router (`dev/coverage-router.php`), and `php -r` subprocesses skip it too (they `require ini_get('auto_prepend_file')` themselves).
 - The built-in server (cli-server SAPI) uses `opcache.enable`, not `enable_cli`; its optimizer drops jumps like `continue;`, which then never show as covered. Coverage runs with opcache off. In the raw `.cov` files a line *absent* in a process was not executable there (optimized away); *miss* means it was executable and did not run. `dev/coverage-gaps.php` lists the uncovered lines.
 - `PROJECT_DIR` must be absolute.
+- A web request in a test that changes project config (saving plugin settings) leaves the test's own process with a stale copy: its next project-config write throws `StaleResourceException`. Do such requests last. A console `switchEdition()` reaches the web server only after `saveModifiedConfigData()`.
+- Plugin settings fields are namespaced: the settings page renders `name="settings[protectInUse]"`.
 - Long-lived dev databases hide ordering bugs in the seed: reproduce CI failures with `dev/dev.sh reset`.
 - Each push runs CI twice (push + pull_request). Read the result with `gh run list --json conclusion` or `gh run view <id> --log-failed`, never from a piped `gh run watch`.
 - Chrome on CI runners is slow (30 s to start); coverage slows the server further and exposes races. Wait for what Craft renders late (the "x of n" element count) before reading it.

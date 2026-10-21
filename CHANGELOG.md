@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Element chips in element index columns link to the element's edit page again on Craft 5. Supersedes [#59](https://github.com/internetztube/craft-element-relations/pull/59). Thank you, [@sebastian-works](https://github.com/sebastian-works)!
 
 ### Added
+- Lite shows admins, in one quiet line under the usage list and in the plugin settings, what Pro would do there, with a link to the Plugin Store (only when Pro can be bought; editors never see it).
+- Pro: “Protect elements in use” setting (`protectInUse`, on by default) to switch the delete and disable protection off.
 - Editions (Lite/Pro) behind a feature flag: `'features' => ['editions' => true]` in `config/element-relations.php` makes the Pro edition selectable; `ElementRelations::isPro()` is the gate.
 - Element indexes can sort by the field (number of relating elements), like any sortable field.
 - **Pro: Unused.** A “Used anywhere” rule for Craft’s element conditions: in the index filter on top of any source, with Craft’s bulk actions, and in custom sources. Plus the `unused()` element query param (`craft.assets().unused()`). Non-element usages (SEOmatic settings) count as used.
@@ -50,6 +52,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - The hand-built field UI: the React/MUI bundle (660 KB, loaded on every control panel page) and its Node toolchain, the `element-relations/paginate` controller action, the asset bundle and the `elementRelationsElementPreviewHtml` Twig function (control-panel internal).
 
 ### Fixed
+- On PostgreSQL, the usage list of an element a Formie form uses failed for control panel users without access to any form (Formie 4.0 builds invalid SQL for them).
 - Elements of a plugin that was removed or disabled no longer count as usages: they cannot be listed, so the counts and the “Used anywhere” filter leave them out too.
 - Fresh installs had no indexes on the relations cache's element columns (only upgrades got them), which made usage lookups slow on large sites. The indexes are created on install now and added where missing.
 - Rich text (CKEditor, Redactor) containing `||` outside a reference tag, e.g. “fast || cheap”, lost all its relations.

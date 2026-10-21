@@ -56,6 +56,7 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to ove
 | Setting | Default | Description |
 |---|---|---|
 | `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole relations cache is rebuilt. |
+| `protectInUse` | `true` | Pro: protect elements that live content uses from being deleted or taken offline (see [Editions](#editions)). |
 | `features.editions` | `false` | Offer the Lite and Pro editions. |
 
 Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers every column of the element types in the list), Show the status menu, Elements per page.

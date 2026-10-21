@@ -23,6 +23,7 @@ use DateTime;
 use internetztube\elementRelations\behaviors\ElementQueryBehavior;
 use internetztube\elementRelations\elements\RestrictedUsage;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\ElementRelations;
 
 /**
  * Element query over all element types at once. Combine with the `usesElement` param:
@@ -423,7 +424,7 @@ class UsageQuery extends ElementQuery
             foreach ($sites as $siteId => $ids) {
                 foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
                     /** @var ElementInterface[] $loaded */
-                    $loaded = $type::find()->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
+                    $loaded = ElementRelations::find($type)->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
                     foreach ($loaded as $element) {
                         if ($elementsService->canView($element, $viewer)) {
                             $pairs[$siteId][] = (int)$element->id;
@@ -545,7 +546,7 @@ class UsageQuery extends ElementQuery
         foreach ($idsByTypeAndSite as $type => $sites) {
             foreach ($sites as $siteId => $ids) {
                 /** @var ElementInterface[] $loaded */
-                $loaded = $type::find()
+                $loaded = ElementRelations::find($type)
                     ->id($ids)
                     ->siteId($siteId)
                     ->status(null)

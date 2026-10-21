@@ -21,3 +21,30 @@
     warning: _self.overrideWarning('bulkRefreshBatchSize', overrides),
 }) }}
 
+{# Lite with Pro available: what Pro adds, and where to get it (admins only, see ElementRelations::upsells()) #}
+{% set plugin = craft.app.plugins.getPlugin('element-relations') %}
+{% if plugin.upsells() %}
+    <div class="pane" data-element-relations-upsell style="margin-top: var(--xl);">
+        <h2 class="flex gap-xs" style="margin-top: 0;"><span class="cp-icon" aria-hidden="true" style="color: var(--gray-700);">{{ svg('@internetztube/elementRelations/icon-mask.svg') }}</span>{{ 'upsell-settings-heading'|t('element-relations') }}</h2>
+        <p>{{ 'upsell-settings-intro'|t('element-relations') }}</p>
+        <ul class="bullets" style="margin-bottom: var(--m);">
+            {% for key in ['replace', 'undo', 'unused', 'protect', 'cli'] %}
+                <li>{{ ('upsell-settings-' ~ key)|t('element-relations') }}</li>
+            {% endfor %}
+        </ul>
+        <a class="btn submit" href="{{ plugin.upgradeUrl() }}">{{ 'upsell-link'|t('element-relations') }}</a>
+    </div>
+{% endif %}
+
+{# Pro: the in-use protection (services/InUseGuard, the delete dialog) #}
+{% if craft.app.plugins.getPlugin('element-relations').is('pro') %}
+    {{ forms.lightswitchField({
+        label: 'settings-protect-label'|t('element-relations'),
+        instructions: 'settings-protect-instructions'|t('element-relations'),
+        name: 'protectInUse',
+        on: settings.protectInUse,
+        disabled: 'protectInUse' in overrides|keys,
+        warning: _self.overrideWarning('protectInUse', overrides),
+    }) }}
+{% endif %}
+

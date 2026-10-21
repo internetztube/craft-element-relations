@@ -32,7 +32,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
     public function init(): void
     {
         parent::init();
-        if (!ElementRelations::isPro()) {
+        if (!ElementRelations::protectsInUse()) {
             return;
         }
         foreach ($this->elements as $element) {
@@ -88,7 +88,10 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
             ],
         ]);
         Usage::$listedTypes = null;
-        return $html;
+        // whose list this is: the plugin's icon and name above it
+        $source = Html::tag('p', Html::tag('span', Html::svg(Craft::getAlias('@internetztube/elementRelations/icon-mask.svg')), ['class' => 'cp-icon small', 'aria-hidden' => 'true'])
+            . Html::tag('span', Html::encode(Craft::t('element-relations', 'in-use-blocker-details'))), ['class' => 'flex gap-xs light', 'style' => 'margin: 0 0 8px; flex-wrap: nowrap;']);
+        return $source . $html;
     }
 
     /** @return list<array<string, mixed>> */

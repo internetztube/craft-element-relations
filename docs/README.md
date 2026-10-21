@@ -88,6 +88,12 @@ On Craft 5.10 and later this starts in Craft's own delete dialog: the live usage
 
 ![Disabling is checked too](screenshots/in-use-disable.jpg)
 
+## Know what you replace <sup>Pro</sup>
+
+Craft's own delete dialog lists the Matrix blocks that relate to an element and leaves out rich text, links, menus and forms. Element Relations lists the pages your editors know, with the field that holds the link and the sites, before anything is replaced.
+
+![Know what you replace](screenshots/compare.jpg)
+
 ## Permissions <sup>Pro</sup>
 
 Replacing, rolling back, and deleting or disabling elements that are in use are permissions of their own. Everything else follows Craft's view and save permissions: users only see usages they may view.

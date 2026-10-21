@@ -253,14 +253,14 @@ try {
         await visit(demo.skyline.path);
         const facts = await run(`
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
+            await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
-            const modal = $$('.modal').find((m) => /live elements? uses? the/.test(m.textContent));
-            const summary = (/\\d+ live elements use the asset[^.]*\\./.exec(modal.textContent.replace(/\\s+/g, ' ')) ?? [''])[0];
+            const modal = $$('.modal').find((m) => /Element Relations found/.test(m.textContent));
+            const summary = (/Element Relations found \\d+ live elements that use the asset[^.]*\\./.exec(modal.textContent.replace(/\\s+/g, ' ')) ?? [''])[0];
             const buttons = [...modal.querySelectorAll('button')].map((b) => b.textContent.trim());
             return { summary, buttons };
         `);
-        const usages = Number(/(\d+) live elements use/.exec(facts.summary)?.[1] ?? 0);
+        const usages = Number(/(\d+) live elements that use/.exec(facts.summary)?.[1] ?? 0);
         const named = facts.summary.match(/“[^”]+”/g) ?? [];
         check(usages === 3 && named.length === 3 && new Set(named).size === 3 && !/\(English/.test(facts.summary), `three elements, each named once, without their sites: "${facts.summary}"`);
         check(facts.buttons.includes('Replace…') && facts.buttons.includes('Delete anyway'), `the admin gets Replace… and Delete anyway (${facts.buttons.filter((b) => b).join(' | ')})`);
@@ -275,9 +275,9 @@ try {
         await visit(demo.skyline.path);
         const facts = await run(`
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
+            await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
-            const modal = $$('.modal').find((m) => /live elements? uses? the/.test(m.textContent));
+            const modal = $$('.modal').find((m) => /Element Relations found/.test(m.textContent));
             const buttons = [...modal.querySelectorAll('button')].map((b) => b.textContent.trim());
             const submit = [...modal.querySelectorAll('button')].find((b) => /^Delete/.test(b.textContent.trim()) && b.classList.contains('submit'));
             return { buttons, submitDisabled: submit ? submit.disabled || submit.classList.contains('disabled') : null, hint: /permission/.test(modal.textContent) };

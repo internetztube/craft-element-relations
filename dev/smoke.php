@@ -295,13 +295,41 @@ check(count($gql['elements']) === 1 && $gql['elements'][0]['title'] === 'Page A1
 
 echo "Editions (behind the `features.editions` flag)\n";
 $plugin = internetztube\elementRelations\ElementRelations::class;
-check($plugin::editionsFor([]) === ['lite'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: Lite only; flag on: Lite and Pro');
+check($plugin::editionsFor([]) === ['standard'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: one edition, Craft’s “standard” like 3.1 (its licenses stay valid); flag on: Lite and Pro');
 check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
 $editionBefore = $plugin::getInstance()->edition; // restored at the end of every section that switches, so the dev project keeps its edition
 Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
 check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'Lite: isPro() is false');
+// Lite with Pro available: admins are pointed to Pro, quietly, where it would help; editors never
+$upsellField = Craft::$app->getFields()->getFieldByHandle('relations');
+$usedB = Entry::find()->title('Page B')->one();
+$unusedA1 = Entry::find()->title('Page A1')->one();
+[$liteUsed, $liteUnused, $liteSettings, $editorSees, $upgrade] = withWebRequest(function () use ($upsellField, $usedB, $unusedA1, $plugin) {
+    $editor = new craft\elements\User(['username' => 'smoke-upsell-editor', 'admin' => false]);
+    $admin = Craft::$app->getUser()->getIdentity();
+    Craft::$app->getUser()->setIdentity($editor);
+    $editorSees = $plugin::upsells();
+    Craft::$app->getUser()->setIdentity($admin);
+    Craft::$app->getView()->setTemplateMode('cp');
+    return [
+        $upsellField->getInputHtml(new RelationsModel($usedB->id, $usedB->siteId), $usedB),
+        $upsellField->getInputHtml(new RelationsModel($unusedA1->id, $unusedA1->siteId), $unusedA1),
+        Craft::$app->getView()->renderTemplate('element-relations/settings', ['settings' => $plugin::getInstance()->getSettings()]),
+        $editorSees,
+        $plugin::upgradeUrl(), // as a control panel request builds it
+    ];
+});
+check(str_contains($liteUsed, 'data-element-relations-upsell') && str_contains($liteUsed, Craft::t('element-relations', 'upsell-replace')) && str_contains($liteUsed, $upgrade), 'Lite: under a usage list, admins see what Pro would do here and the link to the Plugin Store');
+check(str_contains($liteUnused, Craft::t('element-relations', 'upsell-unused')), 'Lite: next to “Unused”, admins see that Pro finds everything nobody uses');
+check(str_contains($liteSettings, Craft::t('element-relations', 'upsell-settings-heading')) && str_contains($liteSettings, $upgrade) && !str_contains($liteSettings, 'protectInUse'), 'Lite: the plugin settings list what Pro adds, with Upgrade; no Pro setting');
+check(!$editorSees, 'Lite: editors never see it');
 Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
 check($plugin::isPro(), 'switching to Pro makes isPro() true');
+[$proUsed, $proSettings] = withWebRequest(function () use ($upsellField, $usedB, $plugin) {
+    Craft::$app->getView()->setTemplateMode('cp');
+    return [$upsellField->getInputHtml(new RelationsModel($usedB->id, $usedB->siteId), $usedB), Craft::$app->getView()->renderTemplate('element-relations/settings', ['settings' => $plugin::getInstance()->getSettings()])];
+});
+check(!str_contains($proUsed, 'data-element-relations-upsell') && !str_contains($proSettings, 'data-element-relations-upsell') && str_contains($proSettings, 'protectInUse'), 'Pro: no upsell anywhere; the settings have the protection switch');
 Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
 check($plugin::isPro() === ($editionBefore === 'pro'), "restored the $editionBefore edition");
 

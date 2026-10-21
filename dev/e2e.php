@@ -516,6 +516,7 @@ check($status === 200 && $jobsAfter === $jobsBefore + 1 && str_contains($rebuild
 $flush();
 [$status, $settingsHtml] = $http->page('/admin/settings/plugins/element-relations');
 check($status === 200 && str_contains($settingsHtml, 'bulkRefreshBatchSize'), "the plugin's settings page shows its settings (HTTP $status)");
+check(str_contains($settingsHtml, 'name="settings[protectInUse]"'), 'Pro: the settings page has the “Protect elements in use” switch');
 check(preg_match('#<tr data-operation-id="' . $operationId . '">(.*?)</tr>#s', $html, $row) === 1, 'the operation is listed');
 check(str_contains($row[1], 'E2E history from') && str_contains($row[1], 'E2E history to') && str_contains($row[1], 'admin'), 'its row shows what was replaced with what, and by whom');
 check(str_contains($row[1], 'element-relations/replace/rollback') && str_contains($row[1], 'name="operationId" value="' . $operationId . '"'), 'its row has a Roll back form');
@@ -632,6 +633,20 @@ $editorHttp->csrf = $info['csrfTokenValue'] ?? null;
 [, , $info] = $editorHttp->action('users/session-info', [], 'GET');
 $editorHttp->csrf = $info['csrfTokenValue'] ?? $editorHttp->csrf;
 check($status === 200 && ($info['username'] ?? '') === 'e2e-editor', "the editor is logged in (HTTP $status)");
+// Formie scopes its form query to the user's forms; for a user with none that was invalid SQL on PostgreSQL
+$formTarget = Entry::find()->section('pages')->title('Formie Default Target')->one();
+if ($formTarget && class_exists(verbb\formie\elements\Form::class)) {
+    // for this check only: the test pages may be viewed (the entry a form uses), Formie itself not
+    $pagesUid = Craft::$app->getEntries()->getSectionByHandle('pages')?->uid;
+    Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, [...$editorPermissions, "viewEntries:$pagesUid", "viewPeerEntries:$pagesUid"]);
+    [$status, $body, $json] = $editorHttp->action('element-indexes/get-elements', [
+        'elementType' => Usage::class, 'context' => 'embedded-index', 'source' => '*',
+        'criteria' => ['usesElement' => $formTarget->id, 'allSites' => 1, 'siteId' => $formTarget->siteId],
+        'viewState' => ['mode' => 'table', 'static' => false],
+    ]);
+    check($status === 200 && isset($json['html']), "an editor without access to Formie lists the usages of an entry a form uses (HTTP $status" . ($status === 200 ? '' : ': ' . substr($body, 0, 160)) . ')');
+    Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, $editorPermissions);
+}
 $stillThere = fn(Entry $entry): bool => (bool)Entry::find()->id($entry->id)->status(null)->exists();
 $isLive = fn(Entry $entry): bool => Entry::find()->id($entry->id)->status(null)->one()?->getStatus() === Entry::STATUS_LIVE;
 
@@ -659,7 +674,7 @@ check($status === 400 && str_contains($json['message'] ?? '', 'can’t be disabl
 $dialog = fn(string $route) => $editorHttp->action("delete-elements/$route", ['elementType' => Entry::class, 'elementIds' => [$inUse->id], 'siteId' => $inUse->siteId]);
 if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
     [$status, , $json] = $dialog('deletion-blockers');
-    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => (bool)preg_match('/live elements? uses? the/', $b['summary'] ?? '')));
+    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_starts_with($b['summary'] ?? '', 'Element Relations found')));
     check($status === 200 && $ours && str_contains($ours[0]['summary'], 'E2E in use source') && !array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), "delete dialog: the usages are a blocker, without “Delete anyway” for the editor (HTTP $status: " . ($ours[0]['summary'] ?? json_encode($json['blockers'] ?? [])) . ')');
     check(str_contains($ours[0]['details'] ?? '', 'Craft.createElementIndex') || str_contains($json['bodyHtml'] ?? '', 'usesElement'), 'delete dialog: it lists the usages');
     [$status, , $json] = $dialog('delete');
@@ -713,7 +728,7 @@ if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
     $inUse->enabled = true;
     $elements->saveElement($inUse);
     [, , $json] = $dialog('deletion-blockers');
-    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => (bool)preg_match('/live elements? uses? the/', $b['summary'] ?? '')));
+    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_starts_with($b['summary'] ?? '', 'Element Relations found')));
     check($ours && array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), 'with the permission the dialog offers “Delete anyway”');
 }
 $inUse->enabled = true;
@@ -816,4 +831,11 @@ foreach (internetztube\elementRelations\records\ReplacementRecord::find()->where
 foreach ([...array_values($sources), $target, $from] as $entry) {
     $elements->deleteElement($entry, true);
 }
+// the protection switch, off and on again through the settings form like an admin would; last, because the web
+// request changes project config, which this process then holds an out-of-date copy of
+$protect = fn(): mixed => json_decode((string)(new craft\db\Query())->select('value')->from('{{%projectconfig}}')->where(['path' => 'plugins.element-relations.settings.protectInUse'])->scalar());
+[$offStatus] = $http->action('plugins/save-plugin-settings', ['pluginHandle' => 'element-relations', 'settings' => ['bulkRefreshBatchSize' => 2000, 'protectInUse' => '']]);
+$off = $protect();
+[$onStatus] = $http->action('plugins/save-plugin-settings', ['pluginHandle' => 'element-relations', 'settings' => ['bulkRefreshBatchSize' => 2000, 'protectInUse' => '1']]);
+check($offStatus === 200 && $off === false && $onStatus === 200 && $protect() === true, "the switch saves off and on (HTTP $offStatus, $onStatus)");
 echo "All good.\n";

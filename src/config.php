@@ -15,6 +15,10 @@ return [
     // (plugin install, Utilities → Element Relations, `php craft element-relations/resave-relations`).
     'bulkRefreshBatchSize' => 2000,
 
+    // Pro: elements that live content uses can't be deleted, disabled, expired or scheduled in the control panel
+    // without the "Delete or disable elements that are in use" permission. false: Craft's usual behaviour.
+    'protectInUse' => true,
+
     // Feature flags.
     'features' => [
         // Offer the Lite/Pro editions. Off: the plugin is a single Lite edition.
