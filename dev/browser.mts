@@ -1,44 +1,43 @@
-// @ts-check
 /**
- * Headless Chrome over the DevTools protocol, no packages (Node 22+): what dev/ui.mjs (the control panel tests) and
- * dev/screenshots.mjs drive. Env: CHROME (path to Chrome; otherwise the usual places are tried).
+ * Headless Chrome over the DevTools protocol, no packages (Node 24, runs as TypeScript without a build step): what dev/ui.mts (the control panel tests) and
+ * dev/screenshots.mts drive. Env: CHROME (path to Chrome; otherwise the usual places are tried).
  */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-/**
- * @typedef {object} Browser
- * @property {(method: string, params?: object) => Promise<any>} send
- * @property {(event: string) => Promise<any>} once
- * @property {() => Promise<void>} close
- */
+export interface Browser {
+    send: (method: string, params?: object) => Promise<any>;
+    once: (event: string) => Promise<any>;
+    close: () => Promise<void>;
+}
 
-/** @param {number} ms */
-export function sleep(ms) {
+export interface Size {
+    width: number;
+    height: number;
+    scale?: number;
+}
+
+export function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Chrome's executable: CHROME, else the usual places (macOS app, Linux packages). */
-export function chromePath() {
+export function chromePath(): string {
     const candidates = [
         process.env.CHROME,
         '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser',
     ];
-    const found = candidates.find((path) => path && existsSync(path));
+    const found = candidates.find((path): path is string => !!path && existsSync(path));
     if (!found) {
         throw new Error('Chrome not found (set CHROME to its path)');
     }
     return found;
 }
 
-/**
- * @param {number} debuggingPort
- * @returns {Promise<Browser>}
- */
-export async function launchChrome(debuggingPort) {
+export async function launchChrome(debuggingPort: number): Promise<Browser> {
     const profile = mkdtempSync(join(tmpdir(), 'element-relations-chrome-'));
     const chrome = spawn(chromePath(), [
         '--headless=new', `--remote-debugging-port=${debuggingPort}`, `--user-data-dir=${profile}`,
@@ -46,8 +45,7 @@ export async function launchChrome(debuggingPort) {
         '--allow-file-access-from-files', '--no-sandbox', 'about:blank',
     ], { stdio: 'ignore' });
 
-    /** @type {{type: string, webSocketDebuggerUrl: string}[]} */
-    let targets = [];
+    let targets: { type: string, webSocketDebuggerUrl: string }[] = [];
     // up to 30 s: a CI runner busy with the coverage run can be slow to start it
     for (let attempt = 0; attempt < 300 && !targets.some((t) => t.type === 'page'); attempt++) {
         await sleep(100);
@@ -65,11 +63,9 @@ export async function launchChrome(debuggingPort) {
         socket.onerror = reject;
     });
     let lastId = 0;
-    /** @type {Map<number, {resolve: (value: any) => void, reject: (error: Error) => void}>} */
-    const pending = new Map();
-    /** @type {Map<string, ((params: any) => void)[]>} */
-    const waiting = new Map();
-    const send = (/** @type {string} */ method, params = {}) => new Promise((resolve, reject) => {
+    const pending = new Map<number, { resolve: (value: any) => void, reject: (error: Error) => void }>();
+    const waiting = new Map<string, ((params: any) => void)[]>();
+    const send = (method: string, params: object = {}) => new Promise<any>((resolve, reject) => {
         const id = ++lastId;
         pending.set(id, { resolve, reject });
         socket.send(JSON.stringify({ id, method, params }));
@@ -89,7 +85,7 @@ export async function launchChrome(debuggingPort) {
     };
     return {
         send,
-        once: (event) => new Promise((resolve) => waiting.set(event, [...(waiting.get(event) ?? []), resolve])),
+        once: (event: string) => new Promise((resolve) => waiting.set(event, [...(waiting.get(event) ?? []), resolve])),
         close: async () => {
             socket.close();
             const exited = new Promise((resolve) => chrome.once('exit', resolve));
@@ -106,12 +102,8 @@ export async function launchChrome(debuggingPort) {
     };
 }
 
-/**
- * Runs JavaScript in the page (top-level await allowed) and returns its value.
- * @param {Browser} browser
- * @param {string} code
- */
-export async function evaluate(browser, code) {
+/** Runs JavaScript in the page (top-level await allowed) and returns its value. */
+export async function evaluate(browser: Browser, code: string): Promise<any> {
     const result = await browser.send('Runtime.evaluate', {
         expression: `(async () => { ${code} })()`,
         awaitPromise: true,
@@ -123,35 +115,21 @@ export async function evaluate(browser, code) {
     return result.result?.value;
 }
 
-/**
- * @param {Browser} browser
- * @param {string} url
- */
-export async function open(browser, url) {
+export async function open(browser: Browser, url: string): Promise<void> {
     const loaded = browser.once('Page.loadEventFired');
     await browser.send('Page.navigate', { url });
     await loaded;
     await sleep(800);
 }
 
-/**
- * @param {Browser} browser
- * @param {{width: number, height: number, scale?: number}} size
- */
-export async function resize(browser, size) {
+export async function resize(browser: Browser, size: Size): Promise<void> {
     await browser.send('Emulation.setDeviceMetricsOverride', {
         width: size.width, height: size.height, deviceScaleFactor: size.scale ?? 1, mobile: false,
     });
 }
 
-/**
- * A fresh control panel session for this user (the demo users have the dev password).
- * @param {Browser} browser
- * @param {string} baseUrl
- * @param {string} username
- * @param {string} password
- */
-export async function login(browser, baseUrl, username, password) {
+/** A fresh control panel session for this user (the demo users have the dev password). */
+export async function login(browser: Browser, baseUrl: string, username: string, password: string): Promise<void> {
     await browser.send('Network.clearBrowserCookies');
     await open(browser, `${baseUrl}/admin/login`);
     const status = await evaluate(browser, `

@@ -1,6 +1,6 @@
 <?php
 /**
- * Pro, the in-use guard's rules outside a request (the control panel parts are in dev/e2e.php and dev/ui.mjs): which
+ * Pro, the in-use guard's rules outside a request (the control panel parts are in dev/e2e.php and dev/ui.mts): which
  * elements it looks at, what it names, and that the console, migrations and Lite are never guarded.
  */
 

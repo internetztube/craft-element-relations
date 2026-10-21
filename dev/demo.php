@@ -799,6 +799,9 @@ foreach (['images', 'documents'] as $handle) {
         $editorPermissions[] = "$permission:$uid";
     }
 }
+// editors see the forms (read only): the forms that redirect to "Thank you" are named in its delete dialog, and
+// Formie 4.0's form field fails on PostgreSQL for a user without any form
+array_push($editorPermissions, 'formie-accessForms', 'formie-viewForms');
 Craft::$app->getUserPermissions()->saveGroupPermissions($editors->id, $editorPermissions);
 foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amelie' => ['Amelie', 'Novak']] as $key => [$first, $last]) {
     $user = User::find()->username($key)->status(null)->one();
@@ -809,7 +812,7 @@ foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amel
         Craft::$app->getUsers()->activateUser($user);
     }
     if ($key === 'mara' && !$user->admin) {
-        // the editor the screenshots log in as (dev/screenshots.mjs), with the dev project's password
+        // the editor the screenshots log in as (dev/screenshots.mts), with the dev project's password
         $user->admin = true;
         $user->newPassword = 'password';
         $elements->saveElement($user) or fail($user);

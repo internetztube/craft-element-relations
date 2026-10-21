@@ -1,6 +1,5 @@
-// @ts-check
 /**
- * Control panel tests in a real browser (headless Chrome over the DevTools protocol, dev/browser.mjs): what a person
+ * Control panel tests in a real browser (headless Chrome over the DevTools protocol, dev/browser.mts): what a person
  * sees and does in the demo site (dev/demo.php): the field's list, its dropdowns, columns, sorting and filter, ticking
  * rows and the replace wizard's counts, replacing and undoing, the delete dialog, and what an editor without the
  * "in use" permission gets. Every number is checked against the list the user looks at.
@@ -14,26 +13,27 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { evaluate, launchChrome, login, open, PAGE_HELPERS, resize, sleep } from './browser.mjs';
+import { evaluate, launchChrome, login, open, PAGE_HELPERS, resize, sleep } from './browser.mts';
 
 const [projectDir, baseUrl = 'http://localhost:8080'] = process.argv.slice(2);
 if (!projectDir) {
-    console.error('Usage: node dev/ui.mjs <craft-project-dir> [base-url]');
+    console.error('Usage: node dev/ui.mts <craft-project-dir> [base-url]');
     process.exit(1);
 }
 const here = dirname(fileURLToPath(import.meta.url));
 const password = process.env.CP_PASSWORD ?? 'password';
 const only = process.env.ONLY ?? '';
-/** @type {{skyline: {id: number, path: string}, replacement: {id: number}, replaceIn: number[], hongKong: {id: number, path: string}, taipei: {id: number, path: string}, notes: {id: number, path: string}}} */
-const demo = JSON.parse(execFileSync('php', [join(here, 'screenshots.php'), projectDir], { encoding: 'utf8' }));
+/** An element of the demo site: its id and edit page. */
+interface Page {
+    id: number;
+    path: string;
+}
+
+const demo: { skyline: Page, replacement: { id: number }, replaceIn: number[], hongKong: Page, taipei: Page, notes: Page } = JSON.parse(execFileSync('php', [join(here, 'screenshots.php'), projectDir], { encoding: 'utf8' }));
 
 let failures = 0;
 let passed = 0;
-/**
- * @param {boolean} ok
- * @param {string} what
- */
-function check(ok, what) {
+function check(ok: boolean, what: string): void {
     console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${what}`);
     ok ? passed++ : failures++;
     if (!ok) {
@@ -45,27 +45,20 @@ const browser = await launchChrome(9334);
 await browser.send('Page.enable');
 await resize(browser, { width: 1400, height: 1200 });
 let currentUser = '';
-/** @param {string} username */
-const as = async (username) => {
+const as = async (username: string) => {
     if (currentUser !== username) {
         await login(browser, baseUrl, username, password);
         currentUser = username;
     }
 };
-/** @param {string} path */
-const visit = async (path) => {
+const visit = async (path: string) => {
     await open(browser, baseUrl + path);
     await evaluate(browser, PAGE_HELPERS);
 };
-/** @param {string} code */
-const run = (code) => evaluate(browser, code);
+const run = (code: string) => evaluate(browser, code);
 const failureDir = join(projectDir, 'storage', 'ui-failures');
 
-/**
- * @param {string} name
- * @param {() => Promise<void>} body
- */
-async function scenario(name, body) {
+async function scenario(name: string, body: () => Promise<void>): Promise<void> {
     if (only && !name.includes(only)) {
         return;
     }
@@ -97,7 +90,7 @@ try {
 
     await scenario('field list: rows, dropdown badges and the site filter agree', async () => {
         await visit(demo.taipei.path);
-        const facts = await run(`
+        const facts: { before: { rows: number, count: string, types: number[], sites: number[] }, after: { rows: number, count: string, siteCells: string[] } } = await run(`
             clickTab('Used in');
             await indexReady(fieldIndex(), 'the usage list');
             const index = fieldIndex();
@@ -174,7 +167,7 @@ try {
     // ---------------------------------------------------------------------------------------------------------------
     await scenario('wizard counts: a ticked page of a multi-site list', async () => {
         await visit(demo.taipei.path);
-        const facts = await run(`
+        const facts: { ticked: number, radios: { value: string, checked: boolean, label: string }[], summary: string, boxes: number, submit: string, sites: string } = await run(`
             clickTab('Used in');
             await indexReady(fieldIndex(), 'the usage list');
             const index = fieldIndex();
@@ -251,7 +244,7 @@ try {
     // ---------------------------------------------------------------------------------------------------------------
     await scenario('delete dialog: an admin sees the usages, Replace… and Delete anyway', async () => {
         await visit(demo.skyline.path);
-        const facts = await run(`
+        const facts: { summary: string, buttons: string[] } = await run(`
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
             await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
@@ -273,7 +266,7 @@ try {
 
     await scenario('editor: the delete dialog has no way past the usages', async () => {
         await visit(demo.skyline.path);
-        const facts = await run(`
+        const facts: { buttons: string[], submitDisabled: boolean | null, hint: boolean } = await run(`
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
             await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
@@ -311,8 +304,8 @@ try {
 
     await scenario('editor: the edit page refuses disabling, but saves otherwise', async () => {
         await visit(demo.taipei.path);
-        /** Clicks Save and waits for the page Craft answers with. @param {string} prepare */
-        const save = async (prepare) => {
+        /** Clicks Save and waits for the page Craft answers with. */
+        const save = async (prepare: string): Promise<{ notices: string[], errors: string[], live: boolean }> => {
             const loaded = browser.once('Page.loadEventFired');
             await run(`${prepare} await sleep(300); document.querySelector('#save-btn-container button.submit, #action-buttons button.submit').click();`);
             await loaded;

@@ -16,6 +16,10 @@ jobs:
           coverage: none
       - run: composer install --no-interaction --no-progress
       - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: dev/dev.sh typecheck
 
   smoke:
     # A real Craft 5 project with the plugin and every supported third-party plugin (dev/plugins.txt), seeded with
@@ -61,6 +65,9 @@ jobs:
           extensions: intl, pdo_mysql, pdo_pgsql, gd, bcmath, zip, mbstring
           ini-values: memory_limit=1G
           coverage: pcov
+      - uses: actions/setup-node@v4 # the Chrome suite is TypeScript, run as it is (Node 24)
+        with:
+          node-version: '24'
       - name: Cache Composer packages
         uses: actions/cache@v4
         with:

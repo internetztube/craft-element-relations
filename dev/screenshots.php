@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Prints the control panel paths and ids of the demo elements (dev/demo.php) that dev/screenshots.mjs shows, as JSON.
+ * Prints the control panel paths and ids of the demo elements (dev/demo.php) that dev/screenshots.mts shows, as JSON.
  * Run: php dev/screenshots.php <craft-project-dir>
  */
 

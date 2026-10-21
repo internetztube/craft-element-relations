@@ -9,7 +9,7 @@ declare(strict_types=1);
  */
 
 $log = file($argv[1] ?? throw new RuntimeException('Usage: php dev/tests-md.php <ci.log>'), FILE_IGNORE_NEW_LINES) ?: [];
-$suites = ['smoke' => 'Smoke (console, `dev/smoke.php`)', 'e2e' => 'Control panel over HTTP (`dev/e2e.php`)', 'ui' => 'Control panel in Chrome (`dev/ui.mjs`)'];
+$suites = ['smoke' => 'Smoke (console, `dev/smoke.php`)', 'e2e' => 'Control panel over HTTP (`dev/e2e.php`)', 'ui' => 'Control panel in Chrome (`dev/ui.mts`)'];
 $suite = 'smoke';
 $heading = '';
 /** @var array<string, array<string, list<string>>> $spec suite => heading => sentences */
