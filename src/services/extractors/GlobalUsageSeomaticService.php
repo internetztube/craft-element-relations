@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -32,13 +34,16 @@ class GlobalUsageSeomaticService implements InterfaceGlobalUsage
         if (Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
             $primarySiteId = Craft::$app->getSites()->getPrimarySite()->id;
             $now = Db::prepareDateForDb(new \DateTime());
+            /** @var list<array{id: int|string, sourceSiteId: int|string|null, metaBundleSettings: string|resource|null}> $bundles */
             $bundles = (new Query())
                 ->select(['id', 'sourceSiteId', 'metaBundleSettings'])
                 ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])
                 ->all();
             foreach ($bundles as $bundle) {
                 $json = $bundle['metaBundleSettings'];
-                $settings = json_decode(is_resource($json) ? stream_get_contents($json) : (string)$json, true) ?: [];
+                // PostgreSQL may hand out the JSON column as a stream
+                /** @var array<string, int|string|list<int|string>> $settings */
+                $settings = json_decode(is_resource($json) ? (string)stream_get_contents($json) : (string)$json, true) ?: [];
                 $assetIds = [];
                 foreach (self::IMAGE_ID_KEYS as $key) {
                     foreach ((array)($settings[$key] ?? []) as $id) {
@@ -53,7 +58,7 @@ class GlobalUsageSeomaticService implements InterfaceGlobalUsage
             }
         }
 
-        $db->transaction(function () use ($db, $table, $rows) {
+        $db->transaction(function () use ($db, $table, $rows): void {
             $db->createCommand()->delete($table, ['type' => self::type()])->execute();
             if ($rows) {
                 $db->createCommand()->batchInsert($table, ['targetElementId', 'targetSiteId', 'type', 'globalKey', 'dateCreated', 'dateUpdated', 'uid'], $rows)->execute();
@@ -66,6 +71,7 @@ class GlobalUsageSeomaticService implements InterfaceGlobalUsage
         if (!$rows || !Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
             return [];
         }
+        /** @var list<array{id: int|string, sourceBundleType: string, sourceHandle: string, sourceName: string, sourceSiteId: int|string|null}> $bundles */
         $bundles = (new Query())
             ->select(['id', 'sourceBundleType', 'sourceHandle', 'sourceName', 'sourceSiteId'])
             ->from([\nystudio107\seomatic\records\MetaBundle::tableName()])

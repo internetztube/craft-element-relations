@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -9,12 +11,7 @@ use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
 class FieldExtractorHyperService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!Craft::$app->plugins->isPluginEnabled('hyper') || !($field instanceof \verbb\hyper\fields\HyperField)) {
@@ -23,27 +20,26 @@ class FieldExtractorHyperService implements InterfaceFieldExtractor, InterfaceFi
 
         /** @var \verbb\hyper\models\LinkCollection $value */
         $value = $element->{$field->handle};
-        $links = $value->getLinks();
 
-        return collect($links)
-            ->filter(fn (\verbb\hyper\base\Link $link) => $link instanceof \verbb\hyper\base\ElementLink)
-            ->map(function (\verbb\hyper\base\ElementLink $link) use ($field, $baseRecord) {
-                return collect($link->getElements())
-                    ->map(function (ElementInterface $element) use ($field, $baseRecord) {
-                        $record = clone $baseRecord;
-                        $record->setAttributes([
-                            'type' => ElementRelationsCacheRecord::TYPE_FIELD,
-                            'targetElementId' => $element->id,
-                            'targetSiteId' => $element->siteId,
-                            'customFieldUid' => $field->uid,
-                            'fieldId' => $field->id,
-                        ]);
-                        return $record;
-                    });
-            })
-            ->flatten()
-            ->filter()
-            ->all();
+        $records = [];
+        foreach ($value->getLinks() as $link) {
+            if (!$link instanceof \verbb\hyper\base\ElementLink) {
+                continue;
+            }
+            /** @var ElementInterface $linkElement */
+            foreach ($link->getElements() as $linkElement) {
+                $record = clone $baseRecord;
+                $record->setAttributes([
+                    'type' => ElementRelationsCacheRecord::TYPE_FIELD,
+                    'targetElementId' => $linkElement->id,
+                    'targetSiteId' => $linkElement->siteId,
+                    'customFieldUid' => $field->uid,
+                    'fieldId' => $field->id,
+                ]);
+                $records[] = $record;
+            }
+        }
+        return $records;
     }
 
     /**
@@ -55,14 +51,15 @@ class FieldExtractorHyperService implements InterfaceFieldExtractor, InterfaceFi
         if (!($field instanceof \verbb\hyper\fields\HyperField)) {
             return null;
         }
+        /** @var list<array{type?: string, linkValue?: int|string|list<int|string>}> $value */
         $value = (array)$field->serializeValue($element->getFieldValue($field->handle), $element);
         $count = 0;
         foreach ($value as &$link) {
             $type = $link['type'] ?? null;
-            if (!is_subclass_of($type, \verbb\hyper\base\ElementLink::class) || !is_a($from, $type::elementType())) {
+            if ($type === null || !is_subclass_of($type, \verbb\hyper\base\ElementLink::class) || !is_a($from, $type::elementType())) {
                 continue;
             }
-            if (in_array($from->id, array_map('intval', (array)($link['linkValue'] ?? [])), true)) {
+            if (in_array($from->id, array_map(intval(...), (array)($link['linkValue'] ?? [])), true)) {
                 $link['linkValue'] = $to->id;
                 $count++;
             }

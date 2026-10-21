@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 return [
     'field-value-unused' => 'Unused',
     'field-hint-draft' => 'Drafts cannot be used in relations',
@@ -27,7 +29,6 @@ return [
     'utility-form-rebuild-cache-button-label' => 'Push Cache Refresh Job into Queue',
     'utility-form-rebuild-cache-success-notice' => 'Successfully pushed Job into Queue.',
 
-    'source-unused' => 'Unused',
     'replace-action-label' => 'Replace everywhere…',
     'replace-modal-title' => 'Replace with',
     'replace-invalid' => 'Pick a different element of the same type as the replacement.',

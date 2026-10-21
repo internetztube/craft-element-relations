@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use craft\base\ElementInterface;
@@ -11,15 +13,10 @@ class ElementExtractorUserPhotoService implements InterfaceElementExtractor, Int
 {
     public static function elementTypes(): array
     {
-        return [\craft\elements\User::class];
+        return [User::class];
     }
 
-    /**
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord|false
-     */
-    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|array|false
+    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|false
     {
         if (!($element instanceof User) || (!$userPhoto = $element->photo)) {
             return false;

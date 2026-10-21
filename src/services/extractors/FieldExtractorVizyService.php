@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -22,12 +24,7 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
 {
     private const REF_PATTERN = '/(?:#|%23|\{)(\w+):(\d+)(?:@(\d+))?/';
 
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!Craft::$app->getPlugins()->isPluginEnabled('vizy') || !($field instanceof \verbb\vizy\fields\VizyField)) {
@@ -43,7 +40,9 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         foreach ($value->getRawNodes() as $node) {
             foreach (self::refs($node) as [, $refHandle, $id, $siteId]) {
                 $type = Craft::$app->getElements()->getElementTypeByRefHandle($refHandle);
-                $target = $type ? Craft::$app->getElements()->getElementById((int)$id, $type, $siteId ?: $element->siteId) : null;
+                $target = $type !== null && is_subclass_of($type, ElementInterface::class)
+                    ? Craft::$app->getElements()->getElementById((int)$id, $type, $siteId ?: $element->siteId)
+                    : null;
                 if ($target) {
                     $targets[] = [$target->id, $target->siteId];
                 }
@@ -59,8 +58,8 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         }
 
         return collect($targets)
-            ->unique(fn(array $target) => implode('-', $target))
-            ->map(function (array $target) use ($field, $baseRecord) {
+            ->unique(fn(array $target): string => implode('-', $target))
+            ->map(function (array $target) use ($field, $baseRecord): ElementRelationsCacheRecord {
                 $record = clone $baseRecord;
                 $record->setAttributes([
                     'type' => ElementRelationsCacheRecord::TYPE_FIELD,
@@ -90,11 +89,12 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
             return false;
         }
 
-        $nodes = Json::decode($field->serializeValue($value, $element));
+        /** @var string $json */
+        $json = $field->serializeValue($value, $element);
+        /** @var list<array{attrs?: array{values?: array{content?: array{fields?: array<string, mixed>}}}}> $nodes */
+        $nodes = Json::decode($json);
         $count = 0;
-        foreach ($nodes as $i => $node) {
-            $nodes[$i] = self::rewrite($node, $from, $to, $count);
-        }
+        // block fields first: rewrite() never descends into a block's field values, so the order does not matter
         foreach ($value->getNodes() as $i => $node) {
             if (!($node instanceof \verbb\vizy\nodes\VizyBlock)) {
                 continue;
@@ -106,6 +106,9 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
                     $count++;
                 }
             }
+        }
+        foreach ($nodes as $i => $node) {
+            $nodes[$i] = self::rewrite($node, $from, $to, $count);
         }
         if (!$count) {
             return false;
@@ -120,9 +123,10 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         if (!is_array($node)) {
             return $node;
         }
+        $refHandle = (string)$from::refHandle();
         foreach (['href', 'src', 'url'] as $attr) {
             if (is_string($node['attrs'][$attr] ?? null)) {
-                $node['attrs'][$attr] = preg_replace('/((?:#|%23|\{)' . preg_quote($from::refHandle(), '/') . ':)' . $from->id . '(?!\d)/', '${1}' . $to->id, $node['attrs'][$attr], -1, $n);
+                $node['attrs'][$attr] = preg_replace('/((?:#|%23|\{)' . preg_quote($refHandle, '/') . ':)' . $from->id . '(?!\d)/', '${1}' . $to->id, $node['attrs'][$attr], -1, $n);
                 $count += $n;
             }
         }
@@ -138,7 +142,10 @@ class FieldExtractorVizyService implements InterfaceFieldExtractor, InterfaceFie
         return $node;
     }
 
-    /** Ref matches in `href`/`src`/`url` attributes of a raw node, its marks and its child nodes (not block field values). */
+    /**
+     * Ref matches in `href`/`src`/`url` attributes of a raw node, its marks and its child nodes (not block field values).
+     * @return list<array{0: string, 1: string, 2: string, 3: string|null}> [match, ref handle, element id, site id]
+     */
     private static function refs(mixed $node): array
     {
         if (!is_array($node)) {

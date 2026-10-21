@@ -15,7 +15,7 @@ return function (array $ctx): void {
     $elements = Craft::$app->getElements();
     $section = Craft::$app->getEntries()->getSectionByHandle('pages');
     $typeId = $section->getEntryTypes()[0]->id;
-    $adminId = craft\elements\User::find()->admin()->one()->id;
+    $adminId = craft\elements\User::find()->username('admin')->one()->id;
     $asset = $ctx['asset'];
     $target = $ctx['target'];
     $volume = Craft::$app->getVolumes()->getVolumeByHandle('test');

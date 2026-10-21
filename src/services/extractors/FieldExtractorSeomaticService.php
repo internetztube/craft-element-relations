@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use craft\base\ElementInterface;
@@ -9,12 +11,7 @@ use Craft;
 
 class FieldExtractorSeomaticService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!Craft::$app->plugins->isPluginEnabled('seomatic')) {
@@ -29,30 +26,26 @@ class FieldExtractorSeomaticService implements InterfaceFieldExtractor, Interfac
         $value = $element->{$field->handle};
         $settings = $value->metaBundleSettings;
         // SEO, Twitter and Open Graph images are separate asset lists
-        $assetIds = collect([...(array)$settings->seoImageIds, ...(array)$settings->twitterImageIds, ...(array)$settings->ogImageIds])
-            ->map(fn ($assetId) => (int) $assetId)
-            ->filter()
-            ->unique();
-
-        if ($assetIds->isEmpty()) {
+        /** @var list<int|string> $ids */
+        $ids = [...(array)$settings->seoImageIds, ...(array)$settings->twitterImageIds, ...(array)$settings->ogImageIds];
+        $assetIds = array_unique(array_filter(array_map(intval(...), $ids)));
+        if (!$assetIds) {
             return false;
         }
 
-        return $assetIds
-            ->map(function (int $assetId) use ($field, $baseRecord, $element) {
-                $record = clone $baseRecord;
-                $record->setAttributes([
-                    'type' => ElementRelationsCacheRecord::TYPE_FIELD,
-                    'targetElementId' => $assetId,
-                    'targetSiteId' => $element->siteId,
-                    'customFieldUid' => $field->uid,
-                    'fieldId' => $field->id,
-                ]);
-                return $record;
-            })
-            ->flatten()
-            ->filter()
-            ->all();
+        $records = [];
+        foreach ($assetIds as $assetId) {
+            $record = clone $baseRecord;
+            $record->setAttributes([
+                'type' => ElementRelationsCacheRecord::TYPE_FIELD,
+                'targetElementId' => $assetId,
+                'targetSiteId' => $element->siteId,
+                'customFieldUid' => $field->uid,
+                'fieldId' => $field->id,
+            ]);
+            $records[] = $record;
+        }
+        return $records;
     }
 
     public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
@@ -60,11 +53,12 @@ class FieldExtractorSeomaticService implements InterfaceFieldExtractor, Interfac
         if (!($field instanceof \nystudio107\seomatic\fields\SeoSettings)) {
             return null;
         }
+        /** @var array{metaBundleSettings?: array<string, int|string|list<int|string>>} $value */
         $value = $field->serializeValue($element->getFieldValue($field->handle), $element);
         $count = 0;
         foreach (['seoImageIds', 'twitterImageIds', 'ogImageIds'] as $key) {
             $ids = (array)($value['metaBundleSettings'][$key] ?? []);
-            $value['metaBundleSettings'][$key] = array_values(array_unique(array_map(function ($id) use ($from, $to, &$count) {
+            $value['metaBundleSettings'][$key] = array_values(array_unique(array_map(function (mixed $id) use ($from, $to, &$count): mixed {
                 if ((int)$id === $from->id) {
                     $count++;
                     return (string)$to->id;

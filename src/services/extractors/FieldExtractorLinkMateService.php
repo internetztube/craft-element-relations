@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -13,12 +15,7 @@ use internetztube\elementRelations\records\ElementRelationsCacheRecord;
  */
 class FieldExtractorLinkMateService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
-    /**
-     * @param Field $field
-     * @param ElementInterface $element
-     * @param ElementRelationsCacheRecord $baseRecord
-     * @return ElementRelationsCacheRecord[]|false
-     */
+    /** @return list<ElementRelationsCacheRecord>|false */
     public static function getRelations(Field $field, ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!Craft::$app->plugins->isPluginEnabled('linkmate') || !($field instanceof \vaersaagod\linkmate\fields\LinkField)) {

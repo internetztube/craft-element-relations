@@ -7,7 +7,8 @@ return function (array $ctx): void {
     $asset = $ctx['asset'];
     // The fallback URL after `||` must be non-empty, otherwise HtmlField does not recognise the ref tag.
     ensureEntry('Page via CKEditor', ['ckeditor' => sprintf(
-        '<p><a href="{entry:%d@%d:url||%s}">Page C</a></p><p><img src="{asset:%d:url||%s}" alt="test"></p>',
+        // ordinary text with `||` and braces must not be taken for reference tags
+        '<p>fast || cheap {not a tag}</p><p><a href="{entry:%d@%d:url||%s}">Page C</a></p><p><img src="{asset:%d:url||%s}" alt="test"></p>',
         $target->id, $target->siteId, $target->getUrl(), $asset->id, $asset->getUrl() ?: 'http://localhost/test.png',
     )]);
 };

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\elements\db;
 
 use Craft;
@@ -13,7 +15,12 @@ use craft\elements\Entry;
 use craft\elements\GlobalSet;
 use craft\elements\User;
 use craft\helpers\Db;
+use craft\models\CategoryGroup;
+use craft\models\Section;
+use craft\models\Site;
+use craft\models\Volume;
 use DateTime;
+use internetztube\elementRelations\behaviors\ElementQueryBehavior;
 use internetztube\elementRelations\elements\RestrictedUsage;
 use internetztube\elementRelations\elements\Usage;
 
@@ -27,6 +34,8 @@ use internetztube\elementRelations\elements\Usage;
  * Filtering, searching, sorting, counting and paging run on the `elements` table across all types. The matched rows
  * are then loaded through their own element type's query (one query per type and site on the page), so every result
  * is a fully populated element of its real class.
+ *
+ * @extends ElementQuery<int, ElementInterface>
  */
 class UsageQuery extends ElementQuery
 {
@@ -58,6 +67,7 @@ class UsageQuery extends ElementQuery
     /** @var array<string, array{pairs: array<int, int[]>}> per request: "<viewer>|<targets>" => viewable pairs */
     private static array $_pairs = [];
 
+    /** @param array<string, mixed> $config */
     public function __construct(array $config = [])
     {
         parent::__construct(Usage::class, $config);
@@ -107,15 +117,17 @@ class UsageQuery extends ElementQuery
         if ($this->allSites) {
             $this->siteId = Craft::$app->getSites()->getAllSiteIds(); // siteId is normalized before beforePrepare()
         }
+        /** @var Query<array-key, mixed> $subQuery prepare() creates it before calling beforePrepare() */
+        $subQuery = $this->subQuery;
         $viewer = $this->viewer();
         if ($this->elementTypes) {
-            $this->subQuery->andWhere(['elements.type' => (array)$this->elementTypes]);
+            $subQuery->andWhere(['elements.type' => (array)$this->elementTypes]);
         }
         // Date-based statuses (live / pending / expired) live in the entries and products tables. Left joins, so other
         // element types stay in the result (a plain joinElementTable() would inner-join and also drop Craft's type filter).
-        $this->subQuery->leftJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]');
+        $subQuery->leftJoin(['entries' => Table::ENTRIES], '[[entries.id]] = [[elements.id]]');
         if (self::hasProducts()) {
-            $this->subQuery->leftJoin(['commerce_products' => '{{%commerce_products}}'], '[[commerce_products.id]] = [[elements.id]]');
+            $subQuery->leftJoin(['commerce_products' => '{{%commerce_products}}'], '[[commerce_products.id]] = [[elements.id]]');
         }
         if ($viewer) {
             // a restricted user only ever sees usages of elements they may view, and only usages they may view
@@ -138,7 +150,7 @@ class UsageQuery extends ElementQuery
             foreach ($pairs as $siteId => $ids) {
                 $condition[] = ['and', ['elements_sites.siteId' => $siteId], ['elements.id' => $ids]];
             }
-            $this->subQuery->andWhere($condition);
+            $subQuery->andWhere($condition);
         }
         return parent::beforePrepare();
     }
@@ -146,6 +158,7 @@ class UsageQuery extends ElementQuery
     /**
      * Entry statuses, applied to every element type: an entry or product is live/pending/expired by its dates, every
      * other enabled element counts as live.
+     * @return string|array<int|string, mixed>|\yii\db\ExpressionInterface|false|null
      */
     protected function statusCondition(string $status): mixed
     {
@@ -159,31 +172,32 @@ class UsageQuery extends ElementQuery
         $enabled = ['elements.enabled' => true, 'elements_sites.enabled' => true];
         $dated = self::hasProducts() ? ['entries', 'commerce_products'] : ['entries'];
 
-        $perTable = fn(callable $condition) => array_map($condition, $dated);
+        $perTable = fn(callable $condition): array => array_map($condition, $dated);
         return match ($status) {
             Entry::STATUS_LIVE => [
                 'and',
                 $enabled,
-                ...$perTable(fn(string $t) => [
+                ...$perTable(fn(string $t): array => [
                     'or',
                     ["$t.id" => null], // not an element of this dated type
                     ['and', ['<=', "$t.postDate", $nowDb], ['or', ["$t.expiryDate" => null], ['>', "$t.expiryDate", $nowDb]]],
                 ]),
             ],
-            Entry::STATUS_PENDING => ['and', $enabled, ['or', ...$perTable(fn(string $t) => ['>', "$t.postDate", $nowDb])]],
-            Entry::STATUS_EXPIRED => ['and', $enabled, ['or', ...$perTable(fn(string $t) => ['<=', "$t.expiryDate", $nowDb])]],
+            Entry::STATUS_PENDING => ['and', $enabled, ['or', ...$perTable(fn(string $t): array => ['>', "$t.postDate", $nowDb])]],
+            Entry::STATUS_EXPIRED => ['and', $enabled, ['or', ...$perTable(fn(string $t): array => ['<=', "$t.expiryDate", $nowDb])]],
         };
     }
 
-    /** @return int[] the `usesElement` targets (ElementQueryBehavior) */
+    /** @return list<int> the `usesElement` targets (ElementQueryBehavior) */
     private function targetIds(): array
     {
-        $targets = $this->getBehavior('elementRelations')?->usesElement ?? null;
+        $behavior = $this->getBehavior('elementRelations');
+        $targets = $behavior instanceof ElementQueryBehavior ? $behavior->usesElement : null;
         if ($targets === null) {
             return [];
         }
         return array_values(array_filter(array_map(
-            fn($t) => $t instanceof ElementInterface ? (int)$t->id : (int)$t,
+            fn($target): int => $target instanceof ElementInterface ? (int)$target->id : (int)$target,
             is_array($targets) ? $targets : [$targets],
         )));
     }
@@ -212,6 +226,7 @@ class UsageQuery extends ElementQuery
             ->leftJoin(['categories' => Table::CATEGORIES], '[[categories.id]] = [[elements.id]]')
             ->where(['cache.targetElementId' => $targetIds, 'elements.dateDeleted' => null, 'elements.revisionId' => null])
             ->andWhere(['not', ['cache.sourceElementId' => null]]);
+        /** @var list<array{id: int|string, siteId: int|string, type: string}> $candidates */
         $candidates = $base->andWhere(self::viewCondition($viewer))->all();
 
         $byTypeAndSite = [];
@@ -225,6 +240,7 @@ class UsageQuery extends ElementQuery
                 continue;
             }
             foreach ($sites as $siteId => $ids) {
+                /** @var ElementInterface[] $loaded */
                 $loaded = $type::find()->id($ids)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
                 foreach ($loaded as $element) {
                     if ($elementsService->canView($element, $viewer)) {
@@ -263,11 +279,13 @@ class UsageQuery extends ElementQuery
      * The coarse part of Craft's view permissions as SQL, for the core element types: only what the user could see
      * at all (section, volume, category group, global set, other users, sites). Finer rules (other authors' entries,
      * drafts, temporary uploads, plugin authorization events) are checked per element in viewablePairs().
+     * @return array<int|string, mixed>
      */
     private static function viewCondition(User $user): array
     {
-        $uidsAllowed = fn(array $items, string $permission) => array_values(array_filter(array_map(
-            fn($item) => $user->can(sprintf($permission, $item->uid)) ? $item->id : null,
+        // ids of the sections/volumes/groups/sets whose permission (`viewEntries:<uid>`, ...) the user has
+        $uidsAllowed = fn(array $items, string $permission): array => array_values(array_filter(array_map(
+            fn(Section|Volume|CategoryGroup|GlobalSet $item): ?int => $user->can(sprintf($permission, $item->uid)) ? $item->id : null,
             $items,
         )));
         $sectionIds = $uidsAllowed(Craft::$app->getEntries()->getAllSections(), 'viewEntries:%s');
@@ -293,7 +311,7 @@ class UsageQuery extends ElementQuery
 
         if (Craft::$app->getIsMultiSite()) {
             $siteIds = array_values(array_filter(array_map(
-                fn($site) => $user->can("editSite:$site->uid") ? $site->id : null,
+                fn(Site $site): ?int => $user->can("editSite:$site->uid") ? $site->id : null,
                 Craft::$app->getSites()->getAllSites(),
             )));
             $condition = ['and', $condition, ['elements_sites.siteId' => $siteIds ?: [0]]];
@@ -307,8 +325,8 @@ class UsageQuery extends ElementQuery
     }
 
     /**
-     * @param array $rows
-     * @return ElementInterface[]|array[]
+     * @param list<array{id: int|string, siteId: int|string}> $rows
+     * @return list<ElementInterface>|array<array<string, mixed>>
      */
     public function populate($rows): array
     {
@@ -318,6 +336,7 @@ class UsageQuery extends ElementQuery
 
         // the element type of each row (not selected by the base query, and adding it to its select would break
         // Craft's search param, which reuses the query as an `id IN (...)` subquery)
+        /** @var array<int, string> $types */
         $types = (new Query())
             ->select(['id', 'type'])
             ->from(Table::ELEMENTS)
@@ -335,6 +354,7 @@ class UsageQuery extends ElementQuery
                 continue;
             }
             foreach ($sites as $siteId => $ids) {
+                /** @var ElementInterface[] $loaded */
                 $loaded = $type::find()
                     ->id($ids)
                     ->siteId($siteId)
@@ -346,15 +366,15 @@ class UsageQuery extends ElementQuery
                     ->all();
                 foreach ($loaded as $element) {
                     $elements["$type:$siteId:$element->id"] = $element;
-                    Usage::$via["$element->id:$siteId"] ??= [];
+                    Usage::$via["$element->id:$siteId"] = []; // reset: an earlier list in this request may have used another target
                 }
             }
         }
 
         // through which field(s) each loaded element uses the target (for the index's "Field" column)
-        $targetIds = $this->getBehavior('elementRelations')?->usesElement ?? null;
-        if ($targetIds !== null && $elements) {
-            $targetIds = array_map(fn($t) => $t instanceof ElementInterface ? $t->id : (int)$t, is_array($targetIds) ? $targetIds : [$targetIds]);
+        $targetIds = $this->targetIds();
+        if ($targetIds && $elements) {
+            /** @var list<array{sourcePrimaryOwnerId: int|string, sourceSiteId: int|string, fieldId: int|string|null, type: string}> $rowsVia */
             $rowsVia = (new Query())
                 ->select(['sourcePrimaryOwnerId', 'sourceSiteId', 'fieldId', 'type'])
                 ->distinct()

@@ -6,6 +6,7 @@
  * Run: dev/dev.sh smoke   (or: php dev/smoke.php <craft-project-dir>, after seeding and rebuilding the cache)
  */
 require ($argv[1] ?? __DIR__) . '/bootstrap.php';
+$smokeStartedAt = new DateTime('-1 second'); // the replacement history this run writes is removed again at the end
 /** @var craft\console\Application $app */
 $app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
 
@@ -38,7 +39,7 @@ function withWebRequest(callable $fn): mixed
     Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true, 'cookieValidationKey' => Craft::$app->getConfig()->getGeneral()->securityKey, 'url' => '/admin']);
     Craft::$app->set('response', ['class' => craft\web\Response::class]);
     // Craft's index templates check the current user's permissions (editable sites, ...); a console request has none
-    Craft::$app->getUser()->setIdentity(craft\elements\User::find()->admin()->one());
+    Craft::$app->getUser()->setIdentity(craft\elements\User::find()->username('admin')->one());
     try {
         return $fn();
     } catch (Throwable $e) {
@@ -197,10 +198,10 @@ $a1 = Entry::find()->title('Page A1')->one();
 check($a1->getAttributeHtml(Usage::ATTR_TYPE) === 'Entry' && $a1->getAttributeHtml(Usage::ATTR_WHERE) === 'Pages › Page' && $a1->getAttributeHtml(Usage::ATTR_SITE) !== '', 'index columns Type / Where / Site come from the attribute HTML hook');
 check(str_contains($a1->getAttributeHtml('dateUpdated'), '<'), "Craft's own Date Updated column still works on the real element");
 $a1Usage = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
-$a1Usage->setAuthorIds([craft\elements\User::find()->admin()->one()->id]); // seeded entries have no author
+$a1Usage->setAuthorIds([craft\elements\User::find()->username('admin')->one()->id]); // seeded entries have no author
 $authorsHtml = $a1Usage->getAttributeHtml('authors'); // Craft Solo has no Authors column
 check((Craft::$app->edition === craft\enums\CmsEdition::Solo ? $authorsHtml === '' : str_contains($authorsHtml, 'chip')) && str_contains($a1Usage->getAttributeHtml('status'), 'status-label') && $a1Usage->getAttributeHtml('postDate') !== '' && str_contains($a1Usage->getAttributeHtml('link'), 'href'), 'Authors / Status / Post Date / Link columns render on an entry loaded through Usage');
-$assetUsage = Asset::find()->volume('test')->one();
+$assetUsage = Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one(); // the seeded test asset (seed.php)
 Usage::$via["$assetUsage->id:$assetUsage->siteId"] ??= [];
 check($assetUsage->getAttributeHtml('authors') === '' && $assetUsage->getAttributeHtml('postDate') === '' && str_contains($assetUsage->getAttributeHtml('filename'), '.png'), 'columns an element type lacks render empty in a Usage index (asset: Authors, Post Date), its own still work (Filename)');
 $a1Loaded = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
@@ -297,9 +298,12 @@ foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
     (require $file)($ctx);
 }
 
-// operations the tests created (their temporary elements are gone again)
+// the operations this run created, and older ones whose elements are gone (the history then shows real work only,
+// e.g. the demo's for screenshots)
+internetztube\elementRelations\records\ReplacementRecord::deleteAll(['>=', 'dateCreated', craft\helpers\Db::prepareDateForDb($smokeStartedAt)]);
 foreach (internetztube\elementRelations\records\ReplacementRecord::find()->all() as $operation) {
-    if (!Craft::$app->getElements()->getElementById($operation->fromId, null, $operation->siteId) || !Craft::$app->getElements()->getElementById($operation->toId, null, $operation->siteId)) {
+    $elements = Craft::$app->getElements();
+    if (!$elements->getElementById($operation->fromId, null, $operation->siteId) || !$elements->getElementById($operation->toId, null, $operation->siteId)) {
         $operation->delete();
     }
 }

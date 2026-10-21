@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\services\extractors;
 
 use Craft;
@@ -28,10 +30,8 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
         return ['verbb\\formie\\elements\\Form', 'verbb\\formie\\elements\\Submission'];
     }
 
-    /**
-     * @return ElementRelationsCacheRecord[]|false
-     */
-    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): ElementRelationsCacheRecord|array|false
+    /** @return list<ElementRelationsCacheRecord>|false */
+    public static function getRelations(ElementInterface $element, ElementRelationsCacheRecord $baseRecord): array|false
     {
         if (!Craft::$app->getPlugins()->isPluginEnabled('formie')) {
             return false;
@@ -42,7 +42,9 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
             $targets = [];
             foreach ($element->getFieldValuesForField(ElementField::class) as $value) {
                 if ($value instanceof ElementQueryInterface) {
-                    array_push($targets, ...(clone $value)->status(null)->all());
+                    /** @var ElementInterface[] $selected */
+                    $selected = (clone $value)->status(null)->all();
+                    array_push($targets, ...$selected);
                 }
             }
         } else {
@@ -65,10 +67,10 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
     /** @return ElementInterface[] */
     private static function formTargets(Form $form): array
     {
-        $targets = self::find(Entry::class, $form->redirectEntryId, $form->redirectEntrySiteId ?: $form->siteId);
+        $targets = self::find(Entry::class, $form->redirectEntryId, (int)($form->redirectEntrySiteId ?: $form->siteId));
         foreach ($form->getSettings()?->redirectRules ?? [] as $rule) {
             $ref = $rule['redirectEntry'] ?? null;
-            $targets = [...$targets, ...self::find(Entry::class, $ref, (int)($ref['siteId'] ?? $ref[0]['siteId'] ?? 0) ?: $form->siteId)];
+            $targets = [...$targets, ...self::find(Entry::class, $ref, (int)($ref['siteId'] ?? $ref[0]['siteId'] ?? 0) ?: (int)$form->siteId)];
         }
         foreach ($form->getFieldsRecursively() as $field) {
             if ($field instanceof ElementField) {
@@ -93,11 +95,13 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
     private static function find(string $elementType, mixed $ref, int $siteId): array
     {
         $ref = is_array($ref) && isset($ref['id']) ? [$ref] : (array)$ref;
-        $ids = array_filter(array_map(fn($item) => (int)(is_array($item) ? ($item['id'] ?? 0) : $item), $ref));
+        $ids = array_filter(array_map(fn($item): int => (int)(is_array($item) ? ($item['id'] ?? 0) : $item), $ref));
         if (!$ids) {
             return [];
         }
-        return $elementType::find()->id($ids)->status(null)->site('*')->preferSites([$siteId])->unique()->all();
+        /** @var ElementInterface[] $elements */
+        $elements = $elementType::find()->id($ids)->status(null)->site('*')->preferSites([$siteId])->unique()->all();
+        return $elements;
     }
 
     /** The inverse of getRelations(): same places, ids swapped in place (the stored shape is kept). */
@@ -138,7 +142,8 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
                 if (!($value instanceof ElementQueryInterface)) {
                     continue;
                 }
-                $ids = self::swap(array_map('intval', (clone $value)->status(null)->ids()), $from, $to, $count);
+                /** @var int[] $ids swap() keeps the shape of what it gets */
+                $ids = self::swap(array_map(intval(...), (clone $value)->status(null)->ids()), $from, $to, $count);
                 if (in_array($to->id, $ids, true)) {
                     $element->setFieldValue($key, $ids);
                 }
@@ -159,9 +164,11 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
             return $ref;
         }
         if (is_array($ref)) {
-            return array_map(function ($item) use ($from, $to, &$count) { return self::swap($item, $from, $to, $count); }, $ref);
+            return array_map(function (mixed $item) use ($from, $to, &$count): mixed {
+                return self::swap($item, $from, $to, $count);
+            }, $ref);
         }
-        if ($ref && (int)$ref === $from->id) {
+        if (is_scalar($ref) && (int)$ref === $from->id) {
             $count++;
             return $to->id;
         }

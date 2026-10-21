@@ -2,8 +2,9 @@
 
 See where every element is used. One native list of everything that links to an entry, asset, category, product or any other element, across all element types, sites and the plugins your project uses.
 
-![Share](screenshots/share.png)
-![Asset Detail](screenshots/asset-detail-en.png)
+![See where every element is used](docs/screenshots/usage-list.png)
+
+More in the [tour](docs/README.md).
 
 ## Features
 
@@ -15,7 +16,7 @@ See where every element is used. One native list of everything that links to an 
 
 **Pro** (behind a feature flag for now, see [Editions](#editions)):
 
-- **Unused:** a “Used anywhere” filter rule, an “Unused” source on asset, category and tag indexes with Craft's bulk actions, `craft.assets().unused()`.
+- **Unused:** a “Used anywhere” rule in Craft's index filter (on top of any source, with the bulk actions) and in custom sources, `craft.assets().unused()`.
 - **Replace:** swap an element for another everywhere or in the usages you pick, guided by a two-step wizard in the field. Every supported field and plugin is rewritten the way it was read.
 - **Undo and rollback:** Undo right in the notice, a history with Roll back in Utilities, revisions with notes for entries, large replacements in the background.
 
@@ -137,7 +138,7 @@ The relations field only returns what the GraphQL schema may read: elements of s
 
 The plugin is a single Lite edition today; everything in [Features](#features) except the Pro list is Lite. The Pro edition is ready behind a feature flag (`'features' => ['editions' => true]` in `config/element-relations.php`) and adds:
 
-- **Unused:** “Used anywhere” rule in Craft's index filter and custom-source conditions, an “Unused” source on asset, category and tag indexes (with Craft's bulk actions), `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
+- **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
 - **Replace:** the field's “Replace…” button guides you through picking the replacement (step 1) and ticking the usages to replace (step 2). “Replace everywhere…” in an element index does all at once. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements touching more than `replaceSyncLimit` elements run as a queue job as the user who started them.
@@ -197,27 +198,18 @@ Extractor errors, replacements and rollbacks are logged to `storage/logs/element
 
 ## Screenshots
 
-Asset Overview
-![Asset Overview Primary Page](screenshots/asset-overview.png)
-
-Asset detail
-![Asset Detail](screenshots/asset-detail-en.png)
-
-Create Field
-![Field Edit Page](screenshots/field.png)
-
-Add to Field Layout
-![Field Edit Page](screenshots/fieldlayout.png)
+Every feature, in the demo site: [docs/README.md](docs/README.md).
 
 ## Development
 
-`dev/dev.sh` spins up a throwaway Craft 5 project with every supported plugin and a second site, seeds test content and starts a server at http://localhost:8080/admin (admin / password).
+`dev/dev.sh` spins up a throwaway Craft 5 project with every supported plugin and a second site, seeds test content and starts a server at http://localhost:8080/admin (admin / password). Next to the test fixtures (section “Pages”) the seed builds a demo site for screenshots ([`dev/demo.php`](dev/demo.php)): “Transit”, a travel journal with articles, team, company pages, a homepage of content blocks, menus, forms, drafts and German translations, with photos by Frederic Köberl on [Unsplash](https://unsplash.com/@internetztube) (downloaded on the first seed; drawn pictures without network).
 
 ```sh
 dev/dev.sh                      # setup + serve (PostgreSQL)
 DB_DRIVER=mysql PROJECT_DIR=../craft-element-relations-dev-mysql PORT=8081 dev/dev.sh
 dev/dev.sh smoke                # seed and run dev/smoke.php (every integration, incl. replace and rollback)
 dev/dev.sh e2e                  # control panel over HTTP: every usage through the wizard, undo, history
+dev/dev.sh screenshots          # retake docs/screenshots from the demo site (headless Chrome)
 vendor/bin/phpstan              # static analysis
 ```
 

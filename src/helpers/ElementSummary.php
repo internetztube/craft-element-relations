@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\helpers;
 
 use Craft;
@@ -29,12 +31,11 @@ class ElementSummary
             $element instanceof \craft\commerce\elements\Variant => [$element->getOwner()?->getType()->name],
             default => [],
         };
-        return implode(' › ', array_filter(array_map(fn($p) => $p ? Craft::t('site', $p) : null, $parts)));
+        return implode(' › ', array_filter(array_map(fn(?string $part): ?string => $part ? Craft::t('site', $part) : null, $parts)));
     }
 
     /**
-     * "Field" column of the index: the field(s) through which `$element` uses the target, each linking to the
-     * element's edit page at that field (tab + scroll, see the script in ElementRelations::init()).
+     * "Field" column of the index: the field(s) through which `$element` uses the target (see Usage::$via).
      * Relations that don't come from a field (user photo, navigation node, ...) get a label instead.
      */
     public static function viaHtml(ElementInterface $element): string
@@ -43,7 +44,7 @@ class ElementSummary
         $parts = [];
         foreach ($vias as $via) {
             if ($via['fieldId'] && ($field = Craft::$app->getFields()->getFieldById($via['fieldId']))) {
-                $parts[$field->id] = Html::encode(Craft::t('site', $field->name));
+                $parts[$field->id] = Html::encode(Craft::t('site', (string)$field->name));
             } else {
                 $label = match (true) {
                     $via['type'] === 'element-user-photo' => Craft::t('element-relations', 'field-via-user-photo'),
@@ -61,11 +62,14 @@ class ElementSummary
         return implode(', ', $parts);
     }
 
-    /** Craft chips for non-element usages (plugin settings), linked to their settings page. */
+    /**
+     * Craft chips for non-element usages (plugin settings), linked to their settings page.
+     * @param GlobalUsage[] $usages
+     */
     public static function globalUsagesHtml(array $usages): string
     {
         return Html::tag('div', implode('', array_map(
-            fn(GlobalUsage $usage) => Cp::chipHtml($usage, ['hyperlink' => true, 'showThumb' => true, 'autoReload' => false]),
+            fn(GlobalUsage $usage): string => Cp::chipHtml($usage, ['hyperlink' => true, 'showThumb' => true, 'autoReload' => false]),
             $usages,
         )), ['class' => 'flex flex-wrap gap-xs']);
     }

@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\elements\actions;
 
 use Craft;
 use craft\base\ElementAction;
+use craft\base\ElementInterface;
 use craft\elements\db\ElementQueryInterface;
 use internetztube\elementRelations\controllers\ReplaceController;
 use internetztube\elementRelations\services\ReplaceService;
@@ -23,8 +26,9 @@ class ReplaceRelations extends ElementAction
 
     public function getTriggerHtml(): ?string
     {
-        Craft::$app->getView()->registerJsWithVars(fn($type, $title) => <<<JS
+        Craft::$app->getView()->registerJsWithVars(fn(string $type, string $title): string => <<<JS
 (() => {
+    'use strict';
     new Craft.ElementActionTrigger({
         type: $type,
         bulk: false,
@@ -47,8 +51,10 @@ JS, [static::class, Craft::t('element-relations', 'replace-modal-title')]);
     public function performAction(ElementQueryInterface $query): bool
     {
         $from = $query->one();
-        $to = $this->replacementId ? Craft::$app->getElements()->getElementById($this->replacementId, $from ? $from::class : null, $from?->siteId) : null;
-        if (!$from || !$to || $to->id === $from->id) {
+        $to = $from instanceof ElementInterface && $this->replacementId
+            ? Craft::$app->getElements()->getElementById($this->replacementId, $from::class, $from->siteId)
+            : null;
+        if (!$from instanceof ElementInterface || !$to || $to->id === $from->id) {
             $this->setMessage(Craft::t('element-relations', 'replace-invalid'));
             return false;
         }

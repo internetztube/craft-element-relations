@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\migrations;
 
 use Craft;
@@ -7,7 +9,7 @@ use craft\db\Migration;
 
 class Install extends Migration
 {
-    public function safeUp()
+    public function safeUp(): bool
     {
         $this->createTable('{{%elementrelations_cache}}', [
             'id' => $this->primaryKey(),
@@ -53,7 +55,7 @@ class Install extends Migration
         $migration->createIndex(null, '{{%elementrelations_replacements}}', ['dateCreated']);
     }
 
-    public function safeDown()
+    public function safeDown(): bool
     {
         $this->dropTableIfExists('{{%elementrelations_replacements}}');
         $table = '{{%elementrelations_cache}}';

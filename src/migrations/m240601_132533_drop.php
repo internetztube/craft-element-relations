@@ -1,15 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\migrations;
 
-use Craft;
 use craft\db\Migration;
-use craft\db\Table;
-use internetztube\elementRelations\records\ElementRelationsRecord;
 
 class m240601_132533_drop extends Migration
 {
-    public function safeUp()
+    public function safeUp(): bool
     {
         if ($this->db->tableExists("{{%elementrelations}}")) {
             $this->dropTable("{{%elementrelations}}");
@@ -17,7 +16,7 @@ class m240601_132533_drop extends Migration
         return true;
     }
 
-    public function safeDown()
+    public function safeDown(): bool
     {
         echo "m240601_132533_drop cannot be reverted.\n";
         return false;

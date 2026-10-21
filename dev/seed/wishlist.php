@@ -1,7 +1,7 @@
 <?php
 /** Wishlist (verbb): a list "Admin wishlist" of the admin user with an item for Page C. */
 return function (array $ctx): void {
-    $admin = \craft\elements\User::find()->admin()->one();
+    $admin = \craft\elements\User::find()->username('admin')->one();
     if (!$list = \verbb\wishlist\elements\ListElement::find()->title('Admin wishlist')->status(null)->one()) {
         $list = new \verbb\wishlist\elements\ListElement([
             'title' => 'Admin wishlist',

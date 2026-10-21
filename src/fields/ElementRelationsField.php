@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace internetztube\elementRelations\fields;
 
 use Craft;
@@ -43,7 +45,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
      */
     public static ?array $toolbarTypes = null;
 
-    /** Pro: settings of the replace wizard for the index being rendered (same hook as $toolbarTypes); null = no button. */
+    /**
+     * Pro: settings of the replace wizard for the index being rendered (same hook as $toolbarTypes); null = no button.
+     * Mirrored by the `ReplaceSettings` typedef in templates/_field/replace.twig.
+     * @var array{elementType: class-string<ElementInterface>, usageType: class-string<Usage>, fromId: int, siteId: int, step1Title: string, step1Hint: string, step1Button: string, step2Title: string, step2Hint: string, step2Button: string, undoLabel: string}|null
+     */
     public static ?array $replaceSettings = null;
 
     public const VIEW_MODE_TABLE = 'table';
@@ -80,6 +86,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         return null;
     }
 
+    /** @return array<int, array<int|string, mixed>> */
     protected function defineRules(): array
     {
         $rules = parent::defineRules();
@@ -131,7 +138,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             return null;
         }
         // Drafts and revisions cannot be relation targets, so always look at the canonical element.
-        return new RelationsModel($element->getCanonicalId() ?? $element->id, $element->siteId);
+        return new RelationsModel($element->getCanonicalId() ?? $element->id, (int)$element->siteId);
     }
 
     /**
@@ -160,21 +167,30 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         return true;
     }
 
+    /** @return array{name: string|null, type: RelationsType, resolve: \Closure(ElementInterface): mixed} */
     public function getContentGqlType(): Type|array
     {
         return [
             'name' => $this->handle,
             'type' => RelationsType::getType(),
-            'resolve' => fn($source) => $source->{$this->handle},
+            'resolve' => fn(ElementInterface $source): mixed => $source->{$this->handle},
         ];
     }
 
-    /** Sort option for element indexes: number of relating elements (all sites). Yii passes an expression with parentheses through unquoted. */
+    /**
+     * Sort option for element indexes: number of relating elements (all sites). Craft only takes a string here (it
+     * appends the direction), so the subquery is built with the query builder and passed as its SQL.
+     * @return array{label: string, orderBy: string, attribute: string, defaultDir: string}
+     */
     public function getSortOption(): array
     {
+        $count = (new \craft\db\Query())
+            ->select(['COUNT(*)'])
+            ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
+            ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')]);
         return [
-            'label' => Craft::t('site', $this->name),
-            'orderBy' => '(SELECT COUNT(*) FROM {{%elementrelations_cache}} WHERE [[targetElementId]] = [[elements.id]])',
+            'label' => Craft::t('site', (string)$this->name),
+            'orderBy' => '(' . $count->createCommand()->getRawSql() . ')',
             'attribute' => "field:$this->uid",
             'defaultDir' => 'desc',
         ];
@@ -252,7 +268,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             if ($viewer = self::restrictedViewer()) {
                 // the dropdown counts what this user's list shows (UsageQuery restricts by view permissions)
                 $counts = array_filter(array_map(
-                    fn(string $type) => (int)self::usageQuery($value, $viewer)->elementTypes($type)->count(),
+                    fn(string $type): int => (int)self::usageQuery($value, $viewer)->elementTypes($type)->count(),
                     array_combine(array_keys($counts), array_keys($counts)),
                 ));
             }
@@ -272,7 +288,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 'elementType' => $element::class,
                 'usageType' => Usage::class,
                 'fromId' => $value->getElementId(),
-                'siteId' => $element->siteId,
+                'siteId' => (int)$element->siteId,
                 'step1Title' => Craft::t('element-relations', 'replace-step1-title', ['from' => (string)$element]),
                 'step1Hint' => Craft::t('element-relations', 'replace-step1-hint', ['from' => (string)$element, 'type' => $element::lowerDisplayName()]),
                 'step1Button' => Craft::t('element-relations', 'replace-step1-button'),
@@ -322,16 +338,16 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     public function getTabHash(ElementInterface $element): ?string
     {
         return collect($element->getFieldLayout()?->getTabs() ?? [])
-            ->first(function (FieldLayoutTab $tab) {
+            ->first(function (FieldLayoutTab $tab): bool {
                 return collect($tab->getElements())
-                    ->map(function (FieldLayoutElement $layoutElement) {
+                    ->map(function (FieldLayoutElement $layoutElement): ?FieldInterface {
                         try {
                             return $layoutElement instanceof CustomField ? $layoutElement->getField() : null;
                         } catch (FieldNotFoundException|InvalidConfigException) {
                             return null; // field deleted but still referenced in the layout
                         }
                     })
-                    ->contains(fn(?FieldInterface $field) => $field?->id === $this->id);
+                    ->contains(fn(?FieldInterface $field): bool => $field?->id === $this->id);
             })
             ?->getHtmlId();
     }
