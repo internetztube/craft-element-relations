@@ -4,13 +4,13 @@
 
 One list of everything that links to an entry, asset, category, product or any other element: across element types, sites, rich text and the plugins your project uses. It is Craft's own element index, so it looks and works like the rest of the control panel.
 
-![Element Relations](docs/screenshots/cover.jpg)
+![Element Relations: where an element is used, the unused filter, replace with a review, and Craft’s delete dialog with the usages](docs/screenshots/readme.jpg)
 
-[Tour with screenshots](docs/README.md) · [Installation](#installation) · [Twig, GraphQL and element queries](#usage) · [Supported fields and plugins](#supported-fields-and-plugins) · [Pro](#editions)
+[Tour with screenshots](docs/README.md) · [Installation](#installation) · [Twig, GraphQL and element queries](#usage) · [Supported fields and plugins](#supported-fields-and-plugins)
 
 ## Why
 
-Every Craft project ends up asking the same things: *Can I delete this asset? Which pages show this category? Where is the old logo still used?* Craft's relations table knows a part of the answer. It knows nothing about CKEditor links, Link fields of plugins, SEOmatic images, Navigation menus, Formie forms or Vizy blocks. Element Relations answers in one place, for all of it, and with Pro lets you act on the answer.
+Every Craft project ends up asking the same things: *Can I delete this asset? Which pages show this category? Where is the old logo still used?* Craft's relations table knows a part of the answer. It knows nothing about CKEditor links, Link fields of plugins, SEOmatic images, Navigation menus, Formie forms or Vizy blocks. Element Relations answers in one place, for all of it, and lets you act on the answer.
 
 ## What you get
 
@@ -21,9 +21,6 @@ Every Craft project ends up asking the same things: *Can I delete this asset? Wh
 - **Permission-aware.** Users only see usages they may view; a line says how many are hidden, so nobody takes an element for unused.
 - **In code, too.** `isInUse`, counts and the relating elements in Twig and GraphQL, `usesElement` on any element query.
 - **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 100,000 entries ([`dev/stress.php`](dev/stress.php)): its list opens in under a second.
-
-**Pro** (ready behind a feature flag, see [Editions](#editions)):
-
 - **Find what nobody uses.** A “Used anywhere” rule in Craft's filter, on top of any source and with Craft's bulk actions; `craft.assets().unused()`.
 - **Replace anywhere.** Swap an element for another everywhere, or in the usages you tick, in a slideout right from the field, or on the command line (also with a CSV mapping, for migrations). Every supported field and plugin is rewritten the way it was read.
 - **Undo, roll back, revisions.** Undo in the notice, a history with Roll back in Utilities, revisions with notes for entries, Revert to revisions.
@@ -56,8 +53,7 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to ove
 | Setting | Default | Description |
 |---|---|---|
 | `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole relations cache is rebuilt. |
-| `protectInUse` | `true` | Pro: protect elements that live content uses from being deleted or taken offline (see [Editions](#editions)). |
-| `features.editions` | `false` | Offer the Lite and Pro editions. |
+| `protectInUse` | `true` | Protect elements that live content uses from being deleted or taken offline (see [Protection](#protect-what-is-in-use)). |
 
 Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers every column of the element types in the list), Show the status menu, Elements per page.
 
@@ -71,7 +67,7 @@ Anything that stores its targets in Craft's relations table works out of the box
 - Craft's Link field and plugin fields implementing `RelationalFieldInterface`
 - User photos
 
-Dedicated extractors (each one can also rewrite what it reads, for Pro's replace):
+Dedicated extractors (each one can also rewrite what it reads, for replace):
 
 | Plugin | What is read |
 |---|---|
@@ -117,14 +113,21 @@ For elements with thousands of usages use `count`/`isInUse` (one SQL query each)
 
 `siteIds`: omitted = the element's site, `[]` = all sites. With `[]` an element used in two sites counts once and `elements` returns it once (in the first site it is used in); drafts never count on the front end unless `drafts: null`. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.
 
+Statuses are per element type (`live` for entries and products, `enabled` for categories and assets, `active` for users); a list may mix them and each type takes the words it knows: `status: ['live', 'enabled']`. `sections` and `entryTypes` return entries only. For anything else, use Craft's own queries with `usesElement`: `craft.products().type('clothing').usesElement(entry)`, `craft.assets().volume('photos').usesElement(entry).orderBy('title')`, any element type, any of Craft's params.
+
 ### Element queries
 
 ```twig
 {% set pages = craft.entries().usesElement(asset).all() %}
-{% set unusedAssets = craft.assets().unused().all() %}   {# Pro #}
+{% set unusedAssets = craft.assets().unused().all() %}
 ```
 
-Across all element types at once (entries, products, menus, … returned as their real classes):
+Across all element types at once (entries, products, menus, … returned as their real classes), with any of Craft's query params:
+
+```twig
+{% set everything = craft.usages().usesElement(asset).search('contact').all() %}
+{% set liveOnly = craft.usages().usesElement(asset).status('live').limit(10).all() %}
+```
 
 ```php
 use internetztube\elementRelations\elements\Usage;
@@ -135,6 +138,8 @@ $everything = Usage::find()->usesElement($asset)->search('contact')->all();
 ### GraphQL
 
 The relations field only returns what the GraphQL schema may read: elements of sections, volumes, groups and sites outside the schema are left out, and element types without a GraphQL scope (Formie, Navigation, Wishlist, other plugin elements) are never returned. Without `status`, entries must be live and other elements enabled; `status` needs the “Query for non-enabled elements” scope.
+
+Craft's own queries take a `usesElement` argument, so any query with any of Craft's arguments works, with Craft's scoping and status defaults: `entries(section: "news", usesElement: 12) { title }`, `products(type: "clothing", usesElement: 12) { id }`, `assets(usesElement: [12, 13]) { url }`, `entryCount(usesElement: 12)`; `status: null` for every status. Up to 50,000 usages; above that, the relations field's `count` and `elements` (with a limit).
 
 ```graphql
 {
@@ -152,22 +157,22 @@ The relations field only returns what the GraphQL schema may read: elements of s
 }
 ```
 
-## Editions
+## Unused, replace and protection
 
-The plugin is a single Lite edition today; everything in [Features](#features) except the Pro list is Lite. The Pro edition is ready behind a feature flag (`'features' => ['editions' => true]` in `config/element-relations.php`) and adds:
+In detail:
 
 - **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
 - **Replace:** tick usages in the field's list and choose “Replace…” (or “Replace everywhere…” in an element index); a slideout picks the replacement, lets you untick usages or take all in the filtered list, across pages, and shows a summary before anything changes. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them, so saving many or large entries never blocks the page. The notice shows the progress and offers Undo when it is done. A job that got lost (a worker stopped) is resumed where it got: automatically while the notice waits, with Resume in the history, or on the command line.
-- **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line-pro).
-- **Protect what is in use:** in the control panel, an element that live content uses (what visitors see: live entries, enabled elements, plus plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled for later; the error names the usages the user may view and counts the others. On Craft 5.10+ Craft's delete dialog lists them up front, with “Replace…” and, only with the permission, “Delete anyway”. The edit page, slideouts and the index's Delete / Set status / Delete for site actions are covered. Drafts and disabled elements that point to it don't count. Users with “Delete or disable elements that are in use” (admins) may; console commands, migrations, queue jobs and settings changes (e.g. deleting a section) are never blocked.
+- **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line).
+- <a id="protect-what-is-in-use"></a>**Protect what is in use:** in the control panel, an element that live content uses (what visitors see: live entries, enabled elements, plus plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled for later; the error names the usages the user may view and counts the others. On Craft 5.10+ Craft's delete dialog lists them up front, with “Replace…” and, only with the permission, “Delete anyway”. The edit page, slideouts and the index's Delete / Set status / Delete for site actions are covered. Drafts and disabled elements that point to it don't count. Users with “Delete or disable elements that are in use” (admins) may; console commands, migrations, queue jobs and settings changes (e.g. deleting a section) are never blocked.
 
 ### Permissions
 
 What a control panel user sees in the field follows Craft's permissions (`Elements::canView()`): elements they may not view are left out of the list, its search, sorting, counts and exports. A line below the list says how many usages are hidden, so nobody takes an element for unused.
 
-Pro adds three permissions:
+Three permissions:
 
 | Permission | Allows |
 |---|---|
@@ -177,14 +182,14 @@ Pro adds three permissions:
 
 Admins have both, can roll back anyone's replacements and see everyone's in the history; other users see their own. Replacing also needs permission to view both elements, to save every element that gets changed and to edit the field (a field layout's “Who can edit” condition); everything else is skipped and not named. A queued replacement runs as the user who started it and is not run when they are gone or lost the permission.
 
-### Revisions (Pro)
+### Revisions
 
 Entries changed by a replacement or rollback get a revision with a note, including entries whose Matrix (or other nested) content changed. Element types without revisions (assets, categories, global sets, plugin elements) and entries in sections with versioning off get none; the wizard, the success message and the history say how many. The history offers two ways back:
 
 - **Roll back:** swaps the replacement back for the original; changes made since are kept.
 - **Revert to revisions:** reverts the changed entries to their revision from before the replacement with Craft's revision revert (changes since are discarded); elements without revisions are swapped back.
 
-## Command line (Pro)
+## Command line
 
 Replacements from the command line run right away (no queue), without a user, and land in the history like any other, so they can be rolled back:
 

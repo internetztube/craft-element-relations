@@ -189,6 +189,8 @@ check((int)Entry::find()->usesElement(null)->status(null)->count() === (int)Entr
 echo "Usage element type (one query across all element types)\n";
 $usages = Usage::find()->usesElement($b)->status(null)->all();
 check(count($usages) === 12 && count(array_filter($usages, fn($e) => $e instanceof Entry)) === 12, 'Usage::find()->usesElement() returns the 12 relating entries as Entry instances');
+$twigUsages = Craft::$app->getView()->renderString('{{ craft.usages().usesElement(id).status(null).count() }}|{{ craft.usages({ usesElement: id, search: "Page A1" }).status(null).ids()|join(",") }}', ['id' => $b->id]);
+check(str_starts_with($twigUsages, '12|') && in_array((string)$unused->id, explode(',', substr($twigUsages, 3)), true), 'craft.usages() in Twig is Usage::find(): usesElement, status, search, like any element query (' . $twigUsages . ')');
 check((int)Usage::find()->usesElement($b)->status(null)->search('A1')->count() === 4, 'search across the Usage query (A1, A10, A11, A12)');
 check((int)Usage::find()->usesElement($b)->status(null)->drafts(true)->count() === 0, 'drafts(true) on the Usage query');
 check((int)Usage::find()->usesElement($b)->status('disabled')->count() === 1, 'status filter on the Usage query');
@@ -292,11 +294,24 @@ $gql = $result['data']['entry']['relations'] ?? null;
 check($gql !== null, 'query succeeded: ' . json_encode($result['errors'] ?? null));
 check($gql['count'] === 11 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count (live by default in GraphQL, the disabled Page A12 is not counted) / count(status) / isInUse');
 check(count($gql['elements']) === 1 && $gql['elements'][0]['title'] === 'Page A12', 'elements(status: ["disabled"]) returns only Page A12');
+$result = Craft::$app->getGql()->executeQuery($schema, '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations { all: elements(status: null) { id } } } }
+    entries(usesElement: ' . $b->id . ', status: null) { id } live: entries(usesElement: ' . $b->id . ') { id } }');
+check(count($result['data']['entry']['relations']['all'] ?? []) === 12, 'an explicit status: null means every status (12, Page A12 included): ' . json_encode($result['errors'] ?? null));
+check(count($result['data']['entries'] ?? []) === 12 && count($result['data']['live'] ?? []) === 11, 'Craft’s own entries query takes usesElement: 12 with status: null, 11 by default');
+
+$cModel = new RelationsModel((int)Entry::find()->title('Page C')->one()->id, (int)$b->siteId);
+$notEntries = fn(array $elements): array => array_filter($elements, fn(ElementInterface $e): bool => !$e instanceof Entry);
+check($notEntries($cModel->getElements(sections: ['pages'], status: null)) === [] && $notEntries($cModel->getElements(entryTypes: ['page'], status: null)) === [] && $cModel->getCount(sections: ['pages'], status: null) < $cModel->getCount(status: null), 'sections / entryTypes: only entries (the product, category and tag using Page C are not counted as “pages”)');
+check(array_filter($cModel->getElements(status: ['disabled']), fn(ElementInterface $e): bool => !$e::hasStatuses()) === [] && array_filter($cModel->getElements(status: ['enabled']), fn(ElementInterface $e): bool => $e instanceof craft\elements\Tag) !== [], 'status: a type without statuses (tag) only matches “enabled”, never “disabled”');
+$mixed = $cModel->getElements(status: ['live', 'enabled'], drafts: false);
+$has = fn(string $class): bool => array_filter($mixed, fn(ElementInterface $e): bool => is_a($e, $class)) !== [];
+check($has(Entry::class) && $has(craft\elements\Category::class) && $has('craft\commerce\elements\Product') && $has(craft\elements\Tag::class), 'status [“live”, “enabled”]: each type takes the words it knows (entries and the product live, categories enabled, the tag), none is dropped');
 
 echo "Editions (behind the `features.editions` flag)\n";
 $plugin = internetztube\elementRelations\ElementRelations::class;
 check($plugin::editionsFor([]) === ['standard'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: one edition, Craft’s “standard” like 3.1 (its licenses stay valid); flag on: Lite and Pro');
 check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
+check($plugin::isProFor([]) === true, 'flag off: the one edition has everything (isPro() is true)');
 $editionBefore = $plugin::getInstance()->edition; // restored at the end of every section that switches, so the dev project keeps its edition
 Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
 check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'Lite: isPro() is false');

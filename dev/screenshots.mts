@@ -61,7 +61,6 @@ interface Shot {
     title: string;
     /** one line below the headline */
     text: string;
-    edition: 'Lite' | 'Pro';
     /** page to open first; without it the shot continues on the current page */
     path?: string;
     /** who the shot is taken as (default: CP_USER, an admin); e.g. the demo's editor `jonas` */
@@ -161,88 +160,8 @@ window.firstRows = (selector, count) => {
 };
 `;
 
-const SHOTS: Shot[] = [
-    {
-        name: 'usage-list', edition: 'Lite',
-        points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
-        focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[...column('Field'), ...column('Site')]]`,
-        inset: false,
-        // the asset's page: title, preview and the "Used in" field, so it reads as an element's usages, not any index
-        cover: `[document.querySelector('#header') ?? document.querySelector('h1'), document.querySelector('.element-relations').closest('.field'), document.querySelector('#details')]`,
-        caption: 'Where an element is used',
-        title: 'See where every element is used',
-        text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',
-        path: demo.skyline.path,
-        act: `await indexReady(fieldIndex(), 'the usage list');`,
-    },
-    {
-        name: 'type-menu', edition: 'Lite',
-        points: ['A count per element type', 'With Craft’s search, sorting and status menu'],
-        focus: `[inPane(document.querySelector('.element-relations')), typeMenu()]`,
-        highlight: `[[typeMenu()]]`,
-        title: 'Filter by element type',
-        text: 'Counts per type, plus Craft’s own search, sorting, status menu and pagination.',
-        path: demo.guide.path,
-        act: `
-            await indexReady(fieldIndex(), 'the usage list');
-            $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn').showMenu();
-            await sleep(500);
-        `,
-    },
-    {
-        name: 'cards', edition: 'Lite',
-        points: ['Table or cards, like every index', 'More columns in the View menu'],
-        focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[fieldIndex().$viewModeBtnContainer?.[0]]]`,
-        title: 'Table or cards',
-        text: 'The field is Craft’s own element index, so it looks and works like the rest of the control panel.',
-        path: demo.skyline.path,
-        act: `await indexReady(fieldIndex(), 'the usage list'); document.querySelector('.element-relations [data-view="cards"]').click(); await indexReady(fieldIndex(), 'cards');`,
-        // back to the table (Craft remembers the view), where the replace shots tick rows
-        after: `document.querySelector('.element-relations [data-view="table"]').click(); await indexReady(fieldIndex(), 'the table');`,
-    },
-    {
-        name: 'entry-tab', edition: 'Lite',
-        points: ['Entries, assets, categories, users, products…', 'On its own tab or next to the content'],
-        focus: `[document.querySelector('[role="tablist"]'), inPane(document.querySelector('.element-relations'))]`,
-        highlight: `[byText('[role="tab"]', 'Used in')]`,
-        title: 'On any element type',
-        text: 'Add the field to entries, assets, categories, users, products or global sets, e.g. on its own tab.',
-        path: demo.hongKong.path,
-        act: `clickTab('Used in'); await sleep(300); await indexReady(fieldIndex(), 'the usage list');`,
-    },
-    {
-        name: 'index-column', edition: 'Lite', viewport: { width: 1600 },
-        points: ['The first usages at a glance, plus the total', 'Sortable by the number of usages'],
-        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 7)]`,
-        highlight: `[column('Used in').slice(0, 5)]`,
-        title: 'Right in the element index',
-        text: 'As a column, with a preview of the first usages and the total. Sortable by number of usages.',
-        path: '/admin/assets/images',
-        act: `await indexReady(pageIndex(), 'the asset index'); document.querySelector('[data-view="table"]')?.click(); await indexReady(pageIndex(), 'the table');`,
-    },
-    {
-        name: 'global-usages', edition: 'Lite',
-        points: ['SEOmatic’s global and per-section images', 'Linked to their settings page'],
-        focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[document.querySelector('.element-relations-heading'), document.querySelector('.element-relations-heading')?.nextElementSibling]]`,
-        title: 'Plugin settings count, too',
-        text: 'Usages that are not elements, such as SEOmatic’s global SEO image, are listed below the field.',
-        path: demo.social.path,
-        act: `await sleep(800);`,
-    },
-    {
-        name: 'used-filter', edition: 'Pro', viewport: { width: 1600 },
-        points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
-        focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
-        cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        caption: 'Pro · Find what nobody uses',
-        title: 'Find what nobody uses',
-        text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
-        path: '/admin/assets/images',
-        act: `
+/** What the feature shots do on their pages; the README's panels repeat them in a narrower window. */
+const UNUSED_FILTER_ACT = `
             await indexReady(pageIndex(), 'the asset index');
             const index = pageIndex();
             index.showFilterHud();
@@ -275,17 +194,8 @@ const SHOTS: Shot[] = [
             filter.querySelector('.tip')?.remove();
             $$('.hud-shade').forEach((shade) => { shade.style.background = 'transparent'; });
             await sleep(200);
-        `,
-    },
-    {
-        name: 'replace', edition: 'Pro',
-        points: ['Tick the usages, like in any index', 'Or all in the list, on every page', 'Element Relations’ own button, next to Craft’s'],
-        focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[replaceButton()]]`,
-        title: 'Replace it where you choose',
-        text: 'Tick usages in the list, choose “Replace…”: every field and plugin is rewritten the way it was read.',
-        path: demo.skyline.path,
-        act: `
+        `;
+const TICK_USAGES_ACT = `
             await indexReady(fieldIndex(), 'the usage list');
             const index = fieldIndex();
             // the demo's usages to replace in, each with its rows in every site
@@ -294,18 +204,8 @@ const SHOTS: Shot[] = [
                 .forEach((row) => index.view.elementSelect.selectItem($(row)));
             await until(() => replaceButton(), 'the Replace… button');
             await sleep(600);
-        `,
-    },
-    {
-        name: 'wizard', edition: 'Pro',
-        points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
-        focus: `wizardSlideout()`,
-        highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
-        cover: `wizardSlideout()`,
-        caption: 'Pro · Replace, with a review first',
-        title: 'Review, then replace',
-        text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
-        act: `
+        `;
+const OPEN_WIZARD_ACT = `
             replaceButton().click();
             await until(() => document.querySelector('.element-relations-wizard'), 'the wizard');
             await sleep(800);
@@ -319,10 +219,173 @@ const SHOTS: Shot[] = [
             // the whole review (summary and the sites line) in view, step 1 may scroll off
             document.querySelector('.element-relations-wizard').lastElementChild.scrollIntoView({ block: 'end' });
             await sleep(700);
+        `;
+const DELETE_DIALOG_ACT = `
+            new Craft.ElementDeletionManager('craft\\\\elements\\\\Entry', [${demo.thankYou.id}], { siteId: 1 });
+            await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
+            await sleep(800);
+            // open the usages, like clicking the toggle
+            $$('.modal .fieldtoggle').at(-1)?.click();
+            await sleep(1500);
+        `;
+
+const SHOTS: Shot[] = [
+    {
+        name: 'usage-list',
+        points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
+        focus: `inPane(document.querySelector('.element-relations'))`,
+        highlight: `[[...column('Field'), ...column('Site')]]`,
+        inset: false,
+        // the asset's page: title, preview and the "Used in" field, so it reads as an element's usages, not any index
+        cover: `[document.querySelector('#header') ?? document.querySelector('h1'), document.querySelector('.element-relations').closest('.field'), document.querySelector('#details')]`,
+        caption: 'Where an element is used',
+        title: 'See where every element is used',
+        text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',
+        path: demo.skyline.path,
+        act: `await indexReady(fieldIndex(), 'the usage list');`,
+    },
+    {
+        // the README's first image: the same page at a narrower window with Craft's sidebar collapsed, so the field reads
+        // at the README's width
+        name: 'readme-hero', viewport: { width: 1120, height: 600 },
+        caption: 'Where an element is used',
+        points: ['Every element type in one list', 'Where it lives, which field, which site', 'Replace, undo, roll back'],
+        focus: `inPane(document.querySelector('.element-relations'))`,
+        highlight: `[[...column('Field'), ...column('Site')]]`,
+        inset: false,
+        title: 'See where every element is used',
+        text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',
+        path: demo.skyline.path,
+        act: `document.querySelector('#sidebar-toggle')?.click(); await sleep(600); await indexReady(fieldIndex(), 'the usage list');`,
+    },
+    {
+        name: 'readme-unused', viewport: { width: 1120, height: 580 },
+        points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
+        focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
+        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
+        inset: false,
+        caption: 'Find what nobody uses',
+        title: 'Find what nobody uses',
+        text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
+        path: '/admin/assets/images',
+        act: `${UNUSED_FILTER_ACT}`,
+    },
+    {
+        name: 'readme-replace', viewport: { width: 1120, height: 700 },
+        points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
+        focus: `wizardSlideout()`,
+        highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
+        inset: false,
+        caption: 'Replace it everywhere, with a review first',
+        title: 'Review, then replace',
+        text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
+        path: demo.skyline.path,
+        act: `${TICK_USAGES_ACT} ${OPEN_WIZARD_ACT}`,
+    },
+    {
+        name: 'readme-protect', viewport: { width: 1120, height: 700 }, user: 'jonas',
+        points: ['Usages Craft can’t see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
+        highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
+        inset: false,
+        caption: 'Nothing breaks by accident',
+        title: 'Nothing breaks by accident',
+        text: 'Two forms redirect to “Thank you”. Craft would delete it without a word; Element Relations stops it first.',
+        path: demo.thankYou.path,
+        act: `${DELETE_DIALOG_ACT}`,
+        after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
+    },
+    {
+        name: 'type-menu',
+        points: ['A count per element type', 'With Craft’s search, sorting and status menu'],
+        focus: `[inPane(document.querySelector('.element-relations')), typeMenu()]`,
+        highlight: `[[typeMenu()]]`,
+        title: 'Filter by element type',
+        text: 'Counts per type, plus Craft’s own search, sorting, status menu and pagination.',
+        path: demo.guide.path,
+        act: `
+            await indexReady(fieldIndex(), 'the usage list');
+            $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn').showMenu();
+            await sleep(500);
         `,
     },
     {
-        name: 'background', edition: 'Pro',
+        name: 'cards',
+        points: ['Table or cards, like every index', 'More columns in the View menu'],
+        focus: `inPane(document.querySelector('.element-relations'))`,
+        highlight: `[[fieldIndex().$viewModeBtnContainer?.[0]]]`,
+        title: 'Table or cards',
+        text: 'The field is Craft’s own element index, so it looks and works like the rest of the control panel.',
+        path: demo.skyline.path,
+        act: `await indexReady(fieldIndex(), 'the usage list'); document.querySelector('.element-relations [data-view="cards"]').click(); await indexReady(fieldIndex(), 'cards');`,
+        // back to the table (Craft remembers the view), where the replace shots tick rows
+        after: `document.querySelector('.element-relations [data-view="table"]').click(); await indexReady(fieldIndex(), 'the table');`,
+    },
+    {
+        name: 'entry-tab',
+        points: ['Entries, assets, categories, users, products…', 'On its own tab or next to the content'],
+        focus: `[document.querySelector('[role="tablist"]'), inPane(document.querySelector('.element-relations'))]`,
+        highlight: `[byText('[role="tab"]', 'Used in')]`,
+        title: 'On any element type',
+        text: 'Add the field to entries, assets, categories, users, products or global sets, e.g. on its own tab.',
+        path: demo.hongKong.path,
+        act: `clickTab('Used in'); await sleep(300); await indexReady(fieldIndex(), 'the usage list');`,
+    },
+    {
+        name: 'index-column', viewport: { width: 1600 },
+        points: ['The first usages at a glance, plus the total', 'Sortable by the number of usages'],
+        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 7)]`,
+        highlight: `[column('Used in').slice(0, 5)]`,
+        title: 'Right in the element index',
+        text: 'As a column, with a preview of the first usages and the total. Sortable by number of usages.',
+        path: '/admin/assets/images',
+        act: `await indexReady(pageIndex(), 'the asset index'); document.querySelector('[data-view="table"]')?.click(); await indexReady(pageIndex(), 'the table');`,
+    },
+    {
+        name: 'global-usages',
+        points: ['SEOmatic’s global and per-section images', 'Linked to their settings page'],
+        focus: `inPane(document.querySelector('.element-relations'))`,
+        highlight: `[[document.querySelector('.element-relations-heading'), document.querySelector('.element-relations-heading')?.nextElementSibling]]`,
+        title: 'Plugin settings count, too',
+        text: 'Usages that are not elements, such as SEOmatic’s global SEO image, are listed below the field.',
+        path: demo.social.path,
+        act: `await sleep(800);`,
+    },
+    {
+        name: 'used-filter', viewport: { width: 1600 },
+        points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
+        focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
+        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
+        cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
+        caption: 'Find what nobody uses',
+        title: 'Find what nobody uses',
+        text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
+        path: '/admin/assets/images',
+        act: `${UNUSED_FILTER_ACT}`,
+    },
+    {
+        name: 'replace',
+        points: ['Tick the usages, like in any index', 'Or all in the list, on every page', 'Element Relations’ own button, next to Craft’s'],
+        focus: `inPane(document.querySelector('.element-relations'))`,
+        highlight: `[[replaceButton()]]`,
+        title: 'Replace it where you choose',
+        text: 'Tick usages in the list, choose “Replace…”: every field and plugin is rewritten the way it was read.',
+        path: demo.skyline.path,
+        act: `${TICK_USAGES_ACT}`,
+    },
+    {
+        name: 'wizard',
+        points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
+        focus: `wizardSlideout()`,
+        highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
+        cover: `wizardSlideout()`,
+        caption: 'Replace, with a review first',
+        title: 'Review, then replace',
+        text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
+        act: `${OPEN_WIZARD_ACT}`,
+    },
+    {
+        name: 'background',
         points: ['Saving many entries never blocks the page', 'Keep working while it runs'],
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[$$('.notification')]`,
@@ -335,7 +398,7 @@ const SHOTS: Shot[] = [
         `,
     },
     {
-        name: 'undo', edition: 'Pro',
+        name: 'undo',
         points: ['Undo right in the notice', 'Entries get a revision with a note'],
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[document.querySelector('[data-element-relations-undo]').closest('.notification') ?? document.querySelector('[data-element-relations-undo]')]]`,
@@ -354,7 +417,7 @@ const SHOTS: Shot[] = [
         `,
     },
     {
-        name: 'history', edition: 'Pro', viewport: { width: 1600 },
+        name: 'history', viewport: { width: 1600 },
         points: ['Roll back keeps changes made since', 'Revert to revisions uses Craft’s own revisions'],
         focus: `[byText('h2, h3', 'Replacements')[0], document.querySelector('#element-relations-history')]`,
         highlight: `[[...byText('button', 'Roll back'), ...byText('button', 'Revert to revisions')]]`,
@@ -389,7 +452,7 @@ const SHOTS: Shot[] = [
         `,
     },
     {
-        name: 'in-use-delete', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
+        name: 'in-use-delete', viewport: { width: 1600 }, user: 'jonas',
         points: ['Delete, disable, expire, schedule', 'Only live usages count', 'A permission lets editors through'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
         highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
@@ -404,25 +467,18 @@ const SHOTS: Shot[] = [
         `,
     },
     {
-        name: 'in-use-dialog', edition: 'Pro', user: 'jonas',
+        name: 'in-use-dialog', user: 'jonas',
         points: ['Usages Craft can’t see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
         focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
         title: 'Nothing breaks by accident',
         text: 'Two forms redirect to “Thank you”. Craft would delete it without a word; Element Relations stops it first.',
         path: demo.thankYou.path,
-        act: `
-            new Craft.ElementDeletionManager('craft\\\\elements\\\\Entry', [${demo.thankYou.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
-            await sleep(800);
-            // open the usages, like clicking the toggle
-            $$('.modal .fieldtoggle').at(-1)?.click();
-            await sleep(1500);
-        `,
+        act: `${DELETE_DIALOG_ACT}`,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
     },
     {
-        name: 'delete-compare', edition: 'Pro', user: 'jonas', viewport: { height: 1500 },
+        name: 'delete-compare', user: 'jonas', viewport: { height: 1500 },
         points: ['The same asset, the same dialog', 'Craft checks relation fields and CKEditor', 'Element Relations also finds links, menus and forms'],
         title: 'What Craft’s delete dialog misses',
         text: 'The same PDF, deleted by an editor: Craft 5.10 on its own, and with Element Relations.',
@@ -463,7 +519,7 @@ const SHOTS: Shot[] = [
     {
         // Craft's own list of what relates to the asset next to the plugin's: Craft names the Matrix block, the plugin
         // the page that holds it, with the field and the sites
-        name: 'compare', edition: 'Pro',
+        name: 'compare',
         points: ['The page, not the Matrix block inside it', 'Where it sits, which field, which sites', 'Rich text, links, menus, forms and SEO too'],
         title: 'Know what you replace',
         text: 'The same asset: Craft lists the blocks that relate to it, Element Relations the pages your editors know.',
@@ -505,7 +561,7 @@ const SHOTS: Shot[] = [
         after: `wizardSlideout()?.querySelector('button:not([type="submit"])')?.click(); await sleep(300);`,
     },
     {
-        name: 'in-use-disable', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
+        name: 'in-use-disable', viewport: { width: 1600 }, user: 'jonas',
         points: ['Also per site, expiry dates and post dates', 'Drafts and disabled entries don’t count'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
         highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
@@ -518,7 +574,7 @@ const SHOTS: Shot[] = [
         `,
     },
     {
-        name: 'field-settings', edition: 'Lite',
+        name: 'field-settings',
         points: ['Like Craft’s relation fields', 'Authors switch the view in the index'],
         focus: `['View Mode', 'Show the status menu', 'Elements per page'].map((label) => inPane(byText('label', label)[0]?.closest('.field')))`,
         title: 'Field settings',
@@ -527,7 +583,7 @@ const SHOTS: Shot[] = [
         act: `await sleep(500);`,
     },
     {
-        name: 'permissions', edition: 'Pro',
+        name: 'permissions',
         points: ['Replacing, rolling back, deleting what is in use', 'The rest follows Craft’s view and save rights'],
         focus: `inPane(permissionGroup())`,
         highlight: `[[permissionGroup()]]`,
@@ -541,7 +597,7 @@ const SHOTS: Shot[] = [
         `,
     },
     {
-        name: 'plugin-settings', edition: 'Pro',
+        name: 'plugin-settings',
         points: ['Protection on or off, per environment too', 'Rebuild under Utilities or on the command line'],
         focus: `$$('#content .field').map(inPane)`,
         title: 'Plugin settings',
@@ -721,9 +777,6 @@ const PAGE_CSS = `
     body::after { content: ''; position: absolute; inset: 0; background: ${GRAIN}; opacity: .07; mix-blend-mode: overlay; pointer-events: none; z-index: 5; }
     .brand { display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; letter-spacing: .01em; color: rgba(255, 255, 255, .85); }
     .brand img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 6px 16px rgba(0, 0, 0, .4); }
-    .badge { padding: 4px 10px; border-radius: 99px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-    .badge.lite { background: rgba(255, 255, 255, .14); }
-    .badge.pro { background: linear-gradient(135deg, #e5422b, #ff9a3d); }
     h1 { margin: 0; font-weight: 800; letter-spacing: -.03em; line-height: 1.05; }
     p { margin: 0; color: #c4cce0; }
     ${WINDOW_CSS}
@@ -748,7 +801,7 @@ function frameHtml({ shot, base, inset, area, address }: Taken): string {
         .stage { position: absolute; left: ${box.left}px; top: ${box.top}px; }
     </style></head><body>
         <div class="copy">
-            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations <span class="badge ${shot.edition.toLowerCase()}">${shot.edition}</span></div>
+            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations</div>
             <h1>${escapeHtml(shot.title)}</h1>
             <p>${escapeHtml(shot.text)}</p>
             <ul>${points}</ul>
@@ -801,7 +854,7 @@ function compareHtml({ shot, parts }: { shot: Shot, parts: Part[] }): string {
         .ours figcaption i { background: ${ACCENT}; box-shadow: 0 0 10px rgba(255, 90, 60, .9); }
     </style></head><body>
         <div class="copy">
-            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations <span class="badge ${shot.edition.toLowerCase()}">${shot.edition}</span></div>
+            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations</div>
             <h1>${escapeHtml(shot.title)}</h1>
             <p>${escapeHtml(shot.text)}</p>
             <ul>${points}</ul>
@@ -812,6 +865,48 @@ function compareHtml({ shot, parts }: { shot: Shot, parts: Part[] }): string {
 
 /** Close-ups on the cover: the first two stacked on the left, the third (tall) on the right. */
 const COVER_SHOTS = ['usage-list', 'used-filter', 'wizard'];
+/** The README's first image: the feature panels in one tall picture, each window as wide as the frame, so they read at the README's width. */
+const README_SHOTS = ['readme-hero', 'readme-unused', 'readme-replace', 'readme-protect'];
+
+function readmeHtml(cards: Taken[]): { html: string, height: number } {
+    const margin = 88, width = FRAME.width - 2 * margin, caption = 52, gap = 72, head = 300;
+    let y = head;
+    const panels = cards.map((card) => {
+        const scale = width / card.area.viewport.width;
+        const top = y;
+        y += caption + BAR + Math.round(card.area.viewport.height * scale) + gap;
+        return `<figure class="panel" style="left:${margin}px;top:${top}px;width:${width}px">
+            <figcaption><i></i>${escapeHtml(card.shot.caption ?? card.shot.title)}</figcaption>
+            ${windowHtml(pathToFileURL(card.base).href, card.area, card.address, scale)}
+        </figure>`;
+    }).join('');
+    const height = y - gap + margin;
+    const chips = COVER_CHIPS.map((chip) => `<span>${escapeHtml(chip)}</span>`).join('');
+    const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+        ${PAGE_CSS}
+        body { height: ${height}px; }
+        .head { position: absolute; left: ${margin}px; right: ${margin}px; top: 64px; display: grid; grid-template-columns: 1fr auto; column-gap: 48px; align-items: end; }
+        .head .brand, .head h1, .head p { grid-column: 1; }
+        h1 { font-size: 52px; margin: 18px 0 10px; }
+        p { font-size: 21px; line-height: 1.4; }
+        .chips { grid-column: 2; grid-row: 1 / span 3; align-self: end; display: grid; gap: 10px; justify-items: end; }
+        .chips span { padding: 8px 16px; border-radius: 99px; font-size: 15px; font-weight: 600; color: #e7ebf5; white-space: nowrap;
+            background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); }
+        .panel { position: absolute; margin: 0; }
+        figcaption { height: ${caption}px; display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; color: #eef1f8; }
+        figcaption i { width: 10px; height: 10px; border-radius: 50%; background: ${ACCENT}; box-shadow: 0 0 10px rgba(255, 90, 60, .9); }
+    </style></head><body>
+        <div class="head">
+            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations</div>
+            <h1>See where every element is used. Replace it everywhere, safely.</h1>
+            <p>One list of everything that links to an entry, asset, category or product, across element types, sites, rich text and plugins.</p>
+            <div class="chips">${chips}</div>
+        </div>
+        ${panels}
+    </body></html>`;
+    return { html, height };
+}
+
 /** What the cover promises, under the title. */
 const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 100,000 usages', 'Craft CMS 5'];
 
@@ -985,6 +1080,9 @@ try {
 
     await resize(browser, FRAME);
     for (const card of taken) {
+        if (README_SHOTS.includes(card.shot.name)) {
+            continue; // only panels of the README image
+        }
         const html = join(workDir, `${card.shot.name}.html`);
         writeFileSync(html, frameHtml(card));
         await open(browser, pathToFileURL(html).href);
@@ -1000,6 +1098,19 @@ try {
         const target = resolve(outDir, `${comparison.shot.name}.jpg`);
         writeFileSync(target, await captureFramed(browser));
         console.log(`  framed ${target}`);
+    }
+
+    // the README image: its panels stacked, when they were all taken in this run
+    const readmeCards = README_SHOTS.map((name) => taken.find((t) => t.shot.name === name));
+    if (readmeCards.every(Boolean)) {
+        const { html: readme, height } = readmeHtml(readmeCards as Taken[]);
+        const file = join(workDir, 'readme.html');
+        writeFileSync(file, readme);
+        await resize(browser, { ...FRAME, height });
+        await open(browser, pathToFileURL(file).href);
+        writeFileSync(resolve(outDir, 'readme.jpg'), await captureFramed(browser));
+        console.log(`  readme ${resolve(outDir, 'readme.jpg')}`);
+        await resize(browser, FRAME);
     }
 
     // the cover: three of the shots, when they were all taken in this run

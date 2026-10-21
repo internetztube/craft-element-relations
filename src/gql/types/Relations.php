@@ -45,12 +45,12 @@ class Relations extends ObjectType implements SingularTypeInterface
     /**
      * `$source` limited to the active schema, and the named arguments for its getters.
      * @param Arguments $arguments
-     * @return array{0: RelationsModel, 1: array{siteIds: int[], sections: string[]|null, entryTypes: string[]|null, status: string[]|null}}
+     * @return array{0: RelationsModel, 1: array{siteIds: int[], sections: string[]|null, entryTypes: string[]|null, status: string[]|string|null}}
      */
     private static function scoped(RelationsModel $source, array $arguments): array
     {
         // Craft only offers `status` to schemas that may read non-enabled elements
-        if (isset($arguments['status']) && !GqlHelper::canQueryInactiveElements()) {
+        if (array_key_exists('status', $arguments) && !GqlHelper::canQueryInactiveElements()) {
             throw new UserError('The `status` argument requires the “Query for non-enabled elements” schema scope.');
         }
         $model = $source->withQueryFactory(function (string $elementType): mixed {
@@ -69,7 +69,8 @@ class Relations extends ObjectType implements SingularTypeInterface
             'siteIds' => $siteIds ?: [0],
             'sections' => $arguments['sections'] ?? null,
             'entryTypes' => $arguments['entryTypes'] ?? null,
-            'status' => $arguments['status'] ?? null,
+            // an explicit `status: null` means every status, like Craft's own queries; omitted: the resolver's default
+            'status' => array_key_exists('status', $arguments) ? $arguments['status'] : RelationsModel::DEFAULT,
         ]];
     }
 
@@ -111,7 +112,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     'status' => [
                         'name' => 'status',
                         'type' => Type::listOf(Type::string()),
-                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
+                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements; null means every status. Statuses are per type (“live” for entries and products, “enabled” for categories and assets, “active” for users) and a list may mix them. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                 ],
                 'resolve' => function (RelationsModel $source, array $arguments): int {
@@ -138,7 +139,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     'status' => [
                         'name' => 'status',
                         'type' => Type::listOf(Type::string()),
-                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
+                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements; null means every status. Statuses are per type (“live” for entries and products, “enabled” for categories and assets, “active” for users) and a list may mix them. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                 ],
                 'resolve' => function (RelationsModel $source, array $arguments): bool {
@@ -172,7 +173,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     'status' => [
                         'name' => 'status',
                         'type' => Type::listOf(Type::string()),
-                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
+                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements; null means every status. Statuses are per type (“live” for entries and products, “enabled” for categories and assets, “active” for users) and a list may mix them. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                     'limit' => [
                         'name' => 'limit',

@@ -155,7 +155,7 @@ return function (array $ctx): void {
                 $filter = fn(array $ids) => $ids ? array_column($run($full, 'query($id: [QueryArgument]) { users(id: $id) { id } }', ['id' => $ids])['users'], 'id') : [];
             }
             $expected = [...$expected, ...$filter($query()->siteId($element->siteId)->ids())];
-            $expectedAllSites = [...$expectedAllSites, ...$filter($query()->site('*')->ids())];
+            $expectedAllSites = [...$expectedAllSites, ...$filter($query()->site('*')->unique()->ids())]; // each element once, like the field's list
         }
         $expected = array_map('intval', $expected);
         $expectedAllSites = array_map('intval', $expectedAllSites);
@@ -171,6 +171,17 @@ return function (array $ctx): void {
     }
     $typenames = array_unique(array_column($entryRelations($full)['elements'], '__typename'));
     check(count($typenames) > 1, 'full schema: Page C is used by several mapped types (' . implode(', ', $typenames) . ')');
+
+    // 4c. Craft's own queries take `usesElement`: any query, any of Craft's arguments, Craft's own scoping
+    $model = new RelationsModel($target->id, $target->siteId);
+    $own = $run($full, 'query($id: [QueryArgument]) { entries(section: "pages", usesElement: $id, status: null) { id } allSites: entries(usesElement: $id, status: null, site: "*", unique: true) { id } none: entries(usesElement: 999999999) { id } }', ['id' => $target->id]);
+    $twigEntries = $ids($model->getElements([], sections: ['pages'], status: null, drafts: false));
+    check($ids($own['entries']) === $twigEntries && $twigEntries !== [], 'entries(section: "pages", usesElement: C): Craft’s own query lists the ' . count($twigEntries) . ' entries the Twig param does');
+    check(count($own['allSites']) === count(array_unique($ids($own['allSites']))) && count($own['allSites']) >= count($own['entries']) && $own['none'] === [], 'entries(usesElement: C, site: "*", unique: true): each entry once; an element nothing uses: none');
+    if (class_exists('craft\commerce\elements\Product')) {
+        $products = $run($full, 'query($id: [QueryArgument]) { products(usesElement: $id) { id } none: products(usesElement: $id, type: "nope") { id } }', ['id' => $target->id]);
+        check($ids($products['products']) === $ids($model->getElements([], status: null, drafts: false, types: ['craft\commerce\elements\Product'])) && $products['none'] === [], 'products(usesElement: C) lists the product; products(type: "nope", usesElement: C) nothing');
+    }
 
     // 5. a schema without "Query for non-enabled elements": defaults work, `status` is refused (Craft does not offer it either)
     $noInactive = $schema(array_values(array_diff([...$pagesScopes, ...$siteScopes], ['elements.inactive:read'])));

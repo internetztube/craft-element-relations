@@ -21,7 +21,7 @@
     warning: _self.overrideWarning('bulkRefreshBatchSize', overrides),
 }) }}
 
-{# Lite with Pro available: what Pro adds, and where to get it (admins only, see ElementRelations::upsells()) #}
+{# behind the editions flag only: what the other edition adds, and where to get it (admins only, see ElementRelations::upsells()) #}
 {% set plugin = craft.app.plugins.getPlugin('element-relations') %}
 {% if plugin.upsells() %}
     <div class="pane" data-element-relations-upsell style="margin-top: var(--xl);">
@@ -36,8 +36,8 @@
     </div>
 {% endif %}
 
-{# Pro: the in-use protection (services/InUseGuard, the delete dialog) #}
-{% if craft.app.plugins.getPlugin('element-relations').is('pro') %}
+{# the in-use protection (services/InUseGuard, the delete dialog) #}
+{% if plugin.isPro() %}
     {{ forms.lightswitchField({
         label: 'settings-protect-label'|t('element-relations'),
         instructions: 'settings-protect-instructions'|t('element-relations'),
