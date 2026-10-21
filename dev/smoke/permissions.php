@@ -92,6 +92,13 @@ return function (array $ctx): void {
     check(in_array('verbb\\formie\\elements\\Form', $plain, true) && !array_filter($a['elements'], fn($e) => str_starts_with($e::class, 'verbb\\')), 'viewer A: plugin elements they may not view (Formie, Navigation, Wishlist) are left out');
     $submissionTitle = (string)(verbb\formie\elements\Submission::find()->status(null)->one() ?? '');
     check($submissionTitle === '' || $usages($c, $viewerA, $submissionTitle)['count'] === 0, "viewer A: searching for a Formie submission's title finds nothing (no existence oracle)");
+    $boundParams = function (?User $as) use ($c): int {
+        $query = Usage::find()->allSites()->status(null)->drafts(null)->viewableBy($as ?? false);
+        Craft::configure($query, ['usesElement' => $c->id]);
+        return count($query->createCommand()->params);
+    };
+    check($boundParams($viewerA) - $boundParams(null) <= count($app->getSites()->getAllSiteIds()), "viewer A: the elements they may view are written into the SQL, not bound one parameter each (PostgreSQL takes at most 65,535; dev/stress.php lists 100,000)");
+    check((int)(new craft\db\Query())->from(craft\db\Table::ELEMENTS)->where(ElementRelations::idIn('id', range(1, 70000)))->count() > 0, 'a list of 70,000 ids runs as one query');
     check(\internetztube\elementRelations\elements\db\UsageQuery::hiddenCount([$c->id], $viewerA) === $admin['count'] - $a['count'], 'hiddenCount() is exactly what is left out (' . ($admin['count'] - $a['count']) . ')');
 
     // what a user may view is cached; it follows every change

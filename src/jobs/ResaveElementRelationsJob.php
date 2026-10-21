@@ -39,7 +39,7 @@ class ResaveElementRelationsJob extends BaseJob
         if ($type === null || !is_subclass_of($type, ElementInterface::class)) {
             return null;
         }
-        $element = $type::find()->id($elementId)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->trashed(true)->one();
+        $element = \internetztube\elementRelations\ElementRelations::find($type)->id($elementId)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->trashed(true)->one();
         if (!$element instanceof ElementInterface) {
             return null;
         }

@@ -14,6 +14,7 @@ use craft\elements\db\EntryQuery;
 use craft\models\Site;
 use internetztube\elementRelations\services\extractors\GlobalUsageSeomaticService;
 use internetztube\elementRelations\services\extractors\InterfaceGlobalUsage;
+use internetztube\elementRelations\ElementRelations;
 
 /**
  * Answers "where is this element used?" by querying the relations cache table.
@@ -319,7 +320,7 @@ class RelationsModel
             if ($types !== null && !in_array($elementType, $types, true)) {
                 continue;
             }
-            $query = $factory ? $factory($elementType) : $elementType::find();
+            $query = $factory ? $factory($elementType) : ElementRelations::find($elementType);
             if (!$query instanceof ElementQuery) {
                 continue;
             }

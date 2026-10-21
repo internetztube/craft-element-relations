@@ -1,6 +1,6 @@
 <?php
 /**
- * Pro, the in-use guard's rules outside a request (the control panel parts are in dev/e2e.php and dev/ui.mjs): which
+ * Pro, the in-use guard's rules outside a request (the control panel parts are in dev/e2e.php and dev/ui.mts): which
  * elements it looks at, what it names, and that the console, migrations and Lite are never guarded.
  */
 
@@ -44,6 +44,12 @@ return function (array $ctx): void {
         flushQueue();
         $offlineBlocker = new internetztube\elementRelations\elements\deletionblockers\InUseDeletionBlocker(new craft\elements\ElementCollection([$offlineOnly]), false);
         check(InUseGuard::counts($offlineOnly) && !$offlineBlocker->isActive(), 'delete dialog: an element used only by a disabled entry is not in the way');
+        // the setting switches the protection off: no blocker, everyone may delete
+        $settings = internetztube\elementRelations\ElementRelations::$plugin->getSettings();
+        $settings->protectInUse = false;
+        $off = new internetztube\elementRelations\elements\deletionblockers\InUseDeletionBlocker(new craft\elements\ElementCollection([$target]), false);
+        check(!$off->isActive() && internetztube\elementRelations\ElementRelations::mayDeleteInUse(), 'with “Protect elements in use” off: no blocker in the delete dialog, and deleting is allowed');
+        $settings->protectInUse = true;
         Craft::$app->getElements()->deleteElement($offlineSource, true);
         Craft::$app->getElements()->deleteElement($offlineOnly, true);
         flushQueue();

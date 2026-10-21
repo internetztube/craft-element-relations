@@ -20,7 +20,7 @@ Every Craft project ends up asking the same things: *Can I delete this asset? Wh
 - **Native, not bolted on.** Craft's search, sorting, status and Drafts filter, table or card view, the View menu's columns, Craft's own filter rules and sort options of the types in the list (Section, Post Date, Author, Filename, Group, …), plus type and site dropdowns with counts. An index column shows the first usages and the total, and sorts by it.
 - **Permission-aware.** Users only see usages they may view; a line says how many are hidden, so nobody takes an element for unused.
 - **In code, too.** `isInUse`, counts and the relating elements in Twig and GraphQL, `usesElement` on any element query.
-- **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 12,000 entries ([`dev/stress.php`](dev/stress.php)).
+- **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 100,000 entries ([`dev/stress.php`](dev/stress.php)): its list opens in under a second.
 
 **Pro** (ready behind a feature flag, see [Editions](#editions)):
 
@@ -56,6 +56,7 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to ove
 | Setting | Default | Description |
 |---|---|---|
 | `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole relations cache is rebuilt. |
+| `protectInUse` | `true` | Pro: protect elements that live content uses from being deleted or taken offline (see [Editions](#editions)). |
 | `features.editions` | `false` | Offer the Lite and Pro editions. |
 
 Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers every column of the element types in the list), Show the status menu, Elements per page.
@@ -160,7 +161,7 @@ The plugin is a single Lite edition today; everything in [Features](#features) e
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them, so saving many or large entries never blocks the page. The notice shows the progress and offers Undo when it is done. A job that got lost (a worker stopped) is resumed where it got: automatically while the notice waits, with Resume in the history, or on the command line.
 - **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line-pro).
-- **Protect what is in use:** in the control panel, an element that live content uses (what visitors see: live entries, enabled elements, plus plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled for later; the error names the usages. On Craft 5.10+ Craft's delete dialog lists them up front, with “Replace…” and, only with the permission, “Delete anyway”. The edit page, slideouts and the index's Delete / Set status / Delete for site actions are covered. Drafts and disabled elements that point to it don't count. Users with “Delete or disable elements that are in use” (admins) may; console commands, migrations, queue jobs and settings changes (e.g. deleting a section) are never blocked.
+- **Protect what is in use:** in the control panel, an element that live content uses (what visitors see: live entries, enabled elements, plus plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled for later; the error names the usages the user may view and counts the others. On Craft 5.10+ Craft's delete dialog lists them up front, with “Replace…” and, only with the permission, “Delete anyway”. The edit page, slideouts and the index's Delete / Set status / Delete for site actions are covered. Drafts and disabled elements that point to it don't count. Users with “Delete or disable elements that are in use” (admins) may; console commands, migrations, queue jobs and settings changes (e.g. deleting a section) are never blocked.
 
 ### Permissions
 

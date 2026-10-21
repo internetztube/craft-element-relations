@@ -1,7 +1,6 @@
-// @ts-check
 /**
  * Documentation screenshots of the plugin in the demo site (dev/demo.php), taken with headless Chrome over the
- * DevTools protocol (no packages needed, Node 22+): the whole control panel page in a browser window, rings on the
+ * DevTools protocol (dev/browser.mts, no packages; Node 24 runs it as TypeScript, no build step): the whole control panel page in a browser window, rings on the
  * feature and a zoomed inset of it where the page shows it small.
  *
  *   dev/dev.sh screenshots            all shots into docs/screenshots/
@@ -10,15 +9,16 @@
  * Env: CHROME (path to Chrome), CP_USER / CP_PASSWORD (default: the demo's editor mara / the dev password).
  * The replace shots really replace an element and undo it again, like a user would.
  */
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { evaluate, launchChrome, login, open, PAGE_HELPERS as CP_HELPERS, resize, type Browser } from './browser.mts';
 
 const [projectDir, baseUrl = 'http://localhost:8080', outDir = 'docs/screenshots'] = process.argv.slice(2);
 if (!projectDir) {
-    console.error('Usage: node dev/screenshots.mjs <craft-project-dir> [base-url] [out-dir]');
+    console.error('Usage: node dev/screenshots.mts <craft-project-dir> [base-url] [out-dir]');
     process.exit(1);
 }
 
@@ -37,78 +37,106 @@ const BAR = 36;
 const INSET = { maxWidth: 0.42, maxHeight: 0.5, maxZoom: 2, margin: 28, pad: 10 };
 const DEBUGGING_PORT = 9333;
 
-/**
- * @typedef {object} DemoTargets Paths and ids of the demo elements, from dev/screenshots.php
- * @property {{id: number, path: string}} skyline the asset most screenshots show
- * @property {{id: number}} replacement the asset the replace shots replace it with
- * @property {number[]} replaceIn usages the replace shots tick
- * @property {{path: string}} social
- * @property {{path: string}} guide
- * @property {{id: number, path: string}} hongKong
- * @property {{path: string}} homepage
- * @property {{path: string}} usedInField
- * @property {{path: string}} editors
- */
+/** Paths and ids of the demo elements, from dev/screenshots.php. */
+interface DemoTargets {
+    /** the asset most screenshots show */
+    skyline: { id: number, path: string };
+    /** the asset the replace shots replace it with */
+    replacement: { id: number };
+    /** usages the replace shots tick */
+    replaceIn: number[];
+    social: { path: string };
+    guide: { id: number, path: string };
+    hongKong: { id: number, path: string };
+    homepage: { path: string };
+    usedInField: { path: string };
+    editors: { path: string };
+    thankYou: { id: number, path: string };
+}
 
-/**
- * @typedef {object} Shot
- * @property {string} name file name in docs/screenshots (without .jpg)
- * @property {string} title headline above the window
- * @property {string} text one line below the headline
- * @property {'Lite' | 'Pro'} edition
- * @property {string} [path] page to open first; without it the shot continues on the current page
- * @property {string} [user] who the shot is taken as (default: CP_USER, an admin); e.g. the demo's editor `jonas`
- * @property {{width?: number, height?: number}} [viewport] another browser viewport for this shot, in CSS pixels
- * @property {string[]} points two or three key points next to the shot
- * @property {string} [focus] JavaScript expression for the element(s) the page is scrolled to (default: the top); without `highlight` what the inset zooms into
- * @property {string} [highlight] JavaScript expression for groups of elements that get a ring; the inset zooms into the first group
- * @property {boolean} [inset] false: rings only, no zoomed inset (the page shows the feature big enough)
- * @property {string} [cover] JavaScript expression for the part of the page the cover shows as a close-up (COVER_SHOTS)
- * @property {string} [caption] under that close-up
- * @property {string} [act] JavaScript run in the page before the capture (may await)
- * @property {boolean} [reload] reload the page after `act` (e.g. when it changed what the page shows)
- * @property {string} [afterReload] JavaScript run after that reload
- * @property {string} [after] JavaScript run after the capture, e.g. to undo what the shot changed
- */
+interface Shot {
+    /** file name in docs/screenshots (without .jpg) */
+    name: string;
+    /** headline above the window */
+    title: string;
+    /** one line below the headline */
+    text: string;
+    edition: 'Lite' | 'Pro';
+    /** page to open first; without it the shot continues on the current page */
+    path?: string;
+    /** who the shot is taken as (default: CP_USER, an admin); e.g. the demo's editor `jonas` */
+    user?: string;
+    /** another browser viewport for this shot, in CSS pixels */
+    viewport?: { width?: number, height?: number };
+    /** two or three key points next to the shot */
+    points: string[];
+    /** JavaScript expression for the element(s) the page is scrolled to (default: the top); without `highlight` what the inset zooms into */
+    focus?: string;
+    /** JavaScript expression for groups of elements that get a ring; the inset zooms into the first group */
+    highlight?: string;
+    /** false: rings only, no zoomed inset (the page shows the feature big enough) */
+    inset?: boolean;
+    /** JavaScript expression for the part of the page the cover shows as a close-up (COVER_SHOTS) */
+    cover?: string;
+    /** under that close-up */
+    caption?: string;
+    /** instead of one page: close-ups taken one after another (`protect`: the plugin's "Protect elements in use" set first; then
+     * `act`, then `region`), framed under their labels */
+    compare?: { label: string, act: string, region: string, protect?: boolean }[];
+    /** JavaScript run in the page before the capture (may await) */
+    act?: string;
+    /** reload the page after `act` (e.g. when it changed what the page shows) */
+    reload?: boolean;
+    /** JavaScript run after that reload */
+    afterReload?: string;
+    /** JavaScript run after the capture, e.g. to undo what the shot changed */
+    after?: string;
+}
+
+/** A box in CSS pixels. */
+interface Region {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+/** What a shot shows, in CSS pixels of the viewport. */
+interface Area {
+    viewport: { width: number, height: number };
+    /** the page's scroll position (CDP clips are in page coordinates) */
+    scroll: { x: number, y: number };
+    /** the groups that get a ring */
+    highlights: Region[];
+    /** what the inset zooms into: the first highlight, else the focus */
+    target: Region | null;
+    /** the part of the page captured for the inset (the target with some padding) */
+    inset?: Region;
+}
+
+/** A shot as taken: its page, inset and cover close-up as files in the work directory. */
+interface Taken {
+    shot: Shot;
+    base: string;
+    inset: string | null;
+    cover: string | null;
+    coverRegion: Region | null;
+    area: Area;
+    address: string;
+}
+
+/** A close-up of a comparison shot. */
+interface Part {
+    label: string;
+    file: string;
+    region: Region;
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
-/** @type {DemoTargets} */
-const demo = JSON.parse(execFileSync('php', [join(here, 'screenshots.php'), projectDir], { encoding: 'utf8' }));
+const demo: DemoTargets = JSON.parse(execFileSync('php', [join(here, 'screenshots.php'), projectDir], { encoding: 'utf8' }));
 
-/** Page helpers, defined once per page load. */
-const PAGE_HELPERS = `
-window.sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-window.until = async (test, what, timeout = 15000) => {
-    const start = Date.now();
-    while (!test()) {
-        if (Date.now() - start > timeout) throw new Error('Timed out waiting for ' + what);
-        await sleep(100);
-    }
-};
-window.fieldIndex = () => $('.element-relations .element-index').data('elementIndex');
-window.pageIndex = () => $('#main .element-index, #content .element-index').first().data('elementIndex') ?? Craft.elementIndex;
-window.indexReady = async (index, what) => {
-    await sleep(150); // a request started just now may not have set isIndexBusy yet
-    await until(() => index && !index.isIndexBusy && index.view, what);
-    await sleep(600);
-};
-window.clickTab = (label) => {
-    const tab = [...document.querySelectorAll('[role="tab"]')].find((t) => t.textContent.trim() === label);
-    if (!tab) throw new Error('No tab ' + label);
-    tab.click();
-};
-// the open modal; Garnish.Modal.visibleModal is unset when one modal opens another from its onSelect
-window.$$ = (selector) => [...document.querySelectorAll(selector)].filter((e) => e.getClientRects().length > 0);
-window.byText = (selector, text) => $$(selector).filter((e) => e.textContent.trim() === text);
-/** A table column by its header label: the header cell and the cells below it. */
-window.column = (label) => {
-    // the table's own header (Craft also renders a sticky copy of it)
-    const header = byText('th', label).find((th) => th.closest('table')?.querySelector('tbody tr'));
-    if (!header) return [];
-    const index = [...header.parentElement.children].indexOf(header);
-    const rows = [...header.closest('table').querySelectorAll('tbody tr')];
-    return [header, ...rows.map((row) => row.children[index]).filter(Boolean)];
-};
+/** Page helpers, defined once per page load: the control panel's (dev/browser.mts) and the shots' own. */
+const PAGE_HELPERS = CP_HELPERS + `
 /** The box around one or more elements, in CSS pixels of the viewport. */
 window.regionOf = (elements, padding = 0) => {
     const list = [elements].flat(3).filter(Boolean);
@@ -118,7 +146,6 @@ window.regionOf = (elements, padding = 0) => {
     const right = Math.max(...boxes.map((b) => b.right)), bottom = Math.max(...boxes.map((b) => b.bottom));
     return { x: left - padding, y: top - padding, width: right - left + 2 * padding, height: bottom - top + 2 * padding };
 };
-/** A table's header row and its first rows (long lists are cut for a closer look). */
 /** An element's rows, as wide as the content pane it is in (the window then starts at the pane's edge). */
 window.inPane = (element) => ({
     getBoundingClientRect: () => {
@@ -126,52 +153,15 @@ window.inPane = (element) => ({
         return { left: pane.left, right: pane.right, top: box.top, bottom: box.bottom };
     },
 });
+/** A table's header row and its first rows (long lists are cut for a closer look). */
 window.firstRows = (selector, count) => {
     const table = $$(selector)[0];
     if (!table) return [];
     return [table.querySelector('thead'), ...[...table.querySelectorAll('tbody tr')].slice(0, count)];
 };
-/** Runs Craft's queue until the replacement or rollback is done (it runs as a queue job). */
-window.waitForOperation = async (operationId) => {
-    for (let i = 0; i < 120; i++) {
-        Craft.cp.runQueue?.();
-        const { data } = await Craft.sendActionRequest('POST', 'element-relations/replace/status', { data: { operationId } });
-        if (data.done) return data;
-        await sleep(1000);
-    }
-    throw new Error('Operation ' + operationId + ' did not finish');
-};
-/** The type dropdown's open menu (Garnish renders it at the end of the page). */
-window.typeMenu = () => $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn')?.menu?.$container?.[0];
-// index actions ask with the browser's confirm() (e.g. Delete): answered "OK" like the user would; a native dialog
-// would block the headless page
-window.confirm = () => true;
-/** The usage list's "Replace…" button, once usages are ticked. */
-window.replaceButton = () => $$('.element-relations button').find((button) => button.textContent.trim() === 'Replace…');
-/** The open replace wizard's slideout. */
-window.wizardSlideout = () => document.querySelector('.element-relations-wizard')?.closest('.slideout');
-/** Searches an index, ticks one element and runs an index action on it, then waits for the notice it answers with. */
-window.findAndRun = async (index, search, id, action, params, expect) => {
-    index.$search.val(search).trigger('input'); // like typing: Craft searches after a short pause
-    await sleep(900);
-    await indexReady(index, 'the search');
-    const row = document.querySelector('.elements table tbody tr[data-id="' + id + '"]');
-    if (!row) throw new Error('Not listed: ' + id);
-    index.view.elementSelect.selectItem($(row));
-    await sleep(300);
-    index.submitAction(action, params);
-    await until(() => $$('.notification').some((n) => expect.test(n.textContent)), 'the notice');
-    await sleep(500);
-};
-window.visibleModal = () => $('.modal:visible').last().data('modal') ?? Garnish.Modal.visibleModal;
-// trial and dev mode notices are not part of what the plugin looks like
-const style = document.createElement('style');
-style.textContent = '#trial-info, #devmode { display: none !important; }';
-document.head.append(style);
 `;
 
-/** @type {Shot[]} */
-const SHOTS = [
+const SHOTS: Shot[] = [
     {
         name: 'usage-list', edition: 'Lite',
         points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
@@ -415,18 +405,104 @@ const SHOTS = [
     },
     {
         name: 'in-use-dialog', edition: 'Pro', user: 'jonas',
-        points: ['In Craft’s own delete dialog', 'The usages listed, “Replace…” right there', 'No “Delete anyway” without the permission'],
-        focus: `$$('.modal').filter((m) => /live elements? uses? the/.test(m.textContent)).at(-1)`,
-        highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /live elements? uses? the/.test(e.textContent)).slice(-1)]`,
-        title: 'Before deleting: where it is used',
-        text: 'Craft’s delete dialog lists the live usages and offers “Replace…”; no way past without the permission.',
-        path: demo.skyline.path,
+        points: ['Usages Craft can’t see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
+        highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
+        title: 'Nothing breaks by accident',
+        text: 'Two forms redirect to “Thank you”. Craft would delete it without a word; Element Relations stops it first.',
+        path: demo.thankYou.path,
         act: `
-            new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
+            new Craft.ElementDeletionManager('craft\\\\elements\\\\Entry', [${demo.thankYou.id}], { siteId: 1 });
+            await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
+            await sleep(800);
+            // open the usages, like clicking the toggle
+            $$('.modal .fieldtoggle').at(-1)?.click();
             await sleep(1500);
         `,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
+    },
+    {
+        name: 'delete-compare', edition: 'Pro', user: 'jonas', viewport: { height: 1500 },
+        points: ['The same asset, the same dialog', 'Craft checks relation fields and CKEditor', 'Element Relations also finds links, menus and forms'],
+        title: 'What Craft’s delete dialog misses',
+        text: 'The same PDF, deleted by an editor: Craft 5.10 on its own, and with Element Relations.',
+        path: demo.guide.path,
+        compare: [
+            {
+                label: 'Craft 5.10',
+                protect: false,
+                act: `
+                    window.confirm = () => false; // no blocker means Craft's plain confirm(): cancelled, nothing is deleted
+                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
+                    await until(() => $$('.modal').some((m) => /Before deleting/.test(m.textContent)), 'Craft’s delete dialog', 30000);
+                    await sleep(1500);
+                    if ($$('.modal').some((m) => /Element Relations/.test(m.textContent))) throw new Error('The plugin’s part is still in the dialog');
+                    // the dialog's heading and its checks, without the empty space and the buttons below
+                    window.dialogChecks = () => { const m = $$('.modal').at(-1); return [m.querySelector('.body > h1'), m.querySelector('.edm-blockers')]; };
+                `,
+                region: `dialogChecks()`,
+            },
+            {
+                label: 'Craft 5.10 with Element Relations',
+                protect: true,
+                act: `
+                    visibleModal()?.hide();
+                    await sleep(800);
+                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
+                    await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
+                    // opened, like a user would to see which elements
+                    const ours = [...$$('.modal').at(-1).querySelectorAll('.edm-blocker')].find((b) => /Element Relations found/.test(b.textContent));
+                    ours.querySelector('button, [role="button"], .fieldtoggle')?.click();
+                    await until(() => ours.querySelector('.element-relations tbody tr[data-id], tbody tr'), 'the usage list in the dialog', 15000);
+                    await sleep(1500);
+                `,
+                region: `dialogChecks()`,
+            },
+        ],
+    },
+    {
+        // Craft's own list of what relates to the asset next to the plugin's: Craft names the Matrix block, the plugin
+        // the page that holds it, with the field and the sites
+        name: 'compare', edition: 'Pro',
+        points: ['The page, not the Matrix block inside it', 'Where it sits, which field, which sites', 'Rich text, links, menus, forms and SEO too'],
+        title: 'Know what you replace',
+        text: 'The same asset: Craft lists the blocks that relate to it, Element Relations the pages your editors know.',
+        path: demo.skyline.path,
+        compare: [
+            {
+                label: 'Craft’s delete dialog',
+                act: `
+                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
+                    await until(() => $$('.modal h2, .modal h3').some((h) => /is related by/.test(h.textContent)), 'the delete dialog', 30000);
+                    await sleep(800);
+                    window.craftBlocker = () => $$('.modal h2, .modal h3').find((h) => /is related by/.test(h.textContent)).parentElement.parentElement;
+                    craftBlocker().querySelector('.fieldtoggle')?.click();
+                    await sleep(2500); // the related elements load into the expanded part
+                `,
+                region: `craftBlocker()`,
+            },
+            {
+                label: 'Element Relations',
+                act: `
+                    $$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click();
+                    await sleep(500);
+                    await indexReady(fieldIndex(), 'the usage list');
+                    const index = fieldIndex();
+                    $$('.element-relations tbody tr[data-id]').forEach((row) => index.view.elementSelect.selectItem($(row)));
+                    await until(() => replaceButton(), 'the Replace… button');
+                    replaceButton().click();
+                    await until(() => document.querySelector('.element-relations-wizard'), 'the wizard');
+                    await sleep(1200);
+                    window.wizardUsages = () => {
+                        const boxes = $$('.element-relations-wizard input[type="checkbox"]');
+                        const heading = $$('.element-relations-wizard h2, .element-relations-wizard h3, .element-relations-wizard legend').find((h) => /Where/.test(h.textContent));
+                        return [heading, ...boxes.map((box) => box.closest('li, tr, label, div'))];
+                    };
+                `,
+                region: `wizardUsages()`,
+            },
+        ],
+        after: `wizardSlideout()?.querySelector('button:not([type="submit"])')?.click(); await sleep(300);`,
     },
     {
         name: 'in-use-disable', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
@@ -465,183 +541,41 @@ const SHOTS = [
         `,
     },
     {
-        name: 'plugin-settings', edition: 'Lite',
-        points: ['Per environment in config/element-relations.php', 'Rebuild under Utilities or on the command line'],
+        name: 'plugin-settings', edition: 'Pro',
+        points: ['Protection on or off, per environment too', 'Rebuild under Utilities or on the command line'],
         focus: `$$('#content .field').map(inPane)`,
         title: 'Plugin settings',
-        text: 'How many elements a queue job handles when the cache is rebuilt; set per environment in config.',
+        text: 'Protect elements in use, and how many elements a queue job handles when the cache is rebuilt.',
         path: '/admin/settings/plugins/element-relations',
         act: `await sleep(500);`,
     },
 ];
 
 // ---------------------------------------------------------------------------------------------------------------
-// DevTools protocol, minimal
+// Capture
 // ---------------------------------------------------------------------------------------------------------------
 
-/**
- * @typedef {object} Browser
- * @property {(method: string, params?: object) => Promise<any>} send
- * @property {(event: string) => Promise<any>} once
- * @property {() => Promise<void>} close
- */
-
-/** @returns {Promise<Browser>} */
-async function launchChrome() {
-    const chromePath = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    const profile = mkdtempSync(join(tmpdir(), 'element-relations-shots-'));
-    const chrome = spawn(chromePath, [
-        '--headless=new', `--remote-debugging-port=${DEBUGGING_PORT}`, `--user-data-dir=${profile}`,
-        '--hide-scrollbars', '--no-first-run', '--no-default-browser-check', '--force-color-profile=srgb',
-        '--allow-file-access-from-files', 'about:blank',
-    ], { stdio: 'ignore' });
-
-    /** @type {{type: string, webSocketDebuggerUrl: string}[]} */
-    let targets = [];
-    for (let attempt = 0; attempt < 100 && !targets.some((t) => t.type === 'page'); attempt++) {
-        await sleep(100);
-        targets = await fetch(`http://127.0.0.1:${DEBUGGING_PORT}/json/list`).then((r) => r.json()).catch(() => []);
-    }
-    const page = targets.find((t) => t.type === 'page');
-    if (!page) {
-        chrome.kill();
-        throw new Error('Chrome did not start (set CHROME to its path)');
-    }
-
-    const socket = new WebSocket(page.webSocketDebuggerUrl);
-    await new Promise((resolve, reject) => {
-        socket.onopen = resolve;
-        socket.onerror = reject;
-    });
-    let lastId = 0;
-    /** @type {Map<number, {resolve: (value: any) => void, reject: (error: Error) => void}>} */
-    const pending = new Map();
-    /** @type {Map<string, ((params: any) => void)[]>} */
-    const waiting = new Map();
-    socket.onmessage = (message) => {
-        const data = JSON.parse(String(message.data));
-        if (data.id && pending.has(data.id)) {
-            const { resolve, reject } = pending.get(data.id) ?? { resolve: () => {}, reject: () => {} };
-            pending.delete(data.id);
-            data.error ? reject(new Error(data.error.message)) : resolve(data.result);
-        } else if (data.method && waiting.has(data.method)) {
-            for (const callback of waiting.get(data.method) ?? []) callback(data.params);
-            waiting.delete(data.method);
-        }
-    };
-    return {
-        send: (method, params = {}) => new Promise((resolve, reject) => {
-            const id = ++lastId;
-            pending.set(id, { resolve, reject });
-            socket.send(JSON.stringify({ id, method, params }));
-        }),
-        once: (event) => new Promise((resolve) => waiting.set(event, [...(waiting.get(event) ?? []), resolve])),
-        close: async () => {
-            socket.close();
-            const exited = new Promise((resolve) => chrome.once('exit', resolve));
-            chrome.kill();
-            await exited;
-            rmSync(profile, { recursive: true, force: true });
-        },
-    };
-}
-
-/** @param {number} ms */
-function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Runs JavaScript in the page (top-level await allowed) and returns its value.
- * @param {Browser} browser
- * @param {string} code
- */
-async function evaluate(browser, code) {
-    const result = await browser.send('Runtime.evaluate', {
-        expression: `(async () => { ${code} })()`,
-        awaitPromise: true,
-        returnByValue: true,
-    });
-    if (result.exceptionDetails) {
-        throw new Error(result.exceptionDetails.exception?.description ?? result.exceptionDetails.text);
-    }
-    return result.result?.value;
-}
-
-/**
- * @param {Browser} browser
- * @param {string} url
- */
-async function open(browser, url) {
-    const loaded = browser.once('Page.loadEventFired');
-    await browser.send('Page.navigate', { url });
-    await loaded;
-    await sleep(800);
-}
-
-/**
- * @param {Browser} browser
- * @param {{width: number, height: number, scale: number}} size
- */
-async function resize(browser, size) {
-    await browser.send('Emulation.setDeviceMetricsOverride', {
-        width: size.width, height: size.height, deviceScaleFactor: size.scale, mobile: false,
-    });
-}
-
-/**
- * @typedef {{x: number, y: number, width: number, height: number}} Region a box in CSS pixels
- */
-
-/**
- * A part of the page at the viewport's device scale.
- * @param {Browser} browser
- * @param {Region} clip in page coordinates
- * @returns {Promise<Buffer>}
- */
-async function capture(browser, clip) {
+/** A part of the page (`clip` in page coordinates) at the viewport's device scale. */
+async function capture(browser: Browser, clip: Region): Promise<Buffer> {
     const { data } = await browser.send('Page.captureScreenshot', { format: 'png', clip: { ...clip, scale: 1 } });
     return Buffer.from(data, 'base64');
 }
 
-/**
- * The whole viewport at its device scale.
- * @param {Browser} browser
- * @returns {Promise<Buffer>}
- */
-async function captureViewport(browser) {
+/** The whole viewport at its device scale. */
+async function captureViewport(browser: Browser): Promise<Buffer> {
     const { data } = await browser.send('Page.captureScreenshot', { format: 'png' });
     return Buffer.from(data, 'base64');
 }
 
-/**
- * The framed image for the docs, as JPG.
- * @param {Browser} browser
- * @returns {Promise<Buffer>}
- */
-async function captureFramed(browser) {
+/** The framed image for the docs, as JPG. */
+async function captureFramed(browser: Browser): Promise<Buffer> {
     const { data } = await browser.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
     return Buffer.from(data, 'base64');
 }
 
-/**
- * @typedef {object} Area what a shot shows, in CSS pixels of the viewport
- * @property {{width: number, height: number}} viewport
- * @property {{x: number, y: number}} scroll the page's scroll position (CDP clips are in page coordinates)
- * @property {Region[]} highlights the groups that get a ring
- * @property {Region | null} target what the inset zooms into: the first highlight, else the focus
- * @property {Region} [inset] the part of the page captured for the inset (the target with some padding)
- */
-
-/**
- * Scrolls the page so the shot's focus is in view and measures the highlights and the inset's target.
- * @param {Browser} browser
- * @param {Shot} shot
- * @returns {Promise<Area>}
- */
-async function measure(browser, shot) {
-    /** @type {Area} */
-    const area = await evaluate(browser, `
+/** Scrolls the page so the shot's focus is in view and measures the highlights and the inset's target. */
+async function measure(browser: Browser, shot: Shot): Promise<Area> {
+    const area: Area = await evaluate(browser, `
         const focus = () => ${shot.focus ? `regionOf(${shot.focus})` : 'null'};
         const first = focus();
         // under Craft's sticky header when scrolled
@@ -657,14 +591,13 @@ async function measure(browser, shot) {
             target: groups[0] ?? focus(),
         };
     `);
-    /** Cut to the viewport (a column may continue below it). @param {Region} r */
-    const clip = (r) => {
+    /** Cut to the viewport (a column may continue below it). */
+    const clip = (r: Region): Region => {
         const x = Math.max(r.x, 0), y = Math.max(r.y, 0);
         const right = Math.min(r.x + r.width, area.viewport.width), bottom = Math.min(r.y + r.height, area.viewport.height);
         return { x, y, width: right - x, height: bottom - y };
     };
-    /** @param {Region} r */
-    const visible = (r) => r.width > 0 && r.height > 0;
+    const visible = (r: Region) => r.width > 0 && r.height > 0;
     area.highlights = area.highlights.map(clip).filter(visible);
     const target = area.target && clip(area.target);
     area.target = target && visible(target) ? target : null;
@@ -679,8 +612,7 @@ async function measure(browser, shot) {
 // The frame
 // ---------------------------------------------------------------------------------------------------------------
 
-/** @param {string} text */
-function escapeHtml(text) {
+function escapeHtml(text: string): string {
     return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
 
@@ -719,9 +651,8 @@ const WINDOW_CSS = `
 
 /**
  * The window's size and place on the stage, in frame pixels: the whole viewport, as large as fits, centred.
- * @param {Area} area
  */
-function layoutOf(area) {
+function layoutOf(area: Area) {
     const scale = Math.min(STAGE.width / area.viewport.width, (STAGE.height - BAR) / area.viewport.height);
     const width = Math.round(area.viewport.width * scale), height = Math.round(area.viewport.height * scale);
     return {
@@ -731,19 +662,14 @@ function layoutOf(area) {
     };
 }
 
-/** @param {Region} r @param {number} scale */
-const scaled = (r, scale) => ({ x: r.x * scale, y: r.y * scale, width: r.width * scale, height: r.height * scale });
+const scaled = (r: Region, scale: number): Region => ({ x: r.x * scale, y: r.y * scale, width: r.width * scale, height: r.height * scale });
 
 /**
  * The zoomed inset: the first highlight (or the focus) captured at 3× and shown larger, in the corner of the window
- * farthest from it, with a line from the ring to it. Nothing when the page already shows it big enough.
- * @param {Area} area
- * @param {string} insetUrl
- * @param {number} scale frame pixels per CSS pixel of the page
- * @param {number} width the window's content, in frame pixels
- * @param {number} height
+ * farthest from it, with a line from the ring to it. Nothing when the page already shows it big enough. `scale`: frame
+ * pixels per CSS pixel of the page; `width` and `height`: the window's content, in frame pixels.
  */
-function insetHtml(area, insetUrl, scale, width, height) {
+function insetHtml(area: Area, insetUrl: string, scale: number, width: number, height: number): string {
     if (!area.inset || !area.target) return '';
     const zoom = Math.min(INSET.maxZoom, INSET.maxWidth * width / area.inset.width, INSET.maxHeight * height / area.inset.height);
     if (zoom < scale * 1.35) return '';
@@ -751,11 +677,9 @@ function insetHtml(area, insetUrl, scale, width, height) {
     const ring = scaled(area.target, scale);
     const m = INSET.margin;
     const corners = [{ x: m, y: m }, { x: width - m - iw, y: m }, { x: m, y: height - m - ih }, { x: width - m - iw, y: height - m - ih }];
-    /** @param {{x: number, y: number}} c */
-    const overlap = (c) => Math.max(0, Math.min(c.x + iw, ring.x + ring.width) - Math.max(c.x, ring.x))
+    const overlap = (c: { x: number, y: number }) => Math.max(0, Math.min(c.x + iw, ring.x + ring.width) - Math.max(c.x, ring.x))
         * Math.max(0, Math.min(c.y + ih, ring.y + ring.height) - Math.max(c.y, ring.y));
-    /** @param {{x: number, y: number}} c */
-    const distance = (c) => Math.hypot(c.x + iw / 2 - ring.x - ring.width / 2, c.y + ih / 2 - ring.y - ring.height / 2);
+    const distance = (c: { x: number, y: number }) => Math.hypot(c.x + iw / 2 - ring.x - ring.width / 2, c.y + ih / 2 - ring.y - ring.height / 2);
     // least over the ring; then on the right (Craft's nav is on the left); then farthest from the ring
     const at = corners.sort((a, b) => overlap(a) - overlap(b) || (b.x > width / 2 ? 1 : 0) - (a.x > width / 2 ? 1 : 0) || distance(b) - distance(a))[0];
     // the line: between the facing edges of the ring and the inset
@@ -775,14 +699,10 @@ function insetHtml(area, insetUrl, scale, width, height) {
 }
 
 /**
- * The whole page in a browser window, with rings on the highlights (and, in the frames, the zoomed inset).
- * @param {string} imageUrl
- * @param {Area} area
- * @param {string} address shown in the window's title bar
- * @param {number} scale
- * @param {string} [inset]
+ * The whole page in a browser window, with rings on the highlights (and, in the frames, the zoomed inset); `address` is
+ * shown in its title bar.
  */
-function windowHtml(imageUrl, area, address, scale, inset = '') {
+function windowHtml(imageUrl: string, area: Area, address: string, scale: number, inset = ''): string {
     const width = Math.round(area.viewport.width * scale), height = Math.round(area.viewport.height * scale);
     const rings = area.highlights.map((h) => scaled(h, scale))
         .map((h) => `<span class="ring" style="left:${h.x}px;top:${h.y}px;width:${h.width}px;height:${h.height}px"></span>`)
@@ -809,10 +729,7 @@ const PAGE_CSS = `
     ${WINDOW_CSS}
 `;
 
-/**
- * @param {{shot: Shot, base: string, inset: string | null, area: Area, address: string}} taken
- */
-function frameHtml({ shot, base, inset, area, address }) {
+function frameHtml({ shot, base, inset, area, address }: Taken): string {
     const box = layoutOf(area);
     const insetMarkup = inset ? insetHtml(area, pathToFileURL(inset).href, box.scale, box.width, box.height) : '';
     const points = shot.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('');
@@ -840,25 +757,76 @@ function frameHtml({ shot, base, inset, area, address }) {
     </body></html>`;
 }
 
+/**
+ * Two close-ups side by side under their labels, with the shot's copy above, like frameHtml(); the second (the
+ * plugin's) gets the accent ring.
+ */
+function compareHtml({ shot, parts }: { shot: Shot, parts: Part[] }): string {
+    // stacked, one zoom for both (the same UI size), as large as the stage allows
+    const gap = 36, label = 44, top = STAGE.top;
+    const zoom = Math.min(
+        STAGE.width / Math.max(...parts.map((part) => part.region.width)),
+        (STAGE.height - parts.length * label - (parts.length - 1) * gap) / parts.reduce((sum, part) => sum + part.region.height, 0),
+        2.4,
+    );
+    let y = top;
+    const cards = parts.map((part, i) => {
+        const width = Math.round(part.region.width * zoom), height = Math.round(part.region.height * zoom);
+        const html = `<figure class="part${i === parts.length - 1 ? ' ours' : ''}" style="left:${Math.round(STAGE.left + (STAGE.width - width) / 2)}px;top:${y}px;width:${width}px">
+            <figcaption><i></i>${escapeHtml(part.label)}</figcaption>
+            <div class="pic"><img src="${pathToFileURL(part.file).href}" alt="" style="width:${width}px;height:${height}px"></div>
+        </figure>`;
+        y += label + height + gap;
+        return html;
+    }).join('');
+    const points = shot.points.map((point) => `<li>${escapeHtml(point)}</li>`).join('');
+    return `<!doctype html><html><head><meta charset="utf-8"><style>
+        ${PAGE_CSS}
+        .copy { position: absolute; left: ${STAGE.left}px; right: ${STAGE.left}px; top: 0; height: ${STAGE.top}px; padding-bottom: 30px;
+            display: grid; grid-template-columns: 1fr 460px; column-gap: 64px; align-content: end; align-items: end; }
+        .copy .brand, .copy h1, .copy p { grid-column: 1; }
+        .copy ul { grid-column: 2; grid-row: 1 / span 3; align-self: end; margin: 0; padding: 0; list-style: none; display: grid; gap: 11px; }
+        h1 { font-size: 48px; margin: 16px 0 8px; }
+        p { font-size: 19px; line-height: 1.45; text-wrap: balance; }
+        li { position: relative; padding-left: 32px; font-size: 16.5px; line-height: 1.3; color: #e7ebf5; }
+        li::before { content: ''; position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%;
+            background: rgba(255, 90, 60, .2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 12.5l4 4 8-9' fill='none' stroke='%23ff8a5c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 14px no-repeat; }
+        .part { position: absolute; margin: 0; }
+        .pic { border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 60px 120px -30px rgba(0, 0, 0, .8), 0 0 0 1px rgba(255, 255, 255, .16); }
+        .ours .pic { box-shadow: 0 0 0 3px ${ACCENT}, 0 0 0 9px rgba(255, 90, 60, .2), 0 60px 120px -30px rgba(0, 0, 0, .8); }
+        .pic img { display: block; }
+        figcaption { height: ${label}px; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 600; color: #c4cce0; }
+        .ours figcaption { color: #fff; }
+        figcaption i { width: 9px; height: 9px; border-radius: 50%; background: #7a8296; }
+        .ours figcaption i { background: ${ACCENT}; box-shadow: 0 0 10px rgba(255, 90, 60, .9); }
+    </style></head><body>
+        <div class="copy">
+            <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations <span class="badge ${shot.edition.toLowerCase()}">${shot.edition}</span></div>
+            <h1>${escapeHtml(shot.title)}</h1>
+            <p>${escapeHtml(shot.text)}</p>
+            <ul>${points}</ul>
+        </div>
+        ${cards}
+    </body></html>`;
+}
+
 /** Close-ups on the cover: the first two stacked on the left, the third (tall) on the right. */
 const COVER_SHOTS = ['usage-list', 'used-filter', 'wizard'];
 /** What the cover promises, under the title. */
-const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 12,000 usages', 'Craft CMS 5'];
+const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 100,000 usages', 'Craft CMS 5'];
 
 /**
  * The cover for the README: the plugin's name over three close-ups of the control panel, so a reader sees what to
  * expect at a glance.
- * @param {{shot: Shot, cover: string, coverRegion: Region}[]} cards
  */
-function coverHtml(cards) {
+function coverHtml(cards: (Taken & { cover: string, coverRegion: Region })[]): string {
     const top = 450, bottom = 1150, gap = 32, caption = 40, margin = 88;
-    /** @param {typeof cards[number]} card */
-    const ratio = (card) => card.coverRegion.height / card.coverRegion.width;
-    /** @param {typeof cards[number]} card @param {number} w */
-    const height = (card, w) => Math.round(ratio(card) * w);
+    type Card = typeof cards[number];
+    const ratio = (card: Card) => card.coverRegion.height / card.coverRegion.width;
+    const height = (card: Card, w: number) => Math.round(ratio(card) * w);
     const [first, second, tall] = cards;
     // two cards stacked on the left, the tall one on the right, both columns ending on the same line
-    const layout = (/** @type {number} */ width) => {
+    const layout = (width: number) => {
         const right = ((width - gap) * (ratio(first) + ratio(second)) + caption + gap) / (ratio(first) + ratio(second) + ratio(tall));
         const left = width - gap - right;
         const x = Math.round((FRAME.width - width) / 2);
@@ -915,32 +883,17 @@ function coverHtml(cards) {
 const only = (process.env.ONLY ?? '').split(',').filter(Boolean);
 const workDir = mkdtempSync(join(tmpdir(), 'element-relations-frames-'));
 mkdirSync(outDir, { recursive: true });
-const browser = await launchChrome();
+const browser = await launchChrome(DEBUGGING_PORT);
 try {
     await browser.send('Page.enable');
     await resize(browser, VIEWPORT);
     const defaultUser = process.env.CP_USER ?? 'mara';
-    /** Logs in (a fresh session; the demo users have the dev password). @param {string} username */
-    const login = async (username) => {
-        await browser.send('Network.clearBrowserCookies');
-        await open(browser, `${baseUrl}/admin/login`);
-        const status = await evaluate(browser, `
-            const response = await fetch(Craft.getActionUrl('users/login'), {
-                method: 'POST',
-                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': Craft.csrfTokenValue },
-                body: JSON.stringify({ loginName: ${JSON.stringify(username)}, password: ${JSON.stringify(process.env.CP_PASSWORD ?? 'password')} }),
-            });
-            return response.status;
-        `);
-        if (status !== 200) {
-            throw new Error(`Login as ${username} failed (HTTP ${status})`);
-        }
-    };
-    await login(defaultUser);
+    const password = process.env.CP_PASSWORD ?? 'password'; // the demo users have the dev password
+    await login(browser, baseUrl, defaultUser, password);
     let currentUser = defaultUser;
 
-    /** @type {{shot: Shot, base: string, inset: string | null, cover: string | null, coverRegion: Region | null, area: Area, address: string}[]} */
-    const taken = [];
+    const taken: Taken[] = [];
+    const comparisons: { shot: Shot, parts: Part[] }[] = [];
     let currentPath = '';
     // with ONLY, run each wanted shot together with the shots it continues from (back to the one opening its page)
     const needed = new Set(SHOTS.map((_, i) => i));
@@ -960,7 +913,7 @@ try {
         if (shot.path) {
             if ((shot.user ?? defaultUser) !== currentUser) {
                 currentUser = shot.user ?? defaultUser;
-                await login(currentUser);
+                await login(browser, baseUrl, currentUser, password);
             }
             currentPath = shot.path;
             await open(browser, baseUrl + shot.path);
@@ -980,7 +933,31 @@ try {
                 await evaluate(browser, shot.afterReload);
             }
         }
-        if (!only.length || only.includes(shot.name)) {
+        if (shot.compare && (!only.length || only.includes(shot.name))) {
+            const parts: Part[] = [];
+            const protect = (on: boolean) => execFileSync('php', [join(here, 'screenshots.php'), projectDir, 'protect', on ? '1' : '0']);
+            try {
+            for (const [i, part] of shot.compare.entries()) {
+                if (part.protect !== undefined) {
+                    protect(part.protect);
+                }
+                await evaluate(browser, part.act).catch(async (error) => {
+                    writeFileSync(join(outDir, `failed-${shot.name}.png`), await captureViewport(browser));
+                    throw error;
+                });
+                const found: { region: Region, scroll: { x: number, y: number } } = await evaluate(browser, `return { region: regionOf(${part.region}, 6), scroll: { x: scrollX, y: scrollY } };`);
+                const file = join(workDir, `${shot.name}-${i}.png`);
+                writeFileSync(file, await capture(browser, { ...found.region, x: found.region.x + found.scroll.x, y: found.region.y + found.scroll.y }));
+                parts.push({ label: part.label, file, region: found.region });
+            }
+            } finally {
+                if (shot.compare.some((part) => part.protect !== undefined)) {
+                    protect(true); // the default, what the other shots and the tests expect
+                }
+            }
+            comparisons.push({ shot, parts });
+            console.log(`  shot ${shot.name}`);
+        } else if (!only.length || only.includes(shot.name)) {
             const area = await measure(browser, shot);
             const base = join(workDir, `${shot.name}.png`);
             writeFileSync(base, await captureViewport(browser));
@@ -991,7 +968,7 @@ try {
             }
             let cover = null, coverRegion = null;
             if (shot.cover) {
-                coverRegion = /** @type {Region} */ (await evaluate(browser, `return regionOf(${shot.cover}, 4);`));
+                coverRegion = await evaluate(browser, `return regionOf(${shot.cover}, 4);`) as Region;
                 cover = join(workDir, `${shot.name}-cover.png`);
                 writeFileSync(cover, await capture(browser, { ...coverRegion, x: coverRegion.x + area.scroll.x, y: coverRegion.y + area.scroll.y }));
             }
@@ -1016,11 +993,20 @@ try {
         console.log(`  framed ${target}`);
     }
 
+    for (const comparison of comparisons) {
+        const html = join(workDir, `${comparison.shot.name}.html`);
+        writeFileSync(html, compareHtml(comparison));
+        await open(browser, pathToFileURL(html).href);
+        const target = resolve(outDir, `${comparison.shot.name}.jpg`);
+        writeFileSync(target, await captureFramed(browser));
+        console.log(`  framed ${target}`);
+    }
+
     // the cover: three of the shots, when they were all taken in this run
     const coverCards = COVER_SHOTS.map((name) => taken.find((t) => t.shot.name === name && t.cover));
     if (coverCards.every(Boolean)) {
         const html = join(workDir, 'cover.html');
-        writeFileSync(html, coverHtml(/** @type {typeof taken} */ (coverCards)));
+        writeFileSync(html, coverHtml(coverCards as (Taken & { cover: string, coverRegion: Region })[]));
         await open(browser, pathToFileURL(html).href);
         writeFileSync(resolve(outDir, 'cover.jpg'), await captureFramed(browser));
         console.log(`  cover ${resolve(outDir, 'cover.jpg')}`);

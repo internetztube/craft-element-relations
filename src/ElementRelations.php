@@ -54,6 +54,8 @@ class ElementRelations extends Plugin
     public static ElementRelations $plugin;
     public string $schemaVersion = "1.0.13";
 
+    /** The one edition while the `editions` flag is off: Craft's default, what 3.1 and its Plugin Store licenses use. */
+    public const EDITION_STANDARD = 'standard';
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
 
@@ -79,7 +81,7 @@ class ElementRelations extends Plugin
     }
 
     /**
-     * Lite only until the `editions` feature flag is on.
+     * One edition (Craft's `standard`, so existing licenses stay valid) until the `editions` feature flag is on.
      * @return list<string>
      */
     public static function editions(): array
@@ -93,7 +95,7 @@ class ElementRelations extends Plugin
      */
     public static function editionsFor(array $features): array
     {
-        return !empty($features['editions']) ? [self::EDITION_LITE, self::EDITION_PRO] : [self::EDITION_LITE];
+        return !empty($features['editions']) ? [self::EDITION_LITE, self::EDITION_PRO] : [self::EDITION_STANDARD];
     }
 
     /** Pro user permissions (admins have them implicitly). */
@@ -135,7 +137,7 @@ class ElementRelations extends Plugin
     public static function guardsInUse(?\craft\elements\User $user = null): bool
     {
         $request = Craft::$app->getRequest();
-        if (!self::isPro() || !$request instanceof \craft\web\Request || !$request->getIsCpRequest()) {
+        if (!self::protectsInUse() || !$request instanceof \craft\web\Request || !$request->getIsCpRequest()) {
             return false;
         }
         if (!in_array($request->getActionSegments()[0] ?? null, self::IN_USE_GUARDED_CONTROLLERS, true)) {
@@ -147,7 +149,7 @@ class ElementRelations extends Plugin
     /** Whether the user may delete or disable elements in use (admins may; Lite has no such limit). */
     public static function mayDeleteInUse(?\craft\elements\User $user = null): bool
     {
-        if (!self::isPro()) {
+        if (!self::protectsInUse()) {
             return true;
         }
         $user ??= Craft::$app->getUser()->getIdentity();
@@ -164,6 +166,55 @@ class ElementRelations extends Plugin
     }
 
     /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
+    /**
+     * `column IN (1, 2, …)` with the ids written into the SQL instead of bound one parameter each: PostgreSQL takes at
+     * most 65,535 parameters per query, and an editor may see 100,000 usages (dev/stress.php).
+     * @param int[] $ids
+     */
+    public static function idIn(string $column, array $ids): \yii\db\Expression
+    {
+        return new \yii\db\Expression("[[$column]] IN (" . (implode(',', array_map(intval(...), $ids)) ?: '0') . ')');
+    }
+
+    /**
+     * `$type::find()` for loading elements of any type by id. Formie's form query limits itself to the forms the
+     * control panel user may access, and for a user with none it is invalid SQL on PostgreSQL (Formie 4.0); the plugin
+     * checks permissions itself (UsageQuery, canView), so it uses Formie's opt-out, like Craft's own types behave.
+     * @template T of \craft\base\ElementInterface
+     * @param class-string<T> $type
+     * @return \craft\elements\db\ElementQueryInterface
+     */
+    public static function find(string $type): \craft\elements\db\ElementQueryInterface
+    {
+        $query = $type::find();
+        if (method_exists($query, 'withoutCpIndexScope')) {
+            $query->withoutCpIndexScope();
+        }
+        return $query;
+    }
+
+    /**
+     * Whether to point out Pro: Pro can be bought (editions on), this install is Lite, and the control panel user is an
+     * admin (who decides on plugins; editors never see it).
+     */
+    public static function upsells(): bool
+    {
+        return in_array(self::EDITION_PRO, self::editions(), true) && !self::isPro()
+            && Craft::$app->getRequest()->getIsCpRequest() && Craft::$app->getUser()->getIdentity()?->admin === true;
+    }
+
+    /** The plugin's page in the control panel's Plugin Store, where Pro is bought. */
+    public static function upgradeUrl(): string
+    {
+        return \craft\helpers\UrlHelper::cpUrl('plugin-store/element-relations');
+    }
+
+    /** Pro with the "Protect elements in use" setting on (the default). */
+    public static function protectsInUse(): bool
+    {
+        return self::isPro() && self::getInstance()?->getSettings()->protectInUse === true;
+    }
+
     public static function isPro(): bool
     {
         return in_array(self::EDITION_PRO, self::editions(), true) && self::getInstance()?->is(self::EDITION_PRO) === true;

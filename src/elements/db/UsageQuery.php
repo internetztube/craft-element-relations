@@ -23,6 +23,7 @@ use DateTime;
 use internetztube\elementRelations\behaviors\ElementQueryBehavior;
 use internetztube\elementRelations\elements\RestrictedUsage;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\ElementRelations;
 
 /**
  * Element query over all element types at once. Combine with the `usesElement` param:
@@ -133,17 +134,18 @@ class UsageQuery extends ElementQuery
     }
 
     /**
-     * How many usages of the targets (relating element × site, drafts included) the user may not view.
+     * How many usages of the targets (relating element × site, drafts included; or only those with `$status`, e.g.
+     * the live ones the delete dialog lists) the user may not view.
      * @param int[] $targetIds
      */
-    public static function hiddenCount(array $targetIds, User $viewer): int
+    public static function hiddenCount(array $targetIds, User $viewer, ?string $status = null): int
     {
         if ($viewer->admin || !$targetIds) {
             return 0;
         }
         // the very query the list runs, once without and once with the restriction, so the numbers always add up
-        $count = function (User|false $as) use ($targetIds): int {
-            $query = Usage::find()->allSites()->status(null)->drafts(null)->viewableBy($as);
+        $count = function (User|false $as) use ($targetIds, $status): int {
+            $query = Usage::find()->allSites()->status($status)->drafts($status === null ? null : false)->viewableBy($as);
             Craft::configure($query, ['usesElement' => $targetIds]);
             return (int)$query->count();
         };
@@ -237,7 +239,7 @@ class UsageQuery extends ElementQuery
             }
             $condition = ['or'];
             foreach ($pairs as $siteId => $ids) {
-                $condition[] = ['and', ['elements_sites.siteId' => $siteId], ['elements.id' => $ids]];
+                $condition[] = ['and', ['elements_sites.siteId' => $siteId], ElementRelations::idIn('elements.id', $ids)];
             }
             $subQuery->andWhere($condition);
         }
@@ -423,7 +425,7 @@ class UsageQuery extends ElementQuery
             foreach ($sites as $siteId => $ids) {
                 foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
                     /** @var ElementInterface[] $loaded */
-                    $loaded = $type::find()->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
+                    $loaded = ElementRelations::find($type)->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
                     foreach ($loaded as $element) {
                         if ($elementsService->canView($element, $viewer)) {
                             $pairs[$siteId][] = (int)$element->id;
@@ -545,7 +547,7 @@ class UsageQuery extends ElementQuery
         foreach ($idsByTypeAndSite as $type => $sites) {
             foreach ($sites as $siteId => $ids) {
                 /** @var ElementInterface[] $loaded */
-                $loaded = $type::find()
+                $loaded = ElementRelations::find($type)
                     ->id($ids)
                     ->siteId($siteId)
                     ->status(null)
