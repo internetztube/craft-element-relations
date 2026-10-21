@@ -52,7 +52,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.10";
+    public string $schemaVersion = "1.0.13";
 
     public const EDITION_LITE = 'lite';
     public const EDITION_PRO = 'pro';
@@ -198,25 +198,15 @@ class ElementRelations extends Plugin
         });
 
 
-        // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
+        // type and site dropdowns in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
         Craft::$app->getView()->hook('cp.elements.toolbar', function (array &$context): string {
             if (($context['elementType'] ?? null) !== Usage::class) {
                 return '';
             }
-            $html = '';
-            if (ElementRelationsField::$toolbarTypes) {
-                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/type-menu', [
-                    'types' => ElementRelationsField::$toolbarTypes,
-                    'id' => 'element-relations-types-' . mt_rand(),
-                ]);
-            }
-            if (ElementRelationsField::$replaceSettings) { // Pro: replace wizard
-                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/replace', [
-                    'settings' => ElementRelationsField::$replaceSettings,
-                    'id' => 'element-relations-replace-' . mt_rand(),
-                ]);
-            }
-            return $html;
+            return implode('', array_map(fn(array $menu): string => Craft::$app->getView()->renderTemplate('element-relations/_field/filter-menu', [
+                'menu' => $menu,
+                'id' => 'element-relations-menu-' . mt_rand(),
+            ]), ElementRelationsField::$toolbarMenus));
         });
 
         // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
@@ -256,6 +246,28 @@ class ElementRelations extends Plugin
             }
         }
 
+        // what a user may view among the usages is cached; forget it whenever that could change: a usage (relating
+        // element) or a user saved, deleted or restored, group assignments, project config (sections, volumes, group
+        // permissions); new or changed relations reset it in ExtractorService
+        $forgetPermissions = fn() => \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        $forgetIfUsage = function (\craft\events\ElementEvent $event) use ($forgetPermissions): void {
+            $element = $event->element;
+            $isUsage = $element instanceof \craft\elements\User || (new \craft\db\Query())
+                ->from('{{%elementrelations_cache}}')
+                ->where(['sourcePrimaryOwnerId' => $element->id])
+                ->exists();
+            if ($isUsage) {
+                $forgetPermissions();
+            }
+        };
+        foreach ([\craft\services\Elements::EVENT_AFTER_SAVE_ELEMENT, \craft\services\Elements::EVENT_AFTER_DELETE_ELEMENT, \craft\services\Elements::EVENT_AFTER_RESTORE_ELEMENT] as $eventName) {
+            Event::on(\craft\services\Elements::class, $eventName, $forgetIfUsage);
+        }
+        Event::on(\craft\services\Users::class, \craft\services\Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, $forgetPermissions);
+        foreach ([\craft\services\ProjectConfig::EVENT_ADD_ITEM, \craft\services\ProjectConfig::EVENT_UPDATE_ITEM, \craft\services\ProjectConfig::EVENT_REMOVE_ITEM] as $eventName) {
+            Event::on(\craft\services\ProjectConfig::class, $eventName, $forgetPermissions);
+        }
+
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
@@ -287,7 +299,20 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_BEFORE_DELETE, function (ModelEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
-            ExtractorService::deleteRelationsForElement($element);
+            // A trashed element can be restored, so its usages stay (lists and counts skip trashed elements, the list's
+            // "Trashed" status shows them; rows of elements Craft's garbage collection removes later are never joined).
+            // Not for nested elements: Craft trashes a Matrix block's entry when it is removed from its owner, whose
+            // usage it would otherwise still be; restoring the owner refreshes them (below).
+            $nested = $element instanceof \craft\base\NestedElementInterface && $element->getPrimaryOwnerId() !== null;
+            if ($element->hardDelete || $nested) {
+                ExtractorService::deleteRelationsForElement($element);
+            }
+        });
+        Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_AFTER_RESTORE_ELEMENT, function (\craft\events\ElementEvent $event): void {
+            $element = $event->element;
+            if (!$element instanceof \craft\base\NestedElementInterface || $element->getPrimaryOwnerId() === null) {
+                \internetztube\elementRelations\services\ReplaceService::refreshOwnerTree((int)$element->id); // its nested elements' rows
+            }
         });
 
         $pluginEnableCallback = function (PluginEvent $event): void {

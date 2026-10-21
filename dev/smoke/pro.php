@@ -6,6 +6,7 @@ use craft\elements\Category;
 use craft\elements\Entry;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\actions\ReplaceRelations;
+use internetztube\elementRelations\models\RelationsModel;
 use internetztube\elementRelations\services\ReplaceService;
 
 return function (array $ctx): void {
@@ -25,7 +26,7 @@ return function (array $ctx): void {
     $editionBefore = ElementRelations::getInstance()->edition;
     $plugins->switchEdition('element-relations', 'lite');
     $offersUsedRule = fn(): bool => in_array(internetztube\elementRelations\elements\conditions\UsedConditionRule::class, array_map(fn($rule) => $rule::class, Asset::createCondition()->getSelectableConditionRules()), true);
-    check(!$offersUsedRule() && !in_array(ReplaceRelations::class, Asset::actions('*'), true), 'Lite: no “Used anywhere” filter, no Replace action');
+    check(!$offersUsedRule() && !in_array(ReplaceRelations::class, Asset::actions('*'), true) && !internetztube\elementRelations\elements\Usage::actions('*'), 'Lite: no “Used anywhere” filter, no Replace actions');
     $plugins->switchEdition('element-relations', 'pro');
     check($offersUsedRule(), 'Pro: the asset filter offers “Used anywhere”');
     check(!in_array('elementRelations:unused', $sourceKeys(), true), 'no extra “Unused” source: the filter works on top of every source');
@@ -54,7 +55,8 @@ return function (array $ctx): void {
     check(in_array(internetztube\elementRelations\elements\conditions\UsedConditionRule::class, array_map(fn($r) => $r::class, Asset::createCondition()->getSelectableConditionRules()), true), 'the rule is offered in asset conditions (filter HUD, custom sources)');
     $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
     $sorted = Asset::find()->status(null)->orderBy([$sort['orderBy'] => SORT_DESC])->ids();
-    check(array_search($asset->id, $sorted, true) < array_search($fresh->id, $sorted, true) && $sorted[0] === $asset->id, 'sorting by the field puts the most used asset first and the unused one after it');
+    $usageCount = fn(int $id) => (new RelationsModel($id, Craft::$app->getSites()->getPrimarySite()->id))->getCountFast([]);
+    check(array_search($asset->id, $sorted, true) < array_search($fresh->id, $sorted, true) && $usageCount($sorted[0]) >= $usageCount($asset->id), 'sorting by the field puts the most used asset first and the unused one after it');
     $category = Category::find()->title('Test Category')->one(); // relates to Page C, nothing relates to it
     check($category && in_array($category->id, Category::find()->unused()->status(null)->ids(), true), 'unused() works for categories (Test Category is a source, not a target)');
 
@@ -102,7 +104,8 @@ return function (array $ctx): void {
     $field = Craft::$app->getFields()->getFieldByHandle('relations');
     Craft::$app->getView()->clear();
     $input = withWebRequest(fn() => $field->getInputHtml($c->getFieldValue('relations'), $c));
-    check(str_contains($input, 'data-element-relations-replace'), 'Pro: the field offers the Replace… wizard button');
+    check(str_contains($input, 'data-element-relations-from="' . $c->id . '"'), 'Pro: the field tells the index which element its "Replace…" action replaces');
+    check(in_array(internetztube\elementRelations\elements\actions\ReplaceUsages::class, internetztube\elementRelations\elements\Usage::actions('*'), true), 'Pro: the usage list offers "Replace…" for the ticked usages (an element action, so Craft shows checkboxes)');
     $rawBefore = $hasCk ? Entry::find()->id($source->id)->one()->getFieldValue('ckeditor')->getRawContent() : '';
 
     $result = ReplaceService::replace($c, $target);
@@ -123,7 +126,6 @@ return function (array $ctx): void {
     $flush();
 
     // rollback edge cases on an entries field
-    $settings = ElementRelations::getInstance()->getSettings();
     $both = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (both)']);
     $both->setFieldValue('relatedEntries', [$c->id, $target->id]);
     $elements->saveElement($both) or throw new RuntimeException(json_encode($both->getErrors()));
@@ -170,23 +172,93 @@ return function (array $ctx): void {
     check((int)end($revisions)['creatorId'] === (int)$admin->id, 'the revision is attributed to the user who rolled back');
     $elements->deleteElement($plain, true);
 
-    // large operations run as a queue job (here: limit 0)
-    $limitBefore = $settings->replaceSyncLimit;
-    $settings->replaceSyncLimit = 0;
+    // the control panel queues replacements and rollbacks (queue: true / queueRollback())
     $queued = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (queued)']);
     $queued->setFieldValue('relatedEntries', [$c->id]);
     $elements->saveElement($queued) or throw new RuntimeException(json_encode($queued->getErrors()));
     $flush();
-    $op = ReplaceService::replace($c, $target, [$queued->id], allowQueue: true);
-    check($op['queued'] === true && internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId'])->status === 'queued' && in_array('Page via replace (queued)', relatingTitles($c), true), 'above the sync limit the replacement is queued, nothing changed yet');
+    $op = ReplaceService::replace($c, $target, [$queued->id], queue: true);
+    check($op['queued'] === true && internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId'])->status === 'queued' && in_array('Page via replace (queued)', relatingTitles($c), true), 'queue: true queues the replacement, nothing changed yet');
     $flush();
     $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
     check($record->status === 'applied' && in_array('Page via replace (queued)', relatingTitles($target), true), 'the queue job applies it and logs the result (' . $record->result . ')');
+    check(ReplaceService::replace($c, $target, [$queued->id], queue: true)['queued'] === false, 'nothing left to replace: not queued at all (the endpoint answers right away)');
+    ReplaceService::queueRollback($record);
+    check(internetztube\elementRelations\records\ReplacementRecord::findOne($record->id)->status === 'rollbackQueued' && in_array('Page via replace (queued)', relatingTitles($target), true), 'queueRollback() marks it "rolling back", nothing changed yet');
+    $flush();
+    check(internetztube\elementRelations\records\ReplacementRecord::findOne($record->id)->status === 'rolledBack' && in_array('Page via replace (queued)', relatingTitles($c), true), 'the rollback job rolls it back');
+    $elements->deleteElement($queued, true);
+
+    // batches: one owner group per batch, so every batch hands over to the next (elements with thousands of usages)
+    $batchSources = [];
+    foreach (['a', 'b', 'c'] as $n) {
+        $batchSource = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => "Page via replace (batch $n)"]);
+        $batchSource->setFieldValue('relatedEntries', [$c->id]);
+        $elements->saveElement($batchSource) or throw new RuntimeException(json_encode($batchSource->getErrors()));
+        $batchSources[] = $batchSource;
+    }
+    $flush();
+    $batchIds = array_map(fn(Entry $e) => (int)$e->id, $batchSources);
+    $siteRows = (int)Entry::find()->id($batchIds)->site('*')->status(null)->count(); // one owner group per entry and site
+    $op = ReplaceService::replace($c, $target, $batchIds, queue: true);
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    check(count($record->getPlan()) === $siteRows, 'the plan has one owner group per source and site (' . count($record->getPlan()) . ')');
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute(); // run it with batches of one instead
+    Craft::$app->getQueue()->push(new internetztube\elementRelations\jobs\ReplaceElementJob(['operationId' => (int)$record->id, 'batchSize' => 1]));
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $titles = relatingTitles($target);
+    check($record->status === 'applied' && $record->getResult()['replaced'] === $siteRows && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], $titles)) === 3, 'in batches of one owner group, every source is replaced and the result adds up (' . $record->result . ')');
+    check($record->plan === null && $record->state === null && count($record->getChanges()) === $siteRows, 'afterwards the plan and state are gone, the changes are complete');
+    ReplaceService::queueRollback($record);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
+    Craft::$app->getQueue()->push(new internetztube\elementRelations\jobs\RollbackJob(['operationId' => (int)$record->id, 'batchSize' => 1]));
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    check($record->status === 'rolledBack' && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the rollback runs in batches too (' . $record->result . ')');
+    // a stuck replacement (its job is gone, e.g. a worker died after the first batch) is detected and resumed
+    $op = ReplaceService::replace($c, $target, $batchIds, queue: true);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute(); // the job disappears
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    $record->state = json_encode(['processed' => 1, 'total' => $siteRows]) ?: null; // as if one owner group was done
+    $record->save(false);
+    $record->updateAttributes(['dateUpdated' => craft\helpers\Db::prepareDateForDb(new DateTime('-20 minutes'))]);
+    check(ReplaceService::isStuck($record), 'a queued replacement without progress for 20 minutes counts as stuck');
+    ReplaceService::resume($record);
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $resumedJobs = (new craft\db\Query())->from(craft\db\Table::QUEUE)->count();
+    check(!ReplaceService::isStuck($record) && (int)$resumedJobs === 1, 'resume() queues a job again and the operation is not stuck anymore');
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    check($record->status === 'applied' && count(array_intersect(['Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($target))) === 2, 'the resumed job continues after the groups already done and finishes (' . $record->result . ')');
     ReplaceService::rollback($record);
     $flush();
-    check(in_array('Page via replace (queued)', relatingTitles($c), true), 'and it rolls back like any other operation');
-    $settings->replaceSyncLimit = $limitBefore;
-    $elements->deleteElement($queued, true);
+
+    // a batch that broke off after doing its work but before saving its progress: the resumed job meets elements it
+    // already changed and must count them as done, not report them as needing a manual change
+    $op = ReplaceService::replace($c, $target, $batchIds, queue: true);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($op['operationId']);
+    $groups = internetztube\elementRelations\services\ReplaceRun::groups($record);
+    internetztube\elementRelations\services\ReplaceRun::resume($record, $c, $target)->processGroup($groups[0]); // no persist(): "crashed"
+    ReplaceService::resume($record);
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $result = $record->getResult();
+    check($record->status === 'applied' && $result['replaced'] === $siteRows && empty($result['skipped']), 'after a broken-off batch, the resumed replacement counts what was already done and reports nothing to fix (' . $record->result . ')');
+    ReplaceService::queueRollback($record);
+    (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    internetztube\elementRelations\services\RollbackRun::start($record, ReplaceService::ROLLBACK_SWAP, null)->processGroup(internetztube\elementRelations\services\RollbackRun::groups($record)[0]);
+    ReplaceService::resume($record);
+    $flush();
+    $record = internetztube\elementRelations\records\ReplacementRecord::findOne($record->id);
+    $result = $record->getResult();
+    check($record->status === 'rolledBack' && ($result['restored'] ?? 0) === $siteRows && empty($result['rollbackSkipped']) && count(array_intersect(['Page via replace (batch a)', 'Page via replace (batch b)', 'Page via replace (batch c)'], relatingTitles($c))) === 3, 'the same for a rollback: everything restored, nothing reported (' . $record->result . ')');
+
+    foreach ($batchSources as $batchSource) {
+        $elements->deleteElement($batchSource, true);
+    }
 
     // developer events
     $probe = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via replace (events)']);

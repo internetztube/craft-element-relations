@@ -430,6 +430,10 @@ function ensureAsset(string $volumeHandle, string $filename, string $title, call
     if ($asset = Asset::find()->volumeId($volume->id)->filename($filename)->one()) {
         return $asset;
     }
+    // a file left from an earlier install (dev.sh reset keeps the uploads) would get the new asset a suffixed name
+    if ($volume->fileExists($filename)) {
+        $volume->deleteFile($filename);
+    }
     $tmp = sys_get_temp_dir() . '/demo-' . uniqid() . '-' . $filename;
     $draw($tmp);
     $asset = new Asset([
@@ -636,6 +640,26 @@ if ($phase === 'schema') {
     $destinations = ensureSection('destinations', 'Destinations', Section::TYPE_STRUCTURE, [$destination], 'destinations/{slug}');
     $team = ensureSection('team', 'Team', Section::TYPE_CHANNEL, [$person], 'team/{slug}');
     ensureSection('company', 'Company', Section::TYPE_STRUCTURE, [$page], 'company/{slug}');
+
+    // the demo front end: dev/templates is the project's templates folder, each section renders with its template
+    $templates = CRAFT_BASE_PATH . '/templates';
+    if (!is_link($templates)) {
+        if (is_dir($templates)) {
+            rename($templates, "$templates-craft-default"); // Craft's welcome page
+        }
+        symlink(__DIR__ . '/templates', $templates);
+    }
+    foreach (['homepage' => 'index', 'journal' => 'journal/_entry', 'destinations' => 'destinations/_entry', 'team' => 'team/_entry', 'company' => 'company/_entry'] as $handle => $template) {
+        $section = Craft::$app->getEntries()->getSectionByHandle($handle);
+        $siteSettings = $section->getSiteSettings();
+        if (array_filter($siteSettings, fn($settings) => $settings->template !== $template)) {
+            foreach ($siteSettings as $settings) {
+                $settings->template = $template;
+            }
+            $section->setSiteSettings($siteSettings);
+            Craft::$app->getEntries()->saveSection($section) or fail($section);
+        }
+    }
 
     // entries fields point at their sections (they exist only now)
     $fields = Craft::$app->getFields();
@@ -964,6 +988,66 @@ if (!Entry::find()->draftOf($a['why']->id)->status(null)->exists()) {
     $draft = Craft::$app->getDrafts()->createDraft($a['why'], $users['jonas']->id, 'New hero image', 'Try the tunnel photo');
     $draft->setFieldValue('heroImage', [$tunnel->id]);
     $elements->saveElement($draft) or fail($draft);
+}
+
+// an article nobody has published yet: only a draft (the list's "Drafts")
+$journal = Craft::$app->getEntries()->getSectionByHandle('journal');
+if (!Entry::find()->sectionId($journal->id)->title('A ferry to Busan')->drafts(true)->status(null)->exists()) {
+    $draft = new Entry([
+        'sectionId' => $journal->id,
+        'typeId' => Craft::$app->getEntries()->getEntryTypeByHandle('article')->id,
+        'title' => 'A ferry to Busan',
+        'authorIds' => [$users['mara']->id],
+    ]);
+    $draft->setFieldValue('heroImage', [$river->id]);
+    Craft::$app->getDrafts()->saveElementAsDraft($draft, $users['mara']->id, null, null, false) or fail($draft);
+}
+
+// in the trash: an article (its usage is listed nowhere until it is restored) and a document
+if (!Entry::find()->sectionId($journal->id)->title('Station guide 2019')->trashed(true)->status(null)->exists()) {
+    $outdated = ensureEntry('journal', 'article', 'Station guide 2019', [
+        'heroImage' => [$glassRoof->id],
+        'body' => '<p>Replaced by the Rail Pass Guide 2026.</p>',
+    ], ['postDate' => $daysAgo(2400), 'authorIds' => [$users['jonas']->id]]);
+    // its relations now: the queued refresh would only run once it is in the trash
+    foreach (Entry::find()->id($outdated->id)->site('*')->status(null)->all() as $localized) {
+        internetztube\elementRelations\services\ExtractorService::refreshRelationsForElement($localized);
+    }
+    $elements->deleteElement($outdated) or fail($outdated);
+}
+if (!Asset::find()->filename('timetable-2019.pdf')->trashed(true)->exists()) {
+    $timetable = ensureAsset('documents', 'timetable-2019.pdf', 'Timetable 2019', fn($p) => pdf($p, 'Timetable 2019', ['Superseded by the 2026 guide.']));
+    $elements->deleteElement($timetable) or fail($timetable);
+}
+
+// many short articles, 30 per destination, sharing one image: the usage lists of the image and of each destination run
+// over several pages (the field shows 20 a page), for ticking across pages and the wizard's "All … in the list"
+$notesImage = ensureAsset('images', 'station-notes.jpg', 'Station notes', fn(string $path) => landscape($path, [
+    'top' => '#0b1026', 'bottom' => '#2e3a6e', 'sun' => '#f5f3ce', 'layers' => ['#242c52', '#181e3b', '#0d1124'], 'night' => true,
+], 14));
+$stationsByDestination = [
+    'beijing' => ['Beijing South', 'Beijing West', 'Beijing North', 'Beijing Chaoyang', 'Qianmen', 'Dongzhimen'],
+    'hongkong' => ['Hung Hom', 'West Kowloon', 'Central', 'Admiralty', 'Mong Kok East', 'Tsim Sha Tsui'],
+    'taipei' => ['Taipei Main', 'Songshan', 'Banqiao', 'Nangang', 'Zhongshan', 'Beitou'],
+];
+$writers = array_values($users);
+$noteTitles = [];
+$n = 0;
+foreach ($stationsByDestination as $destination => $stations) {
+    for ($i = 1; $i <= 30; $i++) {
+        $station = $stations[($i - 1) % count($stations)];
+        $noteTitles[] = $title = "Station notes: $station #$i";
+        ensureEntry('journal', 'article', $title, [
+            'heroImage' => [$notesImage->id],
+            'destinations' => [$d[$destination]->id],
+            'body' => "<p>Note $i from $station: where the good bench is, which exit has the lift, when the last train really leaves.</p>",
+        ], ['postDate' => $daysAgo(100 + ++$n), 'authorIds' => [$writers[$n % count($writers)]->id]]);
+    }
+}
+foreach (Entry::find()->sectionId($journal->id)->title('Station notes: *')->status(null)->all() as $stale) { // earlier seeds
+    if (!in_array($stale->title, $noteTitles, true)) {
+        $elements->deleteElement($stale, true);
+    }
 }
 
 // pages

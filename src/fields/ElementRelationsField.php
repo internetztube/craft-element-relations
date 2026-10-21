@@ -20,7 +20,6 @@ use craft\helpers\StringHelper;
 use craft\models\FieldLayoutTab;
 use craft\models\GqlSchema;
 use GraphQL\Type\Definition\Type;
-use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\Usage;
 use internetztube\elementRelations\elements\db\UsageQuery;
 use internetztube\elementRelations\gql\types\Relations as RelationsType;
@@ -39,18 +38,12 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     private const PREVIEW_LIMIT = 10;
 
     /**
-     * Element types (with counts) of the index being rendered right now; picked up by the `cp.elements.toolbar`
-     * hook (see ElementRelations::init()) to render the type dropdown. Craft offers no other way to add toolbar items.
-     * @var array<class-string<ElementInterface>, array{label: string, count: int}>|null
+     * Dropdowns (element types, sites; with counts) for the toolbar of the index being rendered right now; picked up by
+     * the `cp.elements.toolbar` hook (see ElementRelations::init()), templates/_field/filter-menu.twig. Craft offers no
+     * other way to add toolbar items.
+     * @var list<array{param: string, label: string, allLabel: string, options: array<string|int, array{label: string, count: int}>}>
      */
-    public static ?array $toolbarTypes = null;
-
-    /**
-     * Pro: settings of the replace wizard for the index being rendered (same hook as $toolbarTypes); null = no button.
-     * Mirrored by the `ReplaceSettings` typedef in templates/_field/replace.twig.
-     * @var array{elementType: class-string<ElementInterface>, usageType: class-string<Usage>, fromId: int, siteId: int, step1Title: string, step1Hint: string, step1Button: string, step2Title: string, step2Hint: string, step2Button: string, undoLabel: string}|null
-     */
-    public static ?array $replaceSettings = null;
+    public static array $toolbarMenus = [];
 
     public const VIEW_MODE_TABLE = 'table';
     public const VIEW_MODE_CARDS = 'cards';
@@ -187,7 +180,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $count = (new \craft\db\Query())
             ->select(['COUNT(*)'])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-            ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')]);
+            // not the usages of trashed elements (plugin settings, without a source element, do count)
+            ->leftJoin(['sources' => \craft\db\Table::ELEMENTS], '[[sources.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
+            ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')])
+            ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null]]]);
         return [
             'label' => Craft::t('site', (string)$this->name),
             'orderBy' => '(' . $count->createCommand()->getRawSql() . ')',
@@ -264,39 +260,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
 
         $html = '';
         if ($value->getIsInUseFast([])) {
-            $counts = $value->getCountsByType();
-            if ($viewer = self::restrictedViewer()) {
-                // the dropdown counts what this user's list shows (UsageQuery restricts by view permissions)
-                $counts = array_filter(array_map(
-                    fn(string $type): int => (int)self::usageQuery($value, $viewer)->elementTypes($type)->count(),
-                    array_combine(array_keys($counts), array_keys($counts)),
-                ));
-            }
-            self::$toolbarTypes = null;
-            if (count($counts) > 1) {
-                foreach ($counts as $type => $count) {
-                    // some plugin element types don't define a plural name and inherit "Elements"
-                    $label = $type::pluralDisplayName();
-                    if ($label === Craft::t('app', 'Elements')) {
-                        $label = $type::displayName();
-                    }
-                    self::$toolbarTypes[$type] = ['label' => $label, 'count' => $count];
-                }
-            }
-            $currentUser = Craft::$app->getUser()->getIdentity();
-            self::$replaceSettings = $currentUser && ElementRelations::canReplace($currentUser) && Craft::$app->getElements()->canSave($element, $currentUser) ? [
-                'elementType' => $element::class,
-                'usageType' => Usage::class,
-                'fromId' => $value->getElementId(),
-                'siteId' => (int)$element->siteId,
-                'step1Title' => Craft::t('element-relations', 'replace-step1-title', ['from' => (string)$element]),
-                'step1Hint' => Craft::t('element-relations', 'replace-step1-hint', ['from' => (string)$element, 'type' => $element::lowerDisplayName()]),
-                'step1Button' => Craft::t('element-relations', 'replace-step1-button'),
-                'step2Title' => Craft::t('element-relations', 'replace-step2-title', ['from' => (string)$element, 'to' => '{to}']),
-                'step2Hint' => Craft::t('element-relations', 'replace-step2-hint', ['from' => (string)$element, 'to' => '{to}']) . self::revisionHint($value),
-                'step2Button' => Craft::t('element-relations', 'replace-step2-button'),
-                'undoLabel' => Craft::t('element-relations', 'replace-undo'),
-            ] : null;
+            self::$toolbarMenus = self::toolbarMenus($value);
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',
                 'id' => 'element-relations-' . StringHelper::randomString(8),
@@ -308,14 +272,14 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 'defaultViewMode' => $this->viewMode,
                 'jsSettings' => [
                     'criteria' => ['usesElement' => $value->getElementId(), 'allSites' => true],
-                    'static' => true,
+                    // not `static`: that also drops the actions (Pro: "Replace…") and their checkboxes
+                    'inlineEditable' => false,
                     'canHaveDrafts' => true, // the status menu's "Drafts" option only takes effect with this
                     'batchSize' => $this->pageSize ?? 20,
                     'storageKey' => 'elementRelations',
                 ],
             ]);
-            self::$toolbarTypes = null;
-            self::$replaceSettings = null;
+            self::$toolbarMenus = [];
             if ($viewer = self::restrictedViewer()) {
                 // so nobody takes the element for unused when the usages are only hidden from them
                 $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
@@ -329,7 +293,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             $html .= Html::tag('h3', Html::encode(Craft::t('element-relations', 'field-headline-global')), ['class' => 'element-relations-heading', 'style' => 'margin-top: var(--m);'])
                 . ElementSummary::globalUsagesHtml($globalUsages);
         }
-        return Html::tag('div', $html, ['class' => 'element-relations']);
+        // the element the list belongs to, for the "Replace…" action on its ticked usages (elements/actions/ReplaceUsages)
+        return Html::tag('div', $html, ['class' => 'element-relations', 'data' => [
+            'element-relations-from' => $value->getElementId(),
+            'element-relations-site' => $element->siteId,
+        ]]);
     }
 
     /**
@@ -352,17 +320,58 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ?->getHtmlId();
     }
 
-    /** Pro wizard: how many of the usages keep no revision when replaced (element types without, versioning off). */
-    private static function revisionHint(RelationsModel $value): string
+    /**
+     * The wizard's review: how many of the usages (all, or the ticked ones) keep no revision when replaced (element
+     * types without revisions, sections with versioning off); empty when all get one.
+     * @param list<int>|null $onlyOwnerIds
+     */
+    public static function revisionHintFor(ElementInterface $element, ?array $onlyOwnerIds = null): string
     {
-        $viewer = self::restrictedViewer();
-        $coverage = ReplaceService::revisionCoverage($value->getElementId(), $viewer ? self::usageQuery($value, $viewer)->ids() : null);
+        $value = new RelationsModel((int)$element->id, (int)$element->siteId);
+        if ($onlyOwnerIds === null && ($viewer = self::restrictedViewer())) {
+            $onlyOwnerIds = self::usageQuery($value, $viewer)->ids(); // what this user may replace in
+        }
+        $coverage = ReplaceService::revisionCoverage($value->getElementId(), $onlyOwnerIds);
         $without = $coverage['unsupported'] + $coverage['versioningOff'];
-        return $without ? ' ' . Craft::t('element-relations', 'replace-revision-hint', [
+        return $without ? Craft::t('element-relations', 'replace-revision-hint', [
             'count' => $without,
             'unsupported' => $coverage['unsupported'],
             'versioningOff' => $coverage['versioningOff'],
         ]) : '';
+    }
+
+    /**
+     * The type and site dropdowns of the field's index, each only when the list has more than one; the counts are what
+     * this user's list shows (UsageQuery restricts by view permissions).
+     * @return list<array{param: string, label: string, allLabel: string, options: array<string|int, array{label: string, count: int}>}>
+     */
+    private static function toolbarMenus(RelationsModel $value): array
+    {
+        $viewer = self::restrictedViewer();
+        $types = $value->getCountsByType();
+        $sites = $value->getCountsBySite();
+        if ($viewer) {
+            $types = array_filter(array_map(fn(string $type): int => (int)self::usageQuery($value, $viewer)->elementTypes($type)->count(), array_combine(array_keys($types), array_keys($types))));
+            $sites = array_filter(array_map(fn(int $siteId): int => (int)self::usageQuery($value, $viewer)->inSites($siteId)->count(), array_combine(array_keys($sites), array_keys($sites))));
+        }
+        $menus = [];
+        if (count($types) > 1) {
+            $options = [];
+            foreach ($types as $type => $count) {
+                // some plugin element types don't define a plural name and inherit "Elements"
+                $label = $type::pluralDisplayName();
+                $options[$type] = ['label' => $label === Craft::t('app', 'Elements') ? $type::displayName() : $label, 'count' => $count];
+            }
+            $menus[] = ['param' => 'elementTypes', 'label' => Craft::t('element-relations', 'field-column-type'), 'allLabel' => Craft::t('element-relations', 'field-all-types'), 'options' => $options];
+        }
+        if (count($sites) > 1) {
+            $options = [];
+            foreach ($sites as $siteId => $count) {
+                $options[$siteId] = ['label' => Craft::$app->getSites()->getSiteById($siteId, true)?->getName() ?? (string)$siteId, 'count' => $count];
+            }
+            $menus[] = ['param' => 'inSites', 'label' => Craft::t('app', 'Site'), 'allLabel' => Craft::t('app', 'All sites'), 'options' => $options];
+        }
+        return $menus;
     }
 
     /** All usages of the element (all sites, every status, drafts included) as the given user may see them. */

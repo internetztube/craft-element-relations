@@ -1,0 +1,11 @@
+{% extends '_layout' %}
+
+{% block content %}
+    {% set blocks = entry.contentBlocks.all() %}
+    {% if not (blocks|first and (blocks|first).type.handle == 'hero') %}<h1>{{ entry.title }}</h1>{% endif %}
+    {% include '_partials/blocks' with {blocks: blocks} %}
+    {% set form = entry.contactForm is defined ? entry.contactForm.one() : null %}
+    {% if form %}
+        <section class="aside">{{ craft.formie.renderForm(form) }}</section>
+    {% endif %}
+{% endblock %}

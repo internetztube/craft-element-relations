@@ -15,9 +15,6 @@ return [
     // (plugin install, Utilities → Element Relations, `php craft element-relations/resave-relations`).
     'bulkRefreshBatchSize' => 2000,
 
-    // Pro: replacements touching more elements than this run as a queue job instead of in the request.
-    'replaceSyncLimit' => 25,
-
     // Feature flags.
     'features' => [
         // Offer the Lite/Pro editions. Off: the plugin is a single Lite edition.

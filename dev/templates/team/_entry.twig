@@ -1,0 +1,46 @@
+{% extends '_layout' %}
+{% import '_partials/hint' as er %}
+
+{% set portrait = entry.portrait.one() %}
+
+{#
+ # Element Relations: an author page without an "articles" field on the person. Stories point to their writers (the
+ # Written by field); `elements` with `sections` lists them, `count` gives the number for the heading. `status` is left
+ # out: on the front end it defaults to what visitors may see.
+ #}
+{% set relations = entry.usedIn %}
+{% set total = relations.count(sections: ['journal']) %}
+{% set stories = relations.elements(sections: ['journal'], limit: 12) %}
+
+{% block content %}
+    <section class="panel" style="display: flex; gap: 28px; align-items: center; flex-wrap: wrap; padding: 32px">
+        {% if portrait %}<img src="{{ portrait.getUrl({width: 280, height: 280, mode: 'crop'}) }}" alt="" style="width: 140px; border-radius: 50%">{% endif %}
+        <div style="flex: 1; min-width: 240px">
+            <p class="eyebrow">{{ entry.jobTitle }}</p>
+            <h1 style="margin-bottom: 10px">{{ entry.title }}</h1>
+            {% if entry.summary %}<p class="lede" style="margin: 0">{{ entry.summary }}</p>{% endif %}
+        </div>
+        <div style="text-align: center">
+            <div style="font-size: 44px; font-weight: 800; letter-spacing: -.03em; line-height: 1">{{ total }}</div>
+            <div class="meta">{{ 'stories'|t('site') }}</div>
+        </div>
+    </section>
+
+    <section class="section er-zone">
+        {% set code %}{% verbatim %}
+{% set relations = entry.usedIn %}
+{{ relations.count(sections: ['journal']) }}
+{% for item in relations.elements(sections: ['journal'], limit: 12) %}…{% endfor %}
+        {% endverbatim %}{% endset %}
+        {{ er.hint('Their stories, without an “articles” field on the person', code, 'Stories point to their writers with a Written by field; the person\'s page reads that backwards.') }}
+        <div class="section-head"><h2>{{ 'Stories by {name}'|t('site', {name: entry.title|split(' ')|first}) }}<span class="count">{{ total }}</span></h2></div>
+        {% if stories %}
+            <div class="grid">
+                {% for item in stories %}{% include '_partials/card' %}{% endfor %}
+            </div>
+            {% if total > stories|length %}<p class="meta" style="margin-top: 16px">{{ '{shown} of {total} shown.'|t('site', {shown: stories|length, total: total}) }}</p>{% endif %}
+        {% else %}
+            <p class="meta">{{ 'No stories yet.'|t('site') }}</p>
+        {% endif %}
+    </section>
+{% endblock %}

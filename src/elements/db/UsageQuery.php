@@ -51,6 +51,9 @@ class UsageQuery extends ElementQuery
      */
     public bool $allSites = false;
 
+    /** With `allSites`: only these of the sites (the field's site dropdown); null = every site. */
+    public mixed $inSites = null;
+
     /**
      * Only what this user may view. Applied automatically for non-admin users in control panel requests (the field's
      * list, the wizard's modal, any element index request for this type); `false` switches it off (server code only).
@@ -63,6 +66,9 @@ class UsageQuery extends ElementQuery
      * anything else. hiddenCount() tells how many usages were left out.
      */
     private User|false|null $_viewableBy = null;
+
+    /** Cache tag of the per-user permission results (viewablePairs()). */
+    public const PERMISSION_CACHE_TAG = 'element-relations:usage-permissions';
 
     /** @var array<string, array{pairs: array<int, int[]>}> per request: "<viewer>|<targets>" => viewable pairs */
     private static array $_pairs = [];
@@ -112,10 +118,20 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    /** @param int|int[]|string|null $value site id(s), see $inSites */
+    public function inSites(mixed $value): static
+    {
+        $this->inSites = $value;
+        return $this;
+    }
+
     protected function beforePrepare(): bool
     {
         if ($this->allSites) {
-            $this->siteId = Craft::$app->getSites()->getAllSiteIds(); // siteId is normalized before beforePrepare()
+            $all = Craft::$app->getSites()->getAllSiteIds();
+            $only = array_map(intval(...), array_filter((array)$this->inSites, is_numeric(...)));
+            // siteId is normalized before beforePrepare()
+            $this->siteId = $this->inSites !== null && $this->inSites !== '' ? array_values(array_intersect($all, $only)) ?: [0] : $all;
         }
         /** @var Query<array-key, mixed> $subQuery prepare() creates it before calling beforePrepare() */
         $subQuery = $this->subQuery;
@@ -215,6 +231,28 @@ class UsageQuery extends ElementQuery
         if (isset(self::$_pairs[$key])) {
             return self::$_pairs[$key];
         }
+        // an element with thousands of usages means thousands of permission checks: kept in Craft's data cache until
+        // anything that could change the answer happens (see resetPermissionCache())
+        $cache = Craft::$app->getCache();
+        if (!$cache) {
+            return self::$_pairs[$key] = self::computeViewablePairs($targetIds, $viewer);
+        }
+        /** @var array{pairs: array<int, int[]>} $cached */
+        $cached = $cache->getOrSet(
+            'element-relations:viewable:' . md5($key),
+            fn(): array => self::computeViewablePairs($targetIds, $viewer),
+            600, // a safety net: permissions saved in code without saving the user fire no event
+            new \yii\caching\TagDependency(['tags' => [self::PERMISSION_CACHE_TAG]]),
+        );
+        return self::$_pairs[$key] = $cached;
+    }
+
+    /**
+     * @param int[] $targetIds
+     * @return array{pairs: array<int, int[]>}
+     */
+    private static function computeViewablePairs(array $targetIds, User $viewer): array
+    {
         $base = (new Query())
             ->select(['id' => 'elements.id', 'siteId' => 'elements_sites.siteId', 'type' => 'elements.type'])
             ->distinct()
@@ -240,22 +278,32 @@ class UsageQuery extends ElementQuery
                 continue;
             }
             foreach ($sites as $siteId => $ids) {
-                /** @var ElementInterface[] $loaded */
-                $loaded = $type::find()->id($ids)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
-                foreach ($loaded as $element) {
-                    if ($elementsService->canView($element, $viewer)) {
-                        $pairs[$siteId][] = (int)$element->id;
+                foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
+                    /** @var ElementInterface[] $loaded */
+                    $loaded = $type::find()->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all();
+                    foreach ($loaded as $element) {
+                        if ($elementsService->canView($element, $viewer)) {
+                            $pairs[$siteId][] = (int)$element->id;
+                        }
                     }
                 }
             }
         }
-        return self::$_pairs[$key] = ['pairs' => $pairs];
+        return ['pairs' => $pairs];
     }
 
-    /** Forgets the memoized permission results (tests, long-running processes after permission changes). */
+    /**
+     * Forgets the permission results, in this request and in Craft's data cache. Called whenever the answer could change:
+     * relations written, any element saved, deleted or restored, users assigned to groups, project config changed
+     * (sections, volumes, group permissions); see ElementRelations::init().
+     */
     public static function resetPermissionCache(): void
     {
         self::$_pairs = [];
+        $cache = Craft::$app->getCache();
+        if ($cache) {
+            \yii\caching\TagDependency::invalidate($cache, self::PERMISSION_CACHE_TAG);
+        }
     }
 
     /** The user to restrict to: explicit, or the logged-in non-admin user of a control panel request. */
@@ -374,15 +422,29 @@ class UsageQuery extends ElementQuery
         // through which field(s) each loaded element uses the target (for the index's "Field" column)
         $targetIds = $this->targetIds();
         if ($targetIds && $elements) {
-            /** @var list<array{sourcePrimaryOwnerId: int|string, sourceSiteId: int|string, fieldId: int|string|null, type: string}> $rowsVia */
+            // with the state of the element holding the relation: a disabled Matrix block (nested entry) of a live owner
+            // is no live usage, which the column says
+            /** @var list<array{sourcePrimaryOwnerId: int|string, sourceSiteId: int|string, sourceElementId: int|string|null, fieldId: int|string|null, type: string, enabled: bool|int|string|null, enabledForSite: bool|int|string|null}> $rowsVia */
             $rowsVia = (new Query())
-                ->select(['sourcePrimaryOwnerId', 'sourceSiteId', 'fieldId', 'type'])
+                ->select([
+                    'sourcePrimaryOwnerId' => 'cache.sourcePrimaryOwnerId', 'sourceSiteId' => 'cache.sourceSiteId',
+                    'sourceElementId' => 'cache.sourceElementId', 'fieldId' => 'cache.fieldId', 'type' => 'cache.type',
+                    'enabled' => 'sources.enabled', 'enabledForSite' => 'sources_sites.enabled',
+                ])
                 ->distinct()
-                ->from('{{%elementrelations_cache}}')
-                ->where(['targetElementId' => $targetIds, 'sourcePrimaryOwnerId' => array_column($rows, 'id')])
+                ->from(['cache' => '{{%elementrelations_cache}}'])
+                ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
+                ->leftJoin(['sources_sites' => Table::ELEMENTS_SITES], '[[sources_sites.elementId]] = [[cache.sourceElementId]] AND [[sources_sites.siteId]] = [[cache.sourceSiteId]]')
+                ->where(['cache.targetElementId' => $targetIds, 'cache.sourcePrimaryOwnerId' => array_column($rows, 'id')])
                 ->all();
             foreach ($rowsVia as $via) {
-                Usage::$via["{$via['sourcePrimaryOwnerId']}:{$via['sourceSiteId']}"][] = ['fieldId' => $via['fieldId'] ? (int)$via['fieldId'] : null, 'type' => $via['type']];
+                $nested = $via['sourceElementId'] !== null && (int)$via['sourceElementId'] !== (int)$via['sourcePrimaryOwnerId'];
+                $disabled = $nested && (($via['enabled'] !== null && !(bool)$via['enabled']) || ($via['enabledForSite'] !== null && !(bool)$via['enabledForSite']));
+                Usage::$via["{$via['sourcePrimaryOwnerId']}:{$via['sourceSiteId']}"][] = [
+                    'fieldId' => $via['fieldId'] ? (int)$via['fieldId'] : null,
+                    'type' => $via['type'],
+                    'disabledIn' => $disabled ? (int)$via['sourceElementId'] : null,
+                ];
             }
         }
 

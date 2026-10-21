@@ -71,6 +71,7 @@ class ElementRelationsUtility extends Utility
             ReplacementRecord::STATUS_QUEUED => Color::Blue,
             ReplacementRecord::STATUS_APPLIED => Color::Teal,
             ReplacementRecord::STATUS_ROLLED_BACK => Color::Gray,
+            ReplacementRecord::STATUS_ROLLBACK_QUEUED => Color::Blue,
             ReplacementRecord::STATUS_FAILED => Color::Red,
         ];
         $rows = [];
@@ -87,14 +88,16 @@ class ElementRelationsUtility extends Utility
                 'user' => $user instanceof User ? Cp::elementChipHtml($user) : '',
                 'from' => $chip((int)$operation->fromId, (int)$operation->siteId),
                 'to' => $chip((int)$operation->toId, (int)$operation->siteId),
-                'elements' => count(array_unique(array_map(fn(array $change): string => $change['elementId'] . ':' . $change['siteId'], $operation->getChanges()))),
+                'elements' => $changed = $operation->getChangedElementCount(),
                 'status' => Cp::statusLabelHtml([
                     'color' => $colors[$operation->status] ?? Color::Gray,
                     'label' => Craft::t('element-relations', 'history-status-' . $operation->status),
                 ]),
-                'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->getChanges() && ElementRelations::canRollBackOperation($operation),
+                'canRollBack' => $operation->status === ReplacementRecord::STATUS_APPLIED && $changed > 0 && ElementRelations::canRollBackOperation($operation),
                 'canRevert' => $operation->status === ReplacementRecord::STATUS_APPLIED && $operation->canRevertToRevisions() && ElementRelations::canRollBackOperation($operation),
                 'withoutRevision' => (int)($operation->getResult()['withoutRevision'] ?? 0),
+                // its job is gone (a worker died …): offer to continue it
+                'canResume' => \internetztube\elementRelations\services\ReplaceService::isStuck($operation) && ($viewer?->admin || (int)$operation->userId === (int)$viewer?->id),
             ];
         }
         return $rows;

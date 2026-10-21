@@ -73,6 +73,13 @@ class RelationsModel
     }
 
     /**
+     * Default of `status` and `drafts`: in site requests what visitors may see (live entries, enabled elements, no
+     * drafts), in the control panel and console everything. An explicit `null` always means everything; GraphQL
+     * (withQueryFactory()) keeps Craft's resolver defaults.
+     */
+    public const DEFAULT = 'element-relations:default';
+
+    /**
      * A copy whose element queries come from `$factory($elementType)` instead of `$elementType::find()`; element types
      * for which it returns anything but an ElementQuery are left out. Such queries keep their own default status (a
      * `null` status is not applied) and never include drafts. GraphQL uses this to stay within the active schema.
@@ -101,10 +108,10 @@ class RelationsModel
      * @param int|int[]|null $siteIds
      * @param string|string[]|null $sections
      * @param string|string[]|null $entryTypes
-     * @param string|string[]|null $status
+     * @param string|string[]|null $status null: every status; omitted: see DEFAULT
      * @param class-string<ElementInterface>[]|null $types
      */
-    public function getCount(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): int
+    public function getCount(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = self::DEFAULT, bool|string|null $drafts = self::DEFAULT, ?array $types = null, ?string $search = null): int
     {
         $queries = $this->getElementQueries($siteIds, $sections, $entryTypes, $status, $drafts, $types, $search);
         return array_sum(array_map(fn(ElementQueryInterface $query): int => (int)$query->count(), $queries));
@@ -145,9 +152,9 @@ class RelationsModel
      * @param int|int[]|null $siteIds
      * @param string|string[]|null $sections
      * @param string|string[]|null $entryTypes
-     * @param string|string[]|null $status
+     * @param string|string[]|null $status null: every status; omitted: see DEFAULT
      */
-    public function getIsInUse(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null): bool
+    public function getIsInUse(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = self::DEFAULT): bool
     {
         return $this->getCount($siteIds, $sections, $entryTypes, $status) > 0 || $this->getGlobalUsages();
     }
@@ -228,6 +235,21 @@ class RelationsModel
     }
 
     /**
+     * Number of relating elements per site, in the order of the site settings.
+     * @return array<int, int>
+     */
+    public function getCountsBySite(): array
+    {
+        $counts = array_fill_keys(Craft::$app->getSites()->getAllSiteIds(), 0);
+        foreach ($this->getFastCountQueryResult() as $row) {
+            if (isset($counts[$row['siteId']])) {
+                $counts[$row['siteId']] += $row['count'];
+            }
+        }
+        return array_filter($counts);
+    }
+
+    /**
      * IDs of the (primary owner) elements that relate to this element. Cheap: one query, no element hydration.
      * @param int|int[]|null $siteIds
      * @return list<int>
@@ -240,6 +262,12 @@ class RelationsModel
             $query->andWhere(['[[elementrelations_cache.sourceSiteId]]' => $siteIds]);
         }
         return array_map(intval(...), $query->column());
+    }
+
+    /** How many (primary owner) elements relate to this element, in any site. One COUNT query. */
+    public function getSourceOwnerCount(): int
+    {
+        return (int)$this->fastSubQuery()->count('DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]]');
     }
 
     /** A site (front-end) web request, where templates render for visitors. */
@@ -255,21 +283,27 @@ class RelationsModel
      * @param int|int[]|null $siteIds
      * @param string|string[]|null $sections
      * @param string|string[]|null $entryTypes
-     * @param string|string[]|null $status
+     * @param string|string[]|null $status null: every status; omitted: see DEFAULT
      * @param class-string<ElementInterface>[]|null $types restrict to these element types
      * @return list<ElementQuery<array-key, ElementInterface>>
      */
-    public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): array
+    public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = self::DEFAULT, bool|string|null $drafts = self::DEFAULT, ?array $types = null, ?string $search = null): array
     {
         $siteIds = $this->normalizeSiteIds($siteIds);
         if (is_string($sections)) $sections = [$sections];
         if (is_string($entryTypes)) $entryTypes = [$entryTypes];
         $factory = $this->queryFactory;
-        if ($factory) $drafts = false;
         // front-end templates: unless asked for, only what a visitor may see (live entries, enabled elements, no
-        // drafts); the control panel and console keep "everything" as the default
+        // drafts); the control panel and console keep "everything" as the default (see DEFAULT)
         $siteDefaults = !$factory && self::isSiteRequest();
-        if ($siteDefaults && $drafts === null) $drafts = false;
+        $statusGiven = $status !== self::DEFAULT;
+        $status = $statusGiven ? $status : null;
+        $drafts = match (true) {
+            (bool)$factory => false,
+            is_bool($drafts) => $drafts,
+            $drafts === null => null,
+            default => $siteDefaults ? false : null,
+        };
 
         $queries = [];
         foreach ($this->getElementTypes() as $elementType) {
@@ -284,7 +318,9 @@ class RelationsModel
             $query
                 ->revisions(false)
                 ->provisionalDrafts(false);
-            if ($status !== null || (!$factory && !$siteDefaults)) {
+            // explicit statuses (null: all of them), or everything outside site requests; otherwise Craft's own
+            // default (live/enabled, or the GraphQL resolver's)
+            if ($factory ? $status !== null : ($statusGiven || !$siteDefaults)) {
                 $query->status($status);
             }
             // the site of the relating element; `usesElement` matches the cache rows of that site
@@ -312,11 +348,11 @@ class RelationsModel
      * @param int|int[]|null $siteIds
      * @param string|string[]|null $sections
      * @param string|string[]|null $entryTypes
-     * @param string|string[]|null $status
+     * @param string|string[]|null $status null: every status; omitted: see DEFAULT
      * @param class-string<ElementInterface>[]|null $types
      * @return list<ElementInterface>
      */
-    public function getElements(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): array
+    public function getElements(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = self::DEFAULT, bool|string|null $drafts = self::DEFAULT, ?array $types = null, ?string $search = null): array
     {
         return iterator_to_array(
             $this->getElementsIterator($siteIds, $limit, $offset, 100, $sections, $entryTypes, $status, $drafts, $types, $search),
@@ -329,11 +365,11 @@ class RelationsModel
      * @param int|int[]|null $siteIds
      * @param string|string[]|null $sections
      * @param string|string[]|null $entryTypes
-     * @param string|string[]|null $status
+     * @param string|string[]|null $status null: every status; omitted: see DEFAULT
      * @param class-string<ElementInterface>[]|null $types
      * @return \Generator<int, ElementInterface>
      */
-    public function getElementsIterator(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): \Generator
+    public function getElementsIterator(array|int|null $siteIds = null, ?int $limit = null, int $offset = 0, int $batchSize = 100, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = self::DEFAULT, bool|string|null $drafts = self::DEFAULT, ?array $types = null, ?string $search = null): \Generator
     {
         $remaining = $limit;
 

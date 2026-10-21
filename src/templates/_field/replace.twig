@@ -1,154 +1,114 @@
-{# Pro: "Replace…" wizard in the field's toolbar, built from Craft's element selector modals:
-   1. pick the replacement (same element type), 2. pick the usages to replace (the field's own Usage index with
-   checkboxes), then the controller runs ReplaceService, the field's index reloads and the notice offers Undo. #}
-<div class="element-relations-replace" data-element-relations-replace="{{ id }}">
-    <button type="button" class="btn">{{ 'replace-button'|t('element-relations') }}</button>
-</div>
+{# Pro: what both replace actions run (elements/actions/ReplaceUsages: "Replace…" for the usages ticked in the field's
+   list; ReplaceRelations: "Replace everywhere…" on an element index). The wizard opens in a slideout
+   (ReplaceController::actionWizard()); its submit queues the job, and a notice follows it: the progress while it runs,
+   then the result with Undo (also a queue job). The index refreshes when it is done. Registered once per page. #}
 {% js %}
 /**
- * Settings from ElementRelationsField::$replaceSettings.
- * @typedef {Object} ReplaceSettings
- * @property {string} elementType class of the element being replaced (step 1 lists elements of this type)
- * @property {string} usageType the virtual Usage element type (step 2 lists the usages)
- * @property {number} fromId the element whose usages are replaced
+ * ReplaceController::actionStatus()
+ * @typedef {Object} OperationStatus
+ * @property {number} operationId
+ * @property {string} status queued, applied, rollbackQueued, rolledBack or failed
+ * @property {boolean} done
+ * @property {string|null} message
+ * @property {boolean} canUndo
+ * @property {number|null} progress 0..1 while a large job is underway
+ */
+/**
+ * What to replace.
+ * @typedef {Object} ReplaceRequest
+ * @property {number} fromId the element to replace
  * @property {number} siteId
- * @property {string} step1Title
- * @property {string} step1Hint
- * @property {string} step1Button
- * @property {string} step2Title contains `{to}`, the replacement's title
- * @property {string} step2Hint contains `{to}`
- * @property {string} step2Button
- * @property {string} undoLabel
+ * @property {number[]|null} sourceIds the usages to replace it in (element ids); null: everywhere
+ * @property {Object<string, *>} [criteria] the field's index criteria, for the wizard's "All … in the list"
  */
-/**
- * What the replace endpoint (ReplaceController::actionReplace()) answers with.
- * @typedef {Object} ReplaceResponse
- * @property {string} message
- * @property {number|null} operationId
- * @property {boolean} queued
- */
-/**
- * An element picked in one of Craft's selector modals.
- * @typedef {Object} SelectedElement
- * @property {number} id
- * @property {string} label
- */
-/*
- * A failed Craft.sendActionRequest() (an axios error). Named typedefs instead of inline object types: two opening
- * braces in a row would start a Twig expression in this template.
- */
-/**
- * @typedef {Object} FailedResponseData
- * @property {string} [message]
- */
-/**
- * @typedef {Object} FailedResponse
- * @property {FailedResponseData} [data]
- */
-/**
- * @typedef {Object} FailedRequest
- * @property {FailedResponse} [response]
- */
-/**
- * @param {JQuery} $wrap the `[data-element-relations-replace]` wrapper, rendered inside the index's toolbar
- * @param {ReplaceSettings} settings
- * @returns {void}
- */
-window.ElementRelationsReplace = window.ElementRelationsReplace || function ($wrap, settings) {
+window.ElementRelationsReplace = window.ElementRelationsReplace || (() => {
     'use strict';
-    const $index = $wrap.closest('.element-index');
-    const refresh = function () {
-        const index = $index.data('elementIndex');
-        if (index) {
-            index.updateElements();
-        }
-    };
-    /** @param {FailedRequest} failure */
-    const showError = function (failure) {
-        Craft.cp.displayError(failure.response && failure.response.data && failure.response.data.message || Craft.t('app', 'A server error occurred.'));
-    };
-    /**
-     * Craft's selector modal has a title; a one-line hint below it says what the step does.
-     * @param {Craft.BaseElementSelectorModal} modal
-     * @param {string} hint
-     * @returns {Craft.BaseElementSelectorModal}
-     */
-    const withHint = function (modal, hint) {
-        modal.$container.find('.header').append($('<p class="light"/>').text(hint));
-        return modal;
+    const t = (message) => Craft.t('element-relations', message);
+    /** @param {*} failure a failed Craft.sendActionRequest() */
+    const showError = (failure) => {
+        const data = failure && failure.response && failure.response.data;
+        Craft.cp.displayError(data && data.message || Craft.t('app', 'A server error occurred.'));
     };
 
-    // Placement waits for the index (it renders its toolbar asynchronously); the button works right away.
-    let tries = 0;
-    const place = function () {
-        if (!$index.data('elementIndex') && tries++ < 40) {
-            return setTimeout(place, 50);
-        }
-        let $after = $index.find('[data-element-relations-type-menu]');
-        if (!$after.length) {
-            $after = $index.find('.statusmenubtn').parent();
-        }
-        if ($after.length) {
-            $wrap.insertAfter($after);
-        }
-    };
-    place();
-
     /**
-     * @param {SelectedElement} replacement the element picked in step 1
-     * @param {SelectedElement[]} usages the relating elements picked in step 2
+     * Follows a queued replacement or rollback until its job is done, then shows the result.
+     * @param {number} operationId
+     * @param {string} runningText
+     * @param {Craft.BaseElementIndex} index refreshed when it is done
      */
-    const replace = function (replacement, usages) {
-        Craft.sendActionRequest('POST', 'element-relations/replace/replace', {data: {
-            fromId: settings.fromId,
-            toId: replacement.id,
-            siteId: settings.siteId,
-            sourceIds: usages.map(function (usage) { return usage.id; }),
-        }}).then(function (response) {
-            /** @type {ReplaceResponse} */
-            const data = response.data;
-            let notice = null;
-            let noticeSettings = {};
-            if (data.operationId && !data.queued) {
-                // Undo right in the notice, which stays until closed; Utilities → Element Relations has the same
-                const $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(settings.undoLabel).on('click', function () {
-                    $undo.addClass('loading').prop('disabled', true);
-                    Craft.sendActionRequest('POST', 'element-relations/replace/rollback', {data: {operationId: data.operationId}})
-                        .then(function (rollback) { Craft.cp.displaySuccess(rollback.data.message); refresh(); })
-                        .catch(showError)
-                        .finally(function () { if (notice) { notice.close(); } });
+    const follow = (operationId, runningText, index) => {
+        const notice = Craft.cp.displayNotice(runningText, { persist: true, icon: 'arrows-rotate' });
+        Craft.cp.runQueue?.(); // start the job now instead of on the next poll of Craft's queue runner
+        const poll = () => {
+            Craft.sendActionRequest('POST', 'element-relations/replace/status', { data: { operationId } })
+                .then((response) => {
+                    /** @type {OperationStatus} */
+                    const status = response.data;
+                    if (!status.done) {
+                        if (status.progress !== null && notice.$container) {
+                            notice.$container.find('.notification-message').text(runningText + ' ' + Math.round(status.progress * 100) + '%');
+                        }
+                        setTimeout(poll, 1000);
+                        return;
+                    }
+                    notice.close();
+                    index.updateElements();
+                    if (status.status === 'failed') {
+                        Craft.cp.displayError(status.message);
+                        return;
+                    }
+                    showResult(status, index);
+                })
+                .catch((failure) => {
+                    notice.close();
+                    showError(failure);
                 });
-                noticeSettings = {details: $undo, persist: true};
-            }
-            notice = Craft.cp.displaySuccess(data.message, noticeSettings);
-            refresh();
-        }).catch(showError);
+        };
+        setTimeout(poll, 600);
     };
 
-    $wrap.find('.btn').on('click', function () {
-        withHint(Craft.createElementSelectorModal(settings.elementType, {
-            multiSelect: false,
-            showTitle: true,
-            modalTitle: settings.step1Title,
-            selectBtnLabel: settings.step1Button,
-            disabledElementIds: [settings.fromId],
-            /** @param {Array<{id: number, label: string}>} selected exactly one element (multiSelect: false) */
-            onSelect: function (selected) {
-                const replacement = selected[0];
-                withHint(Craft.createElementSelectorModal(settings.usageType, {
-                    multiSelect: true,
-                    showSiteMenu: false,
-                    showTitle: true,
-                    modalTitle: settings.step2Title.replace('{to}', replacement.label),
-                    selectBtnLabel: settings.step2Button,
-                    criteria: {usesElement: settings.fromId, allSites: true},
-                    onSelect: function (usages) { replace(replacement, usages); },
-                }), settings.step2Hint.replace('{to}', replacement.label));
-            },
-        }), settings.step1Hint);
-    });
-};
-{% endjs %}
-{% js %}
-ElementRelationsReplace($('[data-element-relations-replace="{{ id }}"]'), {{ settings|json_encode|raw }});
+    /**
+     * The result, with Undo right in the notice (it stays until closed); Utilities → Element Relations has the same.
+     * @param {OperationStatus} status
+     * @param {Craft.BaseElementIndex} index
+     */
+    const showResult = (status, index) => {
+        if (!status.canUndo) {
+            Craft.cp.displaySuccess(status.message);
+            return;
+        }
+        let resultNotice = null;
+        const $undo = $('<button type="button" class="btn small" data-element-relations-undo/>').text(t('replace-undo')).on('click', () => {
+            $undo.addClass('loading').prop('disabled', true);
+            Craft.sendActionRequest('POST', 'element-relations/replace/rollback', { data: { operationId: status.operationId } })
+                .then(() => follow(status.operationId, t('rollback-running'), index))
+                .catch(showError)
+                .finally(() => resultNotice?.close());
+        });
+        resultNotice = Craft.cp.displaySuccess(status.message, { details: $undo, persist: true });
+    };
+
+    return {
+        /**
+         * Opens the wizard; once it is submitted, follows the queued replacement.
+         * @param {ReplaceRequest} request
+         * @param {Craft.BaseElementIndex} index
+         */
+        start(request, index) {
+            const params = { fromId: request.fromId, siteId: request.siteId };
+            const slideout = new Craft.CpScreenSlideout('element-relations/replace/wizard', {
+                params: request.sourceIds
+                    ? { ...params, sourceIds: request.sourceIds, criteria: JSON.stringify(request.criteria || {}) }
+                    : { ...params, scope: 'everywhere' },
+            });
+            slideout.on('submit', (event) => {
+                // the response is in event.response; event.data is only set for screens that save a model
+                const data = (event.response && event.response.data) || {};
+                if (data.operationId) {
+                    follow(data.operationId, t('replace-running'), index);
+                }
+            });
+        },
+    };
+})();
 {% endjs %}

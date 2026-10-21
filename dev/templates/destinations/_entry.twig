@@ -1,0 +1,106 @@
+{% extends '_layout' %}
+{% import '_partials/hint' as er %}
+
+{% set hero = entry.heroImage.one() %}
+
+{#
+ # Element Relations: "Stories from here", the main use case. Every journal entry that relates to this destination,
+ # wherever the link is: the Destinations field of an article or review, a stop of a route (a Matrix block), a link in
+ # the body text. No reverse field to keep in sync.
+ #
+ # `usesElement` is an element query param, so it works with everything Craft queries do: ordering, `relatedTo`,
+ # search, and `{% paginate %}` (here 9 a page; Hong Kong, Beijing and Taipei have 30 station notes each).
+ #}
+{% set storiesQuery = craft.entries()
+    .section('journal')
+    .usesElement(entry)
+    .orderBy('postDate desc')
+    .limit(9) %}
+{% paginate storiesQuery as pageInfo, stories %}
+
+{% block content %}
+    <section class="hero">
+        {% if hero %}<img src="{{ hero.getUrl({width: 2200, height: 940, mode: 'crop'}) }}" alt="{{ hero.alt ?? hero.title }}">{% endif %}
+        <div class="text">
+            <p class="eyebrow">{{ entry.parent.title ?? 'Destination'|t('site') }}</p>
+            <h1>{{ entry.title }}</h1>
+            {% if entry.bestTime %}<span class="tag" style="background: rgba(255,255,255,.16); color: #fff">{{ 'Best time:'|t('site') }} {{ entry.bestTime }}</span>{% endif %}
+        </div>
+    </section>
+    {% if entry.summary %}<p class="lede" style="margin-top: 28px">{{ entry.summary }}</p>{% endif %}
+
+    {% if entry.level == 1 %}
+        <section class="section">
+            <div class="grid">
+                {% for child in entry.children.all() %}{% set item = child %}{% include '_partials/card' %}{% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    <section class="section er-zone" id="stories">
+        {% set code %}{% verbatim %}
+{% set storiesQuery = craft.entries()
+    .section('journal')
+    .usesElement(entry)
+    .orderBy('postDate desc')
+    .limit(9) %}
+{% paginate storiesQuery as pageInfo, stories %}
+        {% endverbatim %}{% endset %}
+        {{ er.hint('Stories from here: everything in the journal that points to ' ~ entry.title, code, 'A Destinations field, a route stop (a Matrix block), a link in the text: `usesElement` finds them all, as an ordinary element query with ordering and pagination.') }}
+        <div class="section-head">
+            <h2>{{ 'Stories from here'|t('site') }}<span class="count">{{ pageInfo.total }}</span></h2>
+            {% if pageInfo.totalPages > 1 %}<span class="meta">{{ 'Page {page} of {pages}'|t('site', {page: pageInfo.currentPage, pages: pageInfo.totalPages}) }}</span>{% endif %}
+        </div>
+        {% if stories %}
+            <div class="grid">
+                {% for item in stories %}{% include '_partials/card' %}{% endfor %}
+            </div>
+            {% include '_partials/pager' %}
+        {% else %}
+            <p class="meta">{{ 'No stories yet.'|t('site') }}</p>
+        {% endif %}
+    </section>
+
+    {# Element Relations: numbers for a fact box, each one SQL query, no elements loaded #}
+    <section class="section er-zone">
+        {% set code %}{% verbatim %}
+{{ entry.usedIn.count }}            {# this site #}
+{{ entry.usedIn.count([]) }}        {# every site #}
+{% for class, n in entry.usedIn.countsByType %}…{% endfor %}
+{{ entry.usedIn.sites|map(s => s.name)|join(', ') }}
+        {% endverbatim %}{% endset %}
+        {{ er.hint('In numbers', code, '`siteIds` is the site of the element that links here; `[]` means every site. `countsByType` is per element type, most used first.') }}
+        <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))">
+            <div class="panel"><div class="meta">{{ 'In this site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count }}</div></div>
+            <div class="panel"><div class="meta">{{ 'In every site'|t('site') }}</div><div class="num" style="font-size: 32px; font-weight: 800">{{ entry.usedIn.count([]) }}</div></div>
+            <div class="panel">
+                <div class="meta">{{ 'By element type'|t('site') }}</div>
+                {% for class, n in entry.usedIn.countsByType %}<div><strong>{{ n }}</strong> {{ class|split('\\')|last }}</div>{% endfor %}
+            </div>
+            <div class="panel"><div class="meta">{{ 'Sites'|t('site') }}</div><strong>{{ entry.usedIn.sites|map(s => s.name)|join(', ') }}</strong></div>
+        </div>
+    </section>
+
+    {#
+     # Element Relations: the same through the field's value (a RelationsModel). Handy for a teaser or a badge:
+     # `isInUse` and `count` are one query each, `elements` takes filters and a limit.
+     #}
+    {% set relations = entry.usedIn %}
+    {% set other = relations.elements(limit: 12)|filter(e => (e.section.handle ?? null) != 'journal') %}
+    {% if other %}
+        <section class="section er-zone">
+            {% set code %}{% verbatim %}
+{% set relations = entry.usedIn %}
+{{ relations.count }} {# every element type, one query #}
+{% for element in relations.elements(limit: 12) %}…{% endfor %}
+            {% endverbatim %}{% endset %}
+            {{ er.hint('Everything else that points here, of any element type', code, relations.count ~ ' elements link to ' ~ entry.title ~ ' in total: entries, the site settings, a region page.') }}
+            <div class="section-head"><h2>{{ 'Also points here'|t('site') }}</h2></div>
+            <ul class="tags">
+                {% for element in other %}
+                    <li>{% if element.url %}<a class="tag neutral" href="{{ element.url }}">{{ element.title }}</a>{% else %}<span class="tag neutral">{{ element.title ?? element }}</span>{% endif %}</li>
+                {% endfor %}
+            </ul>
+        </section>
+    {% endif %}
+{% endblock %}
