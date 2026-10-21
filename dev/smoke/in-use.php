@@ -33,7 +33,7 @@ return function (array $ctx): void {
     if (class_exists(craft\elements\deletionblockers\BaseDeletionBlocker::class)) {
         $blocker = new internetztube\elementRelations\elements\deletionblockers\InUseDeletionBlocker(new craft\elements\ElementCollection([$unused[0], $target]), false);
         $all = InUseGuard::liveUsages($target)['count'];
-        check($blocker->isActive() && $all > 3 && str_contains($blocker->getSummary(), Craft::t('element-relations', 'in-use-more', ['count' => $all - 3])), "delete dialog: names three of the $all usages and counts the rest");
+        check($blocker->isActive() && $all > 3 && str_contains($blocker->getSummary(), Craft::t('element-relations', 'in-use-more', ['count' => $all - InUseGuard::NAMED + 1])), "delete dialog: names two of the $all usages and counts the rest");
         // used, but by nothing visitors see (a disabled entry): no blocker
         $section = Craft::$app->getEntries()->getSectionByHandle('pages');
         $offlineOnly = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'In use: offline only']);

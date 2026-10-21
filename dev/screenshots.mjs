@@ -416,14 +416,14 @@ const SHOTS = [
     {
         name: 'in-use-dialog', edition: 'Pro', user: 'jonas',
         points: ['In Craft’s own delete dialog', 'The usages listed, “Replace…” right there', 'No “Delete anyway” without the permission'],
-        focus: `$$('.modal').filter((m) => /visitors see/.test(m.textContent)).at(-1)`,
-        highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /visitors see/.test(e.textContent)).slice(-1)]`,
+        focus: `$$('.modal').filter((m) => /live elements? uses? the/.test(m.textContent)).at(-1)`,
+        highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /live elements? uses? the/.test(e.textContent)).slice(-1)]`,
         title: 'Before deleting: where it is used',
         text: 'Craft’s delete dialog lists the live usages and offers “Replace…”; no way past without the permission.',
         path: demo.skyline.path,
         act: `
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /visitors see/.test(m.textContent)), 'the delete dialog', 30000);
+            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(1500);
         `,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,

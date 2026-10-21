@@ -253,15 +253,16 @@ try {
         await visit(demo.skyline.path);
         const facts = await run(`
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /visitors see/.test(m.textContent)), 'the delete dialog', 30000);
+            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
-            const modal = $$('.modal').find((m) => /visitors see/.test(m.textContent));
+            const modal = $$('.modal').find((m) => /live elements? uses? the/.test(m.textContent));
             const summary = (/\\d+ live elements use the asset[^.]*\\./.exec(modal.textContent.replace(/\\s+/g, ' ')) ?? [''])[0];
             const buttons = [...modal.querySelectorAll('button')].map((b) => b.textContent.trim());
             return { summary, buttons };
         `);
         const usages = Number(/(\d+) live elements use/.exec(facts.summary)?.[1] ?? 0);
-        check(usages === 3 && /\(English, German\)/.test(facts.summary), `three elements, each named once with its sites: "${facts.summary}"`);
+        const named = facts.summary.match(/“[^”]+”/g) ?? [];
+        check(usages === 3 && named.length === 3 && new Set(named).size === 3 && !/\(English/.test(facts.summary), `three elements, each named once, without their sites: "${facts.summary}"`);
         check(facts.buttons.includes('Replace…') && facts.buttons.includes('Delete anyway'), `the admin gets Replace… and Delete anyway (${facts.buttons.filter((b) => b).join(' | ')})`);
     });
 
@@ -274,9 +275,9 @@ try {
         await visit(demo.skyline.path);
         const facts = await run(`
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
-            await until(() => $$('.modal').some((m) => /visitors see/.test(m.textContent)), 'the delete dialog', 30000);
+            await until(() => $$('.modal').some((m) => /live elements? uses? the/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
-            const modal = $$('.modal').find((m) => /visitors see/.test(m.textContent));
+            const modal = $$('.modal').find((m) => /live elements? uses? the/.test(m.textContent));
             const buttons = [...modal.querySelectorAll('button')].map((b) => b.textContent.trim());
             const submit = [...modal.querySelectorAll('button')].find((b) => /^Delete/.test(b.textContent.trim()) && b.classList.contains('submit'));
             return { buttons, submitDisabled: submit ? submit.disabled || submit.classList.contains('disabled') : null, hint: /permission/.test(modal.textContent) };
@@ -305,7 +306,7 @@ try {
             return { notice: notices().find((n) => /can’t be disabled/.test(n)) ?? '', live: !!row?.querySelector('.status.live, .status.enabled') };
         `);
         // Craft's action disables one site of a multi-site entry: only the elements using it in that site count
-        check(/can’t be disabled for English: 33 live elements use it there/.test(dis.notice) && dis.live, `Set status → Disabled: "${dis.notice.slice(0, 120)}…" and Hong Kong stays live`);
+        check(/can’t be disabled for English\. 33 live elements use it there/.test(dis.notice) && dis.live, `Set status → Disabled: "${dis.notice.slice(0, 120)}…" and Hong Kong stays live`);
     });
 
     await scenario('editor: the edit page refuses disabling, but saves otherwise', async () => {
@@ -322,7 +323,7 @@ try {
         // the sidebar of a multi-site entry has one switch per site the user may edit: English here
         const siteSwitch = `$('.lightswitch').filter((i, e) => /^enabledForSite/.test($(e).find('input').attr('name') ?? '')).first().data('lightswitch')`;
         const refused = await save(`${siteSwitch}?.turnOff();`);
-        check(refused.errors.some((e) => /can’t be disabled for English: 32 live elements use it there/.test(e)) && !refused.notices.some((n) => /saved/i.test(n)), `disabling Taipei for English is refused on the switch: "${refused.errors.find((e) => /can’t be disabled/.test(e))?.slice(0, 120) ?? refused.notices.join(' | ')}"`);
+        check(refused.errors.some((e) => /can’t be disabled for English\. 32 live elements use it there/.test(e)) && !refused.notices.some((n) => /saved/i.test(n)), `disabling Taipei for English is refused on the switch: "${refused.errors.find((e) => /can’t be disabled/.test(e))?.slice(0, 120) ?? refused.notices.join(' | ')}"`);
         const saved = await save(`${siteSwitch}?.turnOn();`);
         // a successful save goes back to the entries index; the entry's own page tells whether it is live
         await visit(demo.taipei.path);

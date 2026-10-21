@@ -21,9 +21,6 @@ use internetztube\elementRelations\services\InUseGuard;
  */
 class InUseDeletionBlocker extends BaseDeletionBlocker
 {
-    /** Titles named in the summary. */
-    private const NAMED = 3;
-
     private int $count = 0;
 
     /** @var list<string> */
@@ -48,7 +45,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
             }
             $this->inUse[] = $element;
             $this->count += $usages['count'];
-            $this->titles = array_slice(array_values(array_unique([...$this->titles, ...$usages['titles']])), 0, self::NAMED);
+            $this->titles = array_slice(array_values(array_unique([...$this->titles, ...$usages['titles']])), 0, InUseGuard::NAMED);
         }
     }
 
@@ -59,10 +56,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
 
     public function getSummary(): string
     {
-        $names = implode(', ', $this->titles);
-        if ($this->count > count($this->titles)) {
-            $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $this->count - count($this->titles)]);
-        }
+        $names = InUseGuard::names($this->titles, $this->count);
         $summary = Craft::t('element-relations', 'in-use-blocker-summary', [
             'numTargets' => count($this->inUse),
             'type' => $this->inUse[0]::lowerDisplayName(),

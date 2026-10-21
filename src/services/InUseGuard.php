@@ -26,8 +26,8 @@ use internetztube\elementRelations\models\RelationsModel;
  */
 class InUseGuard
 {
-    /** Titles named in the message. */
-    private const NAMED = 3;
+    /** Titles named in a message: all of them up to this many, else one less and “and N more”. */
+    public const NAMED = 3;
 
     public static function register(): void
     {
@@ -113,22 +113,20 @@ class InUseGuard
     }
 
     /**
-     * Live usages of the element: the number of places using it (an element in one of its sites; a page in English and
-     * German is two) and the first few, named with their site on multi-site installs. With a site, only the usages in
-     * that site (a disable for one site); plugin settings count for the element as a whole.
-     * @return array{count: int, titles: list<string>} titles quoted, e.g. “Travel slowly” (English)
+     * Live usages of the element: how many elements use it (each once, whatever sites it uses it in) and the first few
+     * titles. With a site, only the usages in that site (a disable for one site); plugin settings count for the element
+     * as a whole. The sites are left out of the titles: the message names the site when it is about one, and the
+     * "Used in" field lists every usage with its sites.
+     * @return array{count: int, titles: list<string>} titles quoted, e.g. “Travel slowly”
      */
     public static function liveUsages(ElementInterface $element, ?int $siteId = null): array
     {
         $model = (new RelationsModel((int)($element->getCanonicalId() ?? $element->id), (int)$element->siteId))
             ->withQueryFactory(fn(string $type): mixed => $type::find()); // Craft's defaults: live entries, enabled elements, no drafts
         $siteIds = $siteId === null ? [] : [$siteId];
-        $multiSite = Craft::$app->getIsMultiSite();
         $titles = [];
         foreach ($model->getElementsIterator($siteIds, self::NAMED) as $usage) {
-            // each element once; the sites it uses the element in, from the cache
-            $sites = $siteId === null ? self::siteNames($model->getElementId(), (int)$usage->id) : [$usage->getSite()->getName()];
-            $titles[] = '“' . $usage . '”' . ($multiSite ? ' (' . implode(', ', $sites) . ')' : '');
+            $titles[] = '“' . $usage . '”';
         }
         $global = $siteId === null ? $model->getGlobalUsages() : [];
         foreach (array_slice($global, 0, max(0, self::NAMED - count($titles))) as $usage) {
@@ -144,19 +142,16 @@ class InUseGuard
     }
 
     /**
-     * The names of the sites $ownerId uses $targetId in, in the sites' order.
-     * ponytail: the cache row, not the owner's status per site; an owner disabled in one site still names it
-     * @return list<string>
+     * The usages for a message: all titles when there are at most NAMED, else the first NAMED - 1 and “and N more”, so
+     * it never says “and 1 more” where the title would fit.
+     * @param list<string> $titles
      */
-    private static function siteNames(int $targetId, int $ownerId): array
+    public static function names(array $titles, int $count): string
     {
-        $siteIds = array_map(intval(...), (new \craft\db\Query())->select(['sourceSiteId'])->distinct()
-            ->from('{{%elementrelations_cache}}')->where(['targetElementId' => $targetId, 'sourcePrimaryOwnerId' => $ownerId])->column());
-        $names = [];
-        foreach (Craft::$app->getSites()->getAllSites() as $site) {
-            if (in_array((int)$site->id, $siteIds, true)) {
-                $names[] = $site->getName();
-            }
+        $shown = $count <= self::NAMED ? array_slice($titles, 0, self::NAMED) : array_slice($titles, 0, self::NAMED - 1);
+        $names = implode(', ', $shown);
+        if ($count > count($shown)) {
+            $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $count - count($shown)]);
         }
         return $names;
     }
@@ -219,15 +214,11 @@ class InUseGuard
         if ($usages['count'] === 0) {
             return null;
         }
-        $names = implode(', ', $usages['titles']);
-        if ($usages['count'] > count($usages['titles'])) {
-            $names .= ' ' . Craft::t('element-relations', 'in-use-more', ['count' => $usages['count'] - count($usages['titles'])]);
-        }
         return Craft::t('element-relations', $key, [
             'element' => (string)$element,
             'count' => $usages['count'],
-            'names' => $names,
+            'names' => self::names($usages['titles'], $usages['count']),
             'site' => $siteId !== null ? (string)Craft::$app->getSites()->getSiteById($siteId)?->getName() : '',
-        ]) . ' ' . Craft::t('element-relations', 'in-use-hint');
+        ]) . ' ' . Craft::t('element-relations', 'in-use-hint', ['count' => $usages['count']]);
     }
 }
