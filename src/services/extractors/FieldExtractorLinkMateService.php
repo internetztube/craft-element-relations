@@ -11,7 +11,7 @@ use internetztube\elementRelations\records\ElementRelationsCacheRecord;
  * LinkMate (vaersaagod/linkmate). The value is a single Link; for element link types `value` holds the element id
  * (stored as JSON in the content column).
  */
-class FieldExtractorLinkMateService implements InterfaceFieldExtractor
+class FieldExtractorLinkMateService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
     /**
      * @param Field $field
@@ -43,5 +43,23 @@ class FieldExtractorLinkMateService implements InterfaceFieldExtractor
             'fieldId' => $field->id,
         ]);
         return [$record];
+    }
+
+    /** The Link model's attributes (type, value, customText, target, title, ...) are what normalizeValue() accepts. */
+    public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!Craft::$app->plugins->isPluginEnabled('linkmate') || !($field instanceof \vaersaagod\linkmate\fields\LinkField)) {
+            return null;
+        }
+        $link = $element->getFieldValue($field->handle);
+        if (
+            !($link instanceof \vaersaagod\linkmate\models\Link)
+            || !($link->getLinkType() instanceof \vaersaagod\linkmate\models\ElementLinkType)
+            || (int)$link->value !== $from->id
+        ) {
+            return false;
+        }
+        $element->setFieldValue($field->handle, ['value' => $to->id] + $link->getAttributes());
+        return true;
     }
 }

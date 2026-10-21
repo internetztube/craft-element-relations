@@ -17,4 +17,21 @@ return function (array $ctx): void {
     $target = $ctx['target'];
     check(!(new RelationsModel($target->id, $target->siteId))->getIsUsedInSeomaticGlobalSettings(), 'Page C is not used in global settings');
     check(!(new RelationsModel(99999, $asset->siteId))->getIsUsedInSeomaticGlobalSettings(), 'id 99999 does not match 999999 in global settings');
+
+    // settings changes rewrite the cache rows immediately (SEOmatic saves its meta bundle record)
+    $bundles = \nystudio107\seomatic\Seomatic::$plugin->metaBundles;
+    $siteId = Craft::$app->getSites()->getPrimarySite()->id;
+    $bundle = $bundles->getGlobalMetaBundle($siteId);
+    $bundle->metaBundleSettings->twitterImageIds = [999999];
+    $bundles->updateMetaBundle($bundle, $siteId);
+    check(!(new RelationsModel($asset->id, $asset->siteId))->getIsUsedInSeomaticGlobalSettings(), 'removing the image from the global settings drops the usage');
+    $bundle->metaBundleSettings->twitterImageIds = [999999, $asset->id];
+    $bundles->updateMetaBundle($bundle, $siteId);
+    check((new RelationsModel($asset->id, $asset->siteId))->getIsUsedInSeomaticGlobalSettings(), 'adding it back restores the usage');
+    $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
+    $counted = (new craft\db\Query())->select($sort['orderBy'])->from(['elements' => craft\db\Table::ELEMENTS])->where(['elements.id' => $asset->id])->scalar();
+    check((int)$counted > (int)(new RelationsModel($asset->id, $asset->siteId))->getCountFast([]), 'the sort count includes the non-element usages');
+
+    replaceRoundTrip($entry, $asset, 'SEOmatic SEO image', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->seoImageIds) === [$t->id]);
+    replaceRoundTrip(Entry::find()->title('Page via SEOmatic (social)')->one(), $asset, 'SEOmatic Twitter/OG images', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->ogImageIds) === [$t->id]);
 };

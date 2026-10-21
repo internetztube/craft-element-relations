@@ -9,11 +9,18 @@ class SettingsModel extends Model
 {
     public int $bulkRefreshBatchSize = 2000;
 
+    /** Pro: replace operations touching more elements than this run as a queue job instead of in the request. */
+    public int $replaceSyncLimit = 25;
+
+    /** Feature flags; only meaningful in `config/element-relations.php`, see ElementRelations::features(). */
+    public array $features = [];
+
     protected function defineRules(): array
     {
         return [
             [['bulkRefreshBatchSize'], 'required'],
             [['bulkRefreshBatchSize'], 'integer', 'min' => 1],
+            [['replaceSyncLimit'], 'integer', 'min' => 0],
         ];
     }
 }

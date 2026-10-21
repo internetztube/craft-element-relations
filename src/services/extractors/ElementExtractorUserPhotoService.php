@@ -3,11 +3,17 @@
 namespace internetztube\elementRelations\services\extractors;
 
 use craft\base\ElementInterface;
+use craft\elements\Asset;
 use craft\elements\User;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
-class ElementExtractorUserPhotoService implements InterfaceElementExtractor
+class ElementExtractorUserPhotoService implements InterfaceElementExtractor, InterfaceElementReplacer
 {
+    public static function elementTypes(): array
+    {
+        return [\craft\elements\User::class];
+    }
+
     /**
      * @param ElementInterface $element
      * @param ElementRelationsCacheRecord $baseRecord
@@ -26,5 +32,17 @@ class ElementExtractorUserPhotoService implements InterfaceElementExtractor
             'targetSiteId' => $userPhoto->siteId,
         ]);
         return $record;
+    }
+
+    public static function replace(ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!($element instanceof User)) {
+            return null;
+        }
+        if (!($to instanceof Asset) || (int)$element->photoId !== $from->id) {
+            return false;
+        }
+        $element->setPhoto($to);
+        return true;
     }
 }

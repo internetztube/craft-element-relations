@@ -8,6 +8,7 @@ use craft\base\Field;
 use craft\base\FieldInterface;
 use craft\base\FieldLayoutElement;
 use craft\base\PreviewableFieldInterface;
+use craft\base\SortableFieldInterface;
 use craft\enums\Color;
 use craft\errors\FieldNotFoundException;
 use craft\fieldlayoutelements\CustomField;
@@ -17,17 +18,20 @@ use craft\helpers\StringHelper;
 use craft\models\FieldLayoutTab;
 use craft\models\GqlSchema;
 use GraphQL\Type\Definition\Type;
+use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\elements\db\UsageQuery;
 use internetztube\elementRelations\gql\types\Relations as RelationsType;
 use internetztube\elementRelations\helpers\ElementSummary;
 use internetztube\elementRelations\models\RelationsModel;
+use internetztube\elementRelations\services\ReplaceService;
 use yii\base\InvalidConfigException;
 
 /**
  * Read-only field that shows where the element is used. It stores nothing; the value is computed from the cache table.
  * The control panel UI is Craft's own: element indexes for the field, element chips for index columns.
  */
-class ElementRelationsField extends Field implements PreviewableFieldInterface
+class ElementRelationsField extends Field implements PreviewableFieldInterface, SortableFieldInterface
 {
     /** Chips shown in element index columns before Craft's "+N" badge takes over. */
     private const PREVIEW_LIMIT = 10;
@@ -38,6 +42,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
      * @var array<class-string<ElementInterface>, array{label: string, count: int}>|null
      */
     public static ?array $toolbarTypes = null;
+
+    /** Pro: settings of the replace wizard for the index being rendered (same hook as $toolbarTypes); null = no button. */
+    public static ?array $replaceSettings = null;
 
     public const VIEW_MODE_TABLE = 'table';
     public const VIEW_MODE_CARDS = 'cards';
@@ -136,7 +143,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         if (!$value instanceof RelationsModel) {
             return null;
         }
-        $ids = $value->getSourceElementIds([]);
+        $viewer = self::restrictedViewer();
+        $ids = $viewer
+            ? array_values(array_unique(array_map('intval', self::usageQuery($value, $viewer)->ids()))) // exports in the CP
+            : $value->getSourceElementIds([]);
         return ['count' => count($ids), 'elementIds' => $ids];
     }
 
@@ -159,6 +169,17 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         ];
     }
 
+    /** Sort option for element indexes: number of relating elements (all sites). Yii passes an expression with parentheses through unquoted. */
+    public function getSortOption(): array
+    {
+        return [
+            'label' => Craft::t('site', $this->name),
+            'orderBy' => '(SELECT COUNT(*) FROM {{%elementrelations_cache}} WHERE [[targetElementId]] = [[elements.id]])',
+            'attribute' => "field:$this->uid",
+            'defaultDir' => 'desc',
+        ];
+    }
+
     /**
      * Element index column: the relating elements of the element's site as Craft chips (with Craft's "+N" popover).
      * @param RelationsModel|null $value
@@ -173,10 +194,19 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         }
 
         $siteId = $element->siteId;
-        $elements = $value->getElements($siteId, self::PREVIEW_LIMIT);
+        $viewer = self::restrictedViewer();
+        if ($viewer) {
+            // control panel users with limited permissions: only what they may view, plus how much they may not
+            $visibleQuery = self::usageQuery($value, $viewer)->siteId($siteId);
+            $elements = (clone $visibleQuery)->limit(self::PREVIEW_LIMIT)->all();
+            $total = (int)$visibleQuery->count();
+            $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
+        } else {
+            $elements = $value->getElements($siteId, self::PREVIEW_LIMIT);
+            $total = $value->getCountFast($siteId);
+            $hidden = 0;
+        }
         $html = Cp::elementPreviewHtml($elements, showThumb: false);
-
-        $total = $value->getCountFast($siteId);
         if ($total > count($elements)) {
             $html .= Html::a(
                 Craft::t('element-relations', 'preview-total', ['count' => Craft::$app->getFormatter()->asInteger($total)]),
@@ -184,7 +214,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                 ['class' => 'light smalltext'],
             );
         }
-        if (!$elements && $value->getSitesFast()) {
+        if ($hidden) {
+            $html .= Html::tag('div', Html::encode(Craft::t('element-relations', 'restricted-count', ['count' => $hidden])), ['class' => 'light smalltext']);
+        }
+        if (!$elements && !$viewer && $value->getSitesFast()) {
             $html .= Html::tag('span', Craft::t('element-relations', 'preview-other-sites'), ['class' => 'light']);
         }
         if ($value->getIsUsedInSeomaticGlobalSettings()) {
@@ -216,6 +249,13 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
         $html = '';
         if ($value->getIsInUseFast([])) {
             $counts = $value->getCountsByType();
+            if ($viewer = self::restrictedViewer()) {
+                // the dropdown counts what this user's list shows (UsageQuery restricts by view permissions)
+                $counts = array_filter(array_map(
+                    fn(string $type) => (int)self::usageQuery($value, $viewer)->elementTypes($type)->count(),
+                    array_combine(array_keys($counts), array_keys($counts)),
+                ));
+            }
             self::$toolbarTypes = null;
             if (count($counts) > 1) {
                 foreach ($counts as $type => $count) {
@@ -227,6 +267,20 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                     self::$toolbarTypes[$type] = ['label' => $label, 'count' => $count];
                 }
             }
+            $currentUser = Craft::$app->getUser()->getIdentity();
+            self::$replaceSettings = $currentUser && ElementRelations::canReplace($currentUser) && Craft::$app->getElements()->canSave($element, $currentUser) ? [
+                'elementType' => $element::class,
+                'usageType' => Usage::class,
+                'fromId' => $value->getElementId(),
+                'siteId' => $element->siteId,
+                'step1Title' => Craft::t('element-relations', 'replace-step1-title', ['from' => (string)$element]),
+                'step1Hint' => Craft::t('element-relations', 'replace-step1-hint', ['from' => (string)$element, 'type' => $element::lowerDisplayName()]),
+                'step1Button' => Craft::t('element-relations', 'replace-step1-button'),
+                'step2Title' => Craft::t('element-relations', 'replace-step2-title', ['from' => (string)$element, 'to' => '{to}']),
+                'step2Hint' => Craft::t('element-relations', 'replace-step2-hint', ['from' => (string)$element, 'to' => '{to}']) . self::revisionHint($value),
+                'step2Button' => Craft::t('element-relations', 'replace-step2-button'),
+                'undoLabel' => Craft::t('element-relations', 'replace-undo'),
+            ] : null;
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',
                 'id' => 'element-relations-' . StringHelper::randomString(8),
@@ -245,6 +299,14 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                 ],
             ]);
             self::$toolbarTypes = null;
+            self::$replaceSettings = null;
+            if ($viewer = self::restrictedViewer()) {
+                // so nobody takes the element for unused when the usages are only hidden from them
+                $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
+                if ($hidden) {
+                    $html .= Html::tag('p', Html::encode(Craft::t('element-relations', 'restricted-count-input', ['count' => $hidden])), ['class' => 'light', 'data-element-relations-hidden' => $hidden]);
+                }
+            }
         }
         if ($globalUsages) {
             // Craft's `flex` utility would center (and shrink) the index, so plain block layout with a spaced heading
@@ -272,6 +334,38 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface
                     ->contains(fn(?FieldInterface $field) => $field?->id === $this->id);
             })
             ?->getHtmlId();
+    }
+
+    /** Pro wizard: how many of the usages keep no revision when replaced (element types without, versioning off). */
+    private static function revisionHint(RelationsModel $value): string
+    {
+        $viewer = self::restrictedViewer();
+        $coverage = ReplaceService::revisionCoverage($value->getElementId(), $viewer ? self::usageQuery($value, $viewer)->ids() : null);
+        $without = $coverage['unsupported'] + $coverage['versioningOff'];
+        return $without ? ' ' . Craft::t('element-relations', 'replace-revision-hint', [
+            'count' => $without,
+            'unsupported' => $coverage['unsupported'],
+            'versioningOff' => $coverage['versioningOff'],
+        ]) : '';
+    }
+
+    /** All usages of the element (all sites, every status, drafts included) as the given user may see them. */
+    private static function usageQuery(RelationsModel $value, \craft\elements\User $viewer): UsageQuery
+    {
+        $query = Usage::find()->allSites()->status(null)->drafts(null)->viewableBy($viewer);
+        Craft::configure($query, ['usesElement' => $value->getElementId()]); // behavior param, see ElementQueryBehavior
+        return $query;
+    }
+
+    /** The logged-in non-admin user of a control panel request, whose view permissions apply; null otherwise. */
+    private static function restrictedViewer(): ?\craft\elements\User
+    {
+        $request = Craft::$app->getRequest();
+        if (!$request instanceof \craft\web\Request || !$request->getIsCpRequest()) {
+            return null;
+        }
+        $user = Craft::$app->getUser()->getIdentity();
+        return $user && !$user->admin ? $user : null;
     }
 
     private function unusedLabelHtml(): string

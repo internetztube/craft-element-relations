@@ -35,7 +35,7 @@ function withWebRequest(callable $fn): mixed
 {
     $request = Craft::$app->getRequest();
     $response = Craft::$app->getResponse();
-    Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true]);
+    Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true, 'cookieValidationKey' => Craft::$app->getConfig()->getGeneral()->securityKey, 'url' => '/admin']);
     Craft::$app->set('response', ['class' => craft\web\Response::class]);
     // Craft's index templates check the current user's permissions (editable sites, ...); a console request has none
     Craft::$app->getUser()->setIdentity(craft\elements\User::find()->admin()->one());
@@ -58,11 +58,63 @@ function relatingTitles(ElementInterface $element): array
     return $titles;
 }
 
+/** Runs the queued relation refreshes (a bootstrapped script never fires EVENT_AFTER_REQUEST by itself). */
+function flushQueue(): void
+{
+    Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
+    Craft::$app->getQueue()->run();
+}
+
+/**
+ * Round trip of the Pro replace feature on one relating element, the way the field's wizard calls it: `$from` is
+ * swapped for a temporary element of the same type in `$source` only, the relation must move, `$pointsTo($reloaded,
+ * $target)` must see the new reference in the plugin's own field value; then the operation is rolled back and the
+ * original checked again.
+ * Every extractor's replacer gets exercised through this helper by its integration smoke.
+ */
+function replaceRoundTrip(ElementInterface $source, ElementInterface $from, string $what, callable $pointsTo): void
+{
+    $elements = Craft::$app->getElements();
+    if ($from instanceof Entry) {
+        $target = new Entry(['sectionId' => $from->sectionId, 'typeId' => $from->typeId, 'title' => "RT $what"]);
+    } elseif ($from instanceof Asset) {
+        $tmp = tempnam(sys_get_temp_dir(), 'er') . '.png';
+        file_put_contents($tmp, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+        $target = new Asset(['tempFilePath' => $tmp, 'filename' => 'rt.png', 'title' => "RT $what", 'newFolderId' => $from->folderId, 'volumeId' => $from->volumeId, 'avoidFilenameConflicts' => true]);
+        $target->setScenario(Asset::SCENARIO_CREATE);
+    } else {
+        throw new RuntimeException('replaceRoundTrip supports entries and assets as "from"');
+    }
+    $elements->saveElement($target) or throw new RuntimeException(json_encode($target->getErrors()));
+    $reload = fn() => $source::find()->id($source->id)->siteId($source->siteId)->status(null)->one();
+
+    $result = internetztube\elementRelations\services\ReplaceService::replace($from, $target, [$source->id]);
+    flushQueue();
+    check($result['replaced'] === 1 && !$result['skipped'], "$what: replace rewrites the element (" . json_encode($result) . ')');
+    check(in_array((string)$source, relatingTitles($target), true) && !in_array((string)$source, relatingTitles($from), true), "$what: the relation moved to the target");
+    check((bool)$pointsTo($reload(), $target), "$what: the field value points to the target");
+
+    // undo through the operation log, exactly what the wizard's Undo and the history's Roll back do
+    $operation = internetztube\elementRelations\records\ReplacementRecord::findOne($result['operationId']);
+    check($operation && $operation->status === 'applied' && $operation->getChanges(), "$what: the operation is logged with its changes");
+    $back = internetztube\elementRelations\services\ReplaceService::rollback($operation);
+    flushQueue();
+    check($back['restored'] === 1 && !$back['skipped'] && in_array((string)$source, relatingTitles($from), true) && !in_array((string)$source, relatingTitles($target), true) && (bool)$pointsTo($reload(), $from), "$what: rollback restores the original (" . json_encode($back) . ')');
+    check(internetztube\elementRelations\records\ReplacementRecord::findOne($operation->id)->status === 'rolledBack', "$what: the operation is marked rolled back");
+    $operation->delete(); // keep the dev project's history clean
+    $elements->deleteElement($target, true);
+}
+
 /** Asserts that `$sourceTitle` is among the elements relating to `$target`. */
 function checkRelation(ElementInterface $target, string $sourceTitle, string $what): void
 {
     $titles = relatingTitles($target);
     check(in_array($sourceTitle, $titles, true), "$what: '$sourceTitle' relates to '$target' (found: " . implode(', ', $titles) . ")");
+}
+
+// Leftovers of an aborted run (a FAIL exits before the cleanup at the end of each section)
+foreach ([...Entry::find()->title(['Page via replace*', 'Page via save event', 'ST *', 'DX *', 'RT *', 'E2E *'])->status(null)->drafts(null)->provisionalDrafts(null)->all(), ...Asset::find()->filename(['unused*', 'rt*'])->all()] as $leftover) {
+    Craft::$app->getElements()->deleteElement($leftover, true);
 }
 
 $b = Entry::find()->title('Page B')->one() ?? throw new RuntimeException('Run seed.php first');
@@ -159,9 +211,12 @@ check(str_contains($unusedHtml, 'Unused') && str_contains($unusedHtml, 'status-l
 check(str_contains($unusedInput, 'status-label'), 'input shows the "Unused" status label for Page A1');
 
 echo "GraphQL\n";
-$schema = new craft\models\GqlSchema(['scope' => [
+// own uid: Craft caches GraphQL results per schema uid; site scopes: the schema must be allowed to read the sites
+$schema = new craft\models\GqlSchema(['uid' => craft\helpers\StringHelper::UUID(), 'scope' => [
     'sections.' . $b->getSection()->uid . ':read',
     'entrytypes.' . $b->getType()->uid . ':read',
+    'elements.inactive:read', // the status argument needs it, like Craft's own queries
+    ...array_map(fn($site) => "sites.$site->uid:read", Craft::$app->getSites()->getAllSites(true)),
 ]]);
 $query = '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations {
     count liveCount: count(status: ["live"]) isInUse
@@ -170,8 +225,20 @@ $query = '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations {
 $result = Craft::$app->getGql()->executeQuery($schema, $query);
 $gql = $result['data']['entry']['relations'] ?? null;
 check($gql !== null, 'query succeeded: ' . json_encode($result['errors'] ?? null));
-check($gql['count'] === 12 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count / count(status) / isInUse');
+check($gql['count'] === 11 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count (live by default in GraphQL, the disabled Page A12 is not counted) / count(status) / isInUse');
 check(count($gql['elements']) === 1 && $gql['elements'][0]['title'] === 'Page A12', 'elements(status: ["disabled"]) returns only Page A12');
+
+echo "Editions (behind the `features.editions` flag)\n";
+$plugin = internetztube\elementRelations\ElementRelations::class;
+check($plugin::editionsFor([]) === ['lite'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: Lite only; flag on: Lite and Pro');
+check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
+$editionBefore = $plugin::getInstance()->edition; // restored at the end of every section that switches, so the dev project keeps its edition
+Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
+check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'Lite: isPro() is false');
+Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
+check($plugin::isPro(), 'switching to Pro makes isPro() true');
+Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
+check($plugin::isPro() === ($editionBefore === 'pro'), "restored the $editionBefore edition");
 
 echo "Live save path (save event -> queued refresh job -> cache)\n";
 // Seeds never fire EVENT_AFTER_REQUEST, so everything above was built by resave-relations. This exercises the real flow.
@@ -203,6 +270,11 @@ check(!in_array('Page via save event', relatingTitles($c), true) && in_array('Pa
 Craft::$app->getElements()->deleteElement($live, true);
 check(!in_array('Page via save event', relatingTitles($c), true), 'deleting the entry removes its relation');
 
+echo "Replace (Pro) on core fields\n";
+Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
+replaceRoundTrip(Entry::find()->title('Page A1')->one(), $b, 'Entries field', fn(Entry $e, $t) => array_map('intval', $e->getFieldValue('relatedEntries')->ids()) === [$t->id]);
+Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
+
 echo "Cache hygiene\n";
 $failedJobs = (new craft\db\Query())->select(['description', 'error'])->from('{{%queue}}')->where(['fail' => true])->all();
 check(!$failedJobs, 'no failed queue jobs' . ($failedJobs ? ': ' . json_encode($failedJobs) : ''));
@@ -223,6 +295,13 @@ foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
     }
     echo ucfirst(basename($file, '.php')) . "\n";
     (require $file)($ctx);
+}
+
+// operations the tests created (their temporary elements are gone again)
+foreach (internetztube\elementRelations\records\ReplacementRecord::find()->all() as $operation) {
+    if (!Craft::$app->getElements()->getElementById($operation->fromId, null, $operation->siteId) || !Craft::$app->getElements()->getElementById($operation->toId, null, $operation->siteId)) {
+        $operation->delete();
+    }
 }
 
 echo "All good.\n";

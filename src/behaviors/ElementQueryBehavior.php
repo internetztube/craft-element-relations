@@ -16,6 +16,7 @@ use yii\db\Expression;
  * {% set pages = craft.entries().usesElement(asset).all() %}
  * ```
  * Also usable as element index criteria (`{usesElement: 123}`), which is how the field renders its native indexes.
+ * `unused()` is the inverse for a single element type: `craft.assets().unused()` lists assets nothing relates to.
  *
  * @property ElementQuery $owner
  */
@@ -23,6 +24,9 @@ class ElementQueryBehavior extends Behavior
 {
     /** int|int[]|ElementInterface|ElementInterface[]|null */
     public mixed $usesElement = null;
+
+    /** Only elements nothing relates to: no cache row, which includes non-element usages such as SEOmatic settings. */
+    public ?bool $unused = null;
 
     /**
      * @param int|int[]|ElementInterface|ElementInterface[]|null $value
@@ -33,14 +37,34 @@ class ElementQueryBehavior extends Behavior
         return $this->owner;
     }
 
+    public function unused(?bool $value = true): ElementQuery
+    {
+        $this->unused = $value;
+        return $this->owner;
+    }
+
     public function events(): array
     {
-        return [ElementQuery::EVENT_AFTER_PREPARE => 'applyUsesElement'];
+        return [ElementQuery::EVENT_AFTER_PREPARE => 'applyParams'];
     }
 
     /** Runs after Craft created the sub query, which is rebuilt on every prepare (count, all, ...). */
-    public function applyUsesElement(): void
+    public function applyParams(): void
     {
+        if ($this->usesElement !== null || $this->unused) {
+            // Craft caches element index queries for an hour, invalidated by the element type's cache tags. These
+            // results also change when *other* elements are saved (a relation added somewhere, a source renamed or
+            // disabled), which those tags never cover, so never serve them from the query cache.
+            $this->owner->queryCacheDuration = null;
+            $this->owner->queryCacheDependency = null;
+        }
+        if ($this->unused) {
+            $this->owner->subQuery->andWhere(['not exists', (new Query())
+                ->select(new Expression('1'))
+                ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
+                ->where('[[elementrelations_cache.targetElementId]] = [[elements.id]]'),
+            ]);
+        }
         if ($this->usesElement === null) {
             return;
         }

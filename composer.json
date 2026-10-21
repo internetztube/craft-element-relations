@@ -1,6 +1,6 @@
 {
     "name": "internetztube/craft-element-relations",
-    "description": "Shows all relations of an element.",
+    "description": "See where every element is used: one native list across all element types, sites and supported plugins, with Twig, GraphQL and element query support. Pro: unused filter, replace with undo.",
     "type": "craft-plugin",
     "version": "3.1.7",
     "keywords": [
@@ -8,11 +8,17 @@
         "cms",
         "craftcms",
         "craft-plugin",
-        "element-relations"
+        "element-relations",
+        "relations",
+        "usage",
+        "where used",
+        "unused assets",
+        "replace"
     ],
     "support": {
         "docs": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
-        "issues": "https://github.com/internetztube/craft-element-relations/issues"
+        "issues": "https://github.com/internetztube/craft-element-relations/issues",
+        "source": "https://github.com/internetztube/craft-element-relations"
     },
     "license": "MIT",
     "authors": [
@@ -27,7 +33,7 @@
     },
     "autoload": {
         "psr-4": {
-          "internetztube\\elementRelations\\": "src/"
+            "internetztube\\elementRelations\\": "src/"
         }
     },
     "extra": {

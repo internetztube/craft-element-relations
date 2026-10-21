@@ -18,4 +18,10 @@ return function (array $ctx): void {
     check($single?->getElement()?->id === $ctx['target']->id, 'FreeLink: single-link value round-trips');
     checkRelation($ctx['target'], 'Page via FreeLink (single)', 'FreeLink (single)');
     check($rows('Page via FreeLink (url)') === [], 'FreeLink: URL link relates to nothing');
+
+    $multi = Entry::find()->title('Page via FreeLink')->one();
+    $linkIds = fn($e) => array_map(fn($l) => $l->getElement()?->id, $e->getFieldValue('freeLink')->getAll());
+    replaceRoundTrip($multi, $ctx['target'], 'FreeLink multi entry link', fn($e, $t) => $linkIds($e) === [$t->id, $ctx['asset']->id]);
+    replaceRoundTrip($multi, $ctx['asset'], 'FreeLink multi asset link', fn($e, $t) => $linkIds($e) === [$ctx['target']->id, $t->id]);
+    replaceRoundTrip(Entry::find()->title('Page via FreeLink (single)')->one(), $ctx['target'], 'FreeLink single link', fn($e, $t) => $e->getFieldValue('freeLinkSingle')->getElement()?->id === $t->id);
 };

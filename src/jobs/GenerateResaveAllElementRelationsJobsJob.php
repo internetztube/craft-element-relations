@@ -8,6 +8,7 @@ use craft\db\Table;
 use craft\helpers\Db;
 use craft\queue\BaseJob;
 use internetztube\elementRelations\ElementRelations;
+use internetztube\elementRelations\models\RelationsModel;
 
 /**
  * Resave Element Relations Job queue job
@@ -16,6 +17,8 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
 {
     function execute($queue): void
     {
+        RelationsModel::refreshGlobalUsages();
+
         $query = (new Query())
             ->select([
                 'elements_sites.elementId',

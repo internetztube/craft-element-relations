@@ -7,7 +7,7 @@ use craft\base\ElementInterface;
 use craft\base\Field;
 use internetztube\elementRelations\records\ElementRelationsCacheRecord;
 
-class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor
+class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor, InterfaceFieldReplacer
 {
     /**
      * @param Field $field
@@ -56,5 +56,39 @@ class FieldExtractorRedactorCkEditorService implements InterfaceFieldExtractor
             ->filter()
             ->values()
             ->all();
+    }
+
+    /**
+     * Reference tags: {asset:12:url||https://fallback}, {entry:12@2:title}, ... The `||` fallback is the cached URL of the
+     * old element; Craft's HtmlField drops a tag whose fallback is empty, so the old one is kept when the replacement
+     * has no URL.
+     */
+    public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool
+    {
+        if (!($field instanceof \craft\redactor\Field) && !($field instanceof \craft\ckeditor\Field)) {
+            return null;
+        }
+        $raw = $element->getFieldValue($field->handle)?->getRawContent() ?? '';
+        $refHandle = $from::refHandle();
+        $new = preg_replace_callback(
+            '/\\{' . preg_quote($refHandle, '/') . ':' . $from->id . '(@\\d+)?(?::([\\w.]+))?(?:\\|\\|([^}]*))?\\}/',
+            function (array $m) use ($refHandle, $to): string {
+                $site = $m[1] ?? '';
+                $property = isset($m[2]) && $m[2] !== '' ? ':' . $m[2] : '';
+                $fallback = $m[3] ?? null;
+                if ($fallback !== null && ($m[2] ?? '') === 'url') {
+                    $fallback = $to->getUrl() ?: $fallback;
+                }
+                return '{' . $refHandle . ':' . $to->id . $site . $property . ($fallback !== null ? '||' . $fallback : '') . '}';
+            },
+            $raw,
+            -1,
+            $count,
+        );
+        if (!$count) {
+            return false;
+        }
+        $element->setFieldValue($field->handle, $new);
+        return true;
     }
 }

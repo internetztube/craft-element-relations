@@ -4,6 +4,7 @@ namespace internetztube\elementRelations;
 
 use Craft;
 use craft\base\Element;
+use craft\base\ElementInterface;
 use craft\base\Model;
 use craft\base\Plugin;
 use craft\console\Application as ConsoleApplication;
@@ -13,13 +14,25 @@ use craft\events\DefineAttributeHtmlEvent;
 use craft\events\DefineBehaviorsEvent;
 use craft\events\ModelEvent;
 use craft\events\PluginEvent;
+use craft\base\conditions\BaseCondition;
+use craft\elements\conditions\ElementCondition;
 use craft\events\RegisterComponentTypesEvent;
+use craft\events\RegisterUserPermissionsEvent;
+use craft\log\MonologTarget;
+use craft\services\UserPermissions;
+use Psr\Log\LogLevel;
+use craft\events\RegisterConditionRulesEvent;
+use craft\events\RegisterElementActionsEvent;
+use craft\events\RegisterElementSourcesEvent;
 use craft\services\Fields;
 use craft\services\Plugins;
 use craft\services\Utilities;
 use craft\helpers\Html;
 use internetztube\elementRelations\behaviors\ElementQueryBehavior;
+use internetztube\elementRelations\elements\RestrictedUsage;
 use internetztube\elementRelations\elements\Usage;
+use internetztube\elementRelations\elements\actions\ReplaceRelations;
+use internetztube\elementRelations\elements\conditions\UsedConditionRule;
 use internetztube\elementRelations\helpers\ElementSummary;
 use internetztube\elementRelations\fields\ElementRelationsField;
 use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
@@ -27,7 +40,9 @@ use internetztube\elementRelations\models\SettingsModel;
 use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\QueueElementsForRefreshService;
 use internetztube\elementRelations\utilities\ElementRelationsUtility;
+use internetztube\elementRelations\services\extractors\GlobalUsageSeomaticService;
 use yii\base\Application;
+use yii\db\ActiveRecord;
 use yii\base\Event;
 
 /**
@@ -36,7 +51,86 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.7";
+    public string $schemaVersion = "1.0.10";
+
+    public const EDITION_LITE = 'lite';
+    public const EDITION_PRO = 'pro';
+
+    /** Element types that get the Pro "Replace everywhere…" index action (plugin classes may be absent). */
+    public const PRO_ELEMENT_TYPES = [
+        \craft\elements\Asset::class,
+        \craft\elements\Entry::class,
+        \craft\elements\Category::class,
+        \craft\elements\Tag::class,
+        'craft\\commerce\\elements\\Product',
+    ];
+    /** Element types whose index gets the Pro "Unused" source (elements that exist to be related to). */
+    public const PRO_UNUSED_TYPES = [
+        \craft\elements\Asset::class,
+        \craft\elements\Category::class,
+        \craft\elements\Tag::class,
+    ];
+
+    /**
+     * Feature flags from `config/element-relations.php` (`'features' => ['editions' => true]`). Read from the file, not
+     * the settings model, because Craft asks for editions() before the plugin instance exists.
+     */
+    public static function features(): array
+    {
+        return Craft::$app->getConfig()->getConfigFromFile('element-relations')['features'] ?? [];
+    }
+
+    /** Lite only until the `editions` feature flag is on; Pro has no features yet, this is the scaffolding. */
+    public static function editions(): array
+    {
+        return self::editionsFor(self::features());
+    }
+
+    public static function editionsFor(array $features): array
+    {
+        return !empty($features['editions']) ? [self::EDITION_LITE, self::EDITION_PRO] : [self::EDITION_LITE];
+    }
+
+    /** Gate for Pro-only behaviour: the flag must be on and the installed edition must be Pro. */
+    /** Pro user permissions (admins have them implicitly). */
+    public const PERMISSION_REPLACE = 'element-relations-replace';
+    public const PERMISSION_ROLLBACK = 'element-relations-rollback';
+
+    /** Pro and allowed to replace references (console runs without a user are trusted). */
+    public static function canReplace(?\craft\elements\User $user = null): bool
+    {
+        return self::isPro() && self::allowed(self::PERMISSION_REPLACE, $user);
+    }
+
+    /** Pro and allowed to roll back replacements. */
+    public static function canRollBack(?\craft\elements\User $user = null): bool
+    {
+        return self::isPro() && self::allowed(self::PERMISSION_ROLLBACK, $user);
+    }
+
+    /** Roll back this operation: own replacements, admins all of them. */
+    public static function canRollBackOperation(\internetztube\elementRelations\records\ReplacementRecord $operation, ?\craft\elements\User $user = null): bool
+    {
+        $user ??= Craft::$app->getUser()->getIdentity();
+        if (!self::canRollBack($user)) {
+            return false;
+        }
+        return !$user || $user->admin || (int)$operation->userId === (int)$user->id;
+    }
+
+    private static function allowed(string $permission, ?\craft\elements\User $user): bool
+    {
+        $user ??= Craft::$app->getUser()->getIdentity();
+        if (!$user) {
+            return Craft::$app->getRequest()->getIsConsoleRequest();
+        }
+        return $user->admin || $user->can($permission);
+    }
+
+    public static function isPro(): bool
+    {
+        return in_array(self::EDITION_PRO, self::editions(), true) && self::getInstance()->is(self::EDITION_PRO);
+    }
     public bool $hasCpSettings = true;
     public bool $hasCpSection = false;
 
@@ -44,6 +138,15 @@ class ElementRelations extends Plugin
     {
         parent::init();
         self::$plugin = $this;
+
+        // own log file: storage/logs/element-relations-<date>.log (extractor errors, replacements, rollbacks)
+        Craft::getLogger()->dispatcher->targets['element-relations'] = new MonologTarget([
+            'name' => 'element-relations',
+            'categories' => ['element-relations'],
+            'level' => LogLevel::INFO,
+            'logContext' => false,
+            'allowLineBreaks' => false,
+        ]);
 
         if (Craft::$app instanceof ConsoleApplication) {
             $this->controllerNamespace = 'internetztube\elementRelations\console\controllers';
@@ -66,6 +169,14 @@ class ElementRelations extends Plugin
         Event::on(Element::class, Element::EVENT_DEFINE_ATTRIBUTE_HTML, function (DefineAttributeHtmlEvent $event) {
             /** @var Element $element */
             $element = $event->sender;
+            if ($element instanceof RestrictedUsage) {
+                $event->html = match ($event->attribute) {
+                    Usage::ATTR_TYPE => is_subclass_of($element->realType, ElementInterface::class) ? Html::encode($element->realType::displayName()) : '',
+                    Usage::ATTR_SITE => Html::encode(Craft::t('site', $element->getSite()->name)),
+                    default => '',
+                };
+                return;
+            }
             $event->html = match ($event->attribute) {
                 Usage::ATTR_TYPE => Html::encode($element::displayName()),
                 Usage::ATTR_WHERE => Html::encode(ElementSummary::where($element)),
@@ -83,14 +194,74 @@ class ElementRelations extends Plugin
 
         // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
         Craft::$app->getView()->hook('cp.elements.toolbar', function (array &$context): string {
-            if (($context['elementType'] ?? null) !== Usage::class || !ElementRelationsField::$toolbarTypes) {
+            if (($context['elementType'] ?? null) !== Usage::class) {
                 return '';
             }
-            return Craft::$app->getView()->renderTemplate('element-relations/_field/type-menu', [
-                'types' => ElementRelationsField::$toolbarTypes,
-                'id' => 'element-relations-types-' . mt_rand(),
-            ]);
+            $html = '';
+            if (ElementRelationsField::$toolbarTypes) {
+                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/type-menu', [
+                    'types' => ElementRelationsField::$toolbarTypes,
+                    'id' => 'element-relations-types-' . mt_rand(),
+                ]);
+            }
+            if (ElementRelationsField::$replaceSettings) { // Pro: replace wizard
+                $html .= Craft::$app->getView()->renderTemplate('element-relations/_field/replace', [
+                    'settings' => ElementRelationsField::$replaceSettings,
+                    'id' => 'element-relations-replace-' . mt_rand(),
+                ]);
+            }
+            return $html;
         });
+
+        // Pro: a "Used anywhere" condition rule (filter HUD, custom sources), an "Unused" source on asset/category/tag
+        // indexes and a "Replace everywhere…" action on indexes.
+        // Registered unconditionally and decided per call, so switching the edition needs no restart.
+        Event::on(UserPermissions::class, UserPermissions::EVENT_REGISTER_PERMISSIONS, function (RegisterUserPermissionsEvent $event) {
+            if (self::isPro()) {
+                $event->permissions[] = [
+                    'heading' => $this->name,
+                    'permissions' => [
+                        self::PERMISSION_REPLACE => ['label' => Craft::t('element-relations', 'permission-replace')],
+                        self::PERMISSION_ROLLBACK => ['label' => Craft::t('element-relations', 'permission-rollback')],
+                    ],
+                ];
+            }
+        });
+        foreach (self::PRO_ELEMENT_TYPES as $class) {
+            if (!class_exists($class)) {
+                continue;
+            }
+            Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event) {
+                if (self::canReplace()) {
+                    $event->actions[] = ReplaceRelations::class;
+                }
+            });
+        }
+        Event::on(ElementCondition::class, BaseCondition::EVENT_REGISTER_CONDITION_RULES, function (RegisterConditionRulesEvent $event) {
+            if (self::isPro()) {
+                $event->conditionRules[] = UsedConditionRule::class;
+            }
+        });
+        foreach (self::PRO_UNUSED_TYPES as $class) {
+            Event::on($class, Element::EVENT_REGISTER_SOURCES, function (RegisterElementSourcesEvent $event) {
+                if ($event->context === 'index' && self::isPro()) {
+                    $event->sources[] = ['heading' => $this->name];
+                    $event->sources[] = [
+                        'key' => 'elementRelations:unused',
+                        'label' => Craft::t('element-relations', 'source-unused'),
+                        'criteria' => ['unused' => true],
+                        'defaultSort' => ['dateUpdated', 'desc'],
+                    ];
+                }
+            });
+        }
+
+        // Non-element usages: rewrite their cache rows whenever the plugin settings they live in change
+        if (class_exists(\nystudio107\seomatic\records\MetaBundle::class)) {
+            foreach ([ActiveRecord::EVENT_AFTER_INSERT, ActiveRecord::EVENT_AFTER_UPDATE, ActiveRecord::EVENT_AFTER_DELETE] as $eventName) {
+                Event::on(\nystudio107\seomatic\records\MetaBundle::class, $eventName, fn() => GlobalUsageSeomaticService::refresh());
+            }
+        }
 
         Event::on(Element::class, Element::EVENT_AFTER_SAVE, function (ModelEvent $event) {
             /** @var Element $element */
@@ -108,6 +279,13 @@ class ElementRelations extends Plugin
                 && !$element->getDirtyFields()
                 && !ExtractorService::hasElementExtractor($element)
             ) {
+                return;
+            }
+            if (ExtractorService::hasElementExtractor($element)) {
+                // their data is not per site (a Formie form's settings, a node's target) and Craft saves only one site
+                foreach (\craft\helpers\ElementHelper::supportedSitesForElement($element) as $site) {
+                    QueueElementsForRefreshService::registerForRefresh($element->id, (int)$site['siteId']);
+                }
                 return;
             }
             QueueElementsForRefreshService::registerForRefresh($element->id, $element->siteId);

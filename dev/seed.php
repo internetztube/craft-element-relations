@@ -100,7 +100,13 @@ function ensureEntry(string $title, array $fieldValues = [], bool $enabled = tru
 $entries = Craft::$app->getEntries();
 $siteId = Craft::$app->getSites()->getPrimarySite()->id;
 
-// 0. Second site, created before anything else: Craft adds a new site to existing category groups via project config
+// 0a. Plugin config with the feature flags on, so the dev project and CI exercise the Pro edition path.
+$configFile = CRAFT_BASE_PATH . '/config/element-relations.php';
+if (!file_exists($configFile)) {
+    file_put_contents($configFile, "<?php\n\nreturn [\n    'features' => ['editions' => true],\n];\n");
+}
+
+// 0b. Second site, created before anything else: Craft adds a new site to existing category groups via project config
 // only, so a group created earlier in the same run ends up with site settings in project config but not in the
 // database, and saving its categories then fails silently ("group is not enabled for site 2").
 $sites = Craft::$app->getSites();
@@ -149,13 +155,28 @@ $entryType = $section->getEntryTypes()[0];
 
 // 2. Asset volume with one image (for SEOmatic, user photos, asset links).
 $volumes = Craft::$app->getVolumes();
-if (!Craft::$app->getFs()->getFilesystemByHandle('testFs')) {
+// With public URLs: rich-text fields rebuild the `||fallback` of asset reference tags from the asset's URL on save
+// and drop tags whose asset has none, so embedded images need a filesystem with URLs (as in real projects).
+// The folder lives under the web root so `@web/test-assets` really serves the files (images, thumbs, user photos).
+$fsPath = '@webroot/test-assets';
+if (!$fs = Craft::$app->getFs()->getFilesystemByHandle('testFs')) {
     $fs = Craft::$app->getFs()->createFilesystem([
         'type' => Local::class,
         'name' => 'Test FS',
         'handle' => 'testFs',
-        'settings' => ['path' => '@storage/test-assets', 'url' => '@web/test-assets'],
+        'hasUrls' => true,
+        'settings' => ['path' => $fsPath, 'url' => '@web/test-assets'],
     ]);
+    Craft::$app->getFs()->saveFilesystem($fs) or fail($fs);
+} elseif (!$fs->hasUrls || $fs->path !== $fsPath) {
+    // older dev projects: move the folder from storage/ into the web root and fix the filesystem
+    $old = Craft::getAlias($fs->path);
+    $new = Craft::getAlias($fsPath);
+    if ($old !== $new && is_dir($old) && !is_dir($new)) {
+        rename($old, $new);
+    }
+    $fs->hasUrls = true;
+    $fs->path = $fsPath;
     Craft::$app->getFs()->saveFilesystem($fs) or fail($fs);
 }
 if (!$volume = $volumes->getVolumeByHandle('test')) {

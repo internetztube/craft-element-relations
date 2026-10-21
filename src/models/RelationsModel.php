@@ -23,13 +23,36 @@ use internetztube\elementRelations\services\extractors\InterfaceGlobalUsage;
  */
 class RelationsModel
 {
-    /** @var class-string<InterfaceGlobalUsage>[] usages that are not elements (plugin settings) */
-    private const GLOBAL_USAGE_PROVIDERS = [
+    /** @var class-string<InterfaceGlobalUsage>[] usages that are not elements (plugin settings), cached as rows without a source element */
+    public const GLOBAL_USAGE_PROVIDERS = [
         GlobalUsageSeomaticService::class,
     ];
 
+    /** Lets plugins add providers of non-element usages (InterfaceGlobalUsage) via `$event->types`. */
+    public const EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS = 'registerGlobalUsageProviders';
+
+    private static ?array $providers = null;
+
+    /** @return class-string<InterfaceGlobalUsage>[] */
+    public static function globalUsageProviders(): array
+    {
+        if (self::$providers === null) {
+            $types = self::GLOBAL_USAGE_PROVIDERS;
+            if (\yii\base\Event::hasHandlers(self::class, self::EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS)) {
+                $event = new \craft\events\RegisterComponentTypesEvent(['types' => $types]);
+                \yii\base\Event::trigger(self::class, self::EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS, $event);
+                $types = $event->types;
+            }
+            self::$providers = array_values(array_filter($types, 'class_exists'));
+        }
+        return self::$providers;
+    }
+
     private int $elementId;
     private int $siteId;
+
+    /** @var callable|null see withQueryFactory() */
+    private $queryFactory = null;
 
     private ?array $_globalUsages = null;
     private ?array $_fastCountQueryResult = null;
@@ -38,6 +61,25 @@ class RelationsModel
     {
         $this->elementId = $elementId;
         $this->siteId = $siteId;
+    }
+
+    /**
+     * A copy whose element queries come from `$factory($elementType)` instead of `$elementType::find()`; element types
+     * for which it returns anything but an ElementQuery are left out. Such queries keep their own default status (a
+     * `null` status is not applied) and never include drafts. GraphQL uses this to stay within the active schema.
+     * @param callable(class-string<ElementInterface>): mixed $factory
+     */
+    public function withQueryFactory(callable $factory): static
+    {
+        $model = clone $this;
+        $model->queryFactory = $factory;
+        return $model;
+    }
+
+    /** The site of the element (the default of the `siteIds` arguments). */
+    public function getSiteId(): int
+    {
+        return $this->siteId;
     }
 
     /** The element whose usages this model describes (always the canonical element). */
@@ -88,6 +130,14 @@ class RelationsModel
         return $this->getCountFast($siteIds) > 0 || $this->getGlobalUsages();
     }
 
+    /** Rewrites the cache rows of every non-element usage provider (full rebuilds, migrations). */
+    public static function refreshGlobalUsages(): void
+    {
+        foreach (self::globalUsageProviders() as $provider) {
+            $provider::refresh();
+        }
+    }
+
     /**
      * Usages that are not elements: plugin settings such as SEOmatic's global SEO image.
      * @return GlobalUsage[]
@@ -95,9 +145,18 @@ class RelationsModel
     public function getGlobalUsages(): array
     {
         if ($this->_globalUsages === null) {
+            $rows = (new Query())
+                ->select(['targetElementId', 'targetSiteId', 'type', 'globalKey'])
+                ->from('{{%elementrelations_cache}}')
+                ->where(['targetElementId' => $this->elementId, 'sourceElementId' => null])
+                ->all();
+            $byType = [];
+            foreach ($rows as $row) {
+                $byType[$row['type']][] = $row;
+            }
             $this->_globalUsages = [];
-            foreach (self::GLOBAL_USAGE_PROVIDERS as $provider) {
-                $this->_globalUsages = [...$this->_globalUsages, ...$provider::usages($this->elementId)];
+            foreach (self::globalUsageProviders() as $provider) {
+                $this->_globalUsages = [...$this->_globalUsages, ...$provider::usages($byType[$provider::type()] ?? [])];
             }
         }
         return $this->_globalUsages;
@@ -154,25 +213,43 @@ class RelationsModel
 
     /**
      * One query per element type (and per drafts/no-drafts unless `$drafts` is given), all using the `usesElement` param.
+     * With a query factory (withQueryFactory()) only the types it returns a query for, without drafts.
      * @param class-string<ElementInterface>[]|null $types restrict to these element types
      * @return ElementQueryInterface[]
      */
+    /** A site (front-end) web request, where templates render for visitors. */
+    private static function isSiteRequest(): bool
+    {
+        $request = Craft::$app->getRequest();
+        return $request instanceof \craft\web\Request && !$request->getIsCpRequest();
+    }
+
     public function getElementQueries(array|int|null $siteIds = null, array|string|null $sections = null, array|string|null $entryTypes = null, array|string|null $status = null, ?bool $drafts = null, ?array $types = null, ?string $search = null): array
     {
         $siteIds = $this->normalizeSiteIds($siteIds);
         if (is_string($sections)) $sections = [$sections];
         if (is_string($entryTypes)) $entryTypes = [$entryTypes];
+        $factory = $this->queryFactory;
+        if ($factory) $drafts = false;
+        // front-end templates: unless asked for, only what a visitor may see (live entries, enabled elements, no
+        // drafts); the control panel and console keep "everything" as the default
+        $siteDefaults = !$factory && self::isSiteRequest();
+        if ($siteDefaults && $drafts === null) $drafts = false;
 
         return collect($this->getElementTypes())
             ->filter(fn(string $type) => $types === null || in_array($type, $types, true))
-            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes, $status, $drafts, $search) {
-                /** @var ElementQuery $query */
-                $query = $elementType::find();
+            ->map(function (string $elementType) use ($siteIds, $sections, $entryTypes, $status, $drafts, $search, $factory, $siteDefaults) {
+                $query = $factory ? $factory($elementType) : $elementType::find();
+                if (!$query instanceof ElementQuery) {
+                    return [];
+                }
                 Craft::configure($query, ['usesElement' => $this->elementId]); // behavior param, see ElementQueryBehavior
                 $query
                     ->revisions(false)
-                    ->provisionalDrafts(false)
-                    ->status($status);
+                    ->provisionalDrafts(false);
+                if ($status !== null || (!$factory && !$siteDefaults)) {
+                    $query->status($status);
+                }
                 // the site of the relating element; `usesElement` matches the cache rows of that site
                 empty($siteIds) ? $query->site('*') : $query->siteId($siteIds);
 

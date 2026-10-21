@@ -7,12 +7,62 @@ use craft\gql\base\SingularTypeInterface;
 use craft\gql\GqlEntityRegistry;
 use craft\gql\interfaces\Element as ElementInterface;
 use craft\helpers\Gql as GqlHelper;
+use craft\models\Site;
 use craft\services\Gql as GqlService;
+use GraphQL\Error\UserError;
 use GraphQL\Type\Definition\Type;
 use internetztube\elementRelations\models\RelationsModel;
 
+/**
+ * The relations field in GraphQL. Only relating elements the active schema may read are returned and counted: each
+ * type's query comes from Craft's own GraphQL resolver (see RESOLVERS), sites are limited to the schema's sites,
+ * drafts and revisions are never included.
+ */
 class Relations extends ObjectType implements SingularTypeInterface
 {
+    /**
+     * Element type => [Craft GraphQL resolver, check whether the schema may query that type at all], the same check
+     * Craft uses to offer the type's top-level query. The resolver's `prepareQuery(null, [])` returns a query
+     * restricted to what the schema may read (sections, volumes, groups, ...).
+     * Relating elements of any other type are never exposed through GraphQL (fail closed).
+     */
+    public const RESOLVERS = [
+        \craft\elements\Entry::class => [\craft\gql\resolvers\elements\Entry::class, [GqlHelper::class, 'canQueryEntries']],
+        \craft\elements\Asset::class => [\craft\gql\resolvers\elements\Asset::class, [GqlHelper::class, 'canQueryAssets']],
+        \craft\elements\Category::class => [\craft\gql\resolvers\elements\Category::class, [GqlHelper::class, 'canQueryCategories']],
+        \craft\elements\Tag::class => [\craft\gql\resolvers\elements\Tag::class, [GqlHelper::class, 'canQueryTags']],
+        \craft\elements\User::class => [\craft\gql\resolvers\elements\User::class, [GqlHelper::class, 'canQueryUsers']],
+        \craft\elements\GlobalSet::class => [\craft\gql\resolvers\elements\GlobalSet::class, [GqlHelper::class, 'canQueryGlobalSets']],
+        \craft\elements\Address::class => [\craft\gql\resolvers\elements\Address::class, [GqlHelper::class, 'canQueryUsers']],
+        'craft\commerce\elements\Product' => ['craft\commerce\gql\resolvers\elements\Product', ['craft\commerce\helpers\Gql', 'canQueryProducts']],
+    ];
+
+    /**
+     * `$source` limited to the active schema, and the named arguments for its getters.
+     * @return array{0: RelationsModel, 1: array}
+     */
+    private static function scoped(RelationsModel $source, array $arguments): array
+    {
+        // Craft only offers `status` to schemas that may read non-enabled elements
+        if (isset($arguments['status']) && !GqlHelper::canQueryInactiveElements()) {
+            throw new UserError('The `status` argument requires the “Query for non-enabled elements” schema scope.');
+        }
+        $model = $source->withQueryFactory(function(string $elementType) {
+            [$resolver, $canQuery] = self::RESOLVERS[$elementType] ?? [null, null];
+            return $resolver && class_exists($resolver) && $canQuery() ? $resolver::prepareQuery(null, []) : null;
+        });
+        $allowed = array_map(fn(Site $site) => $site->id, GqlHelper::getAllowedSites());
+        $siteIds = $arguments['siteIds'] ?? [$source->getSiteId()];
+        $siteIds = $siteIds === [] ? array_values($allowed) : array_values(array_intersect($siteIds, $allowed));
+        return [$model, [
+            // no allowed site left: an invalid site id makes every query return nothing ([] would mean all sites)
+            'siteIds' => $siteIds ?: [0],
+            'sections' => $arguments['sections'] ?? null,
+            'entryTypes' => $arguments['entryTypes'] ?? null,
+            'status' => $arguments['status'] ?? null,
+        ]];
+    }
+
     public static function getName(): string
     {
         return 'ElementRelations';
@@ -48,16 +98,12 @@ class Relations extends ObjectType implements SingularTypeInterface
                     'status' => [
                         'name' => 'status',
                         'type' => Type::listOf(Type::string()),
-                        'description' => 'Only include source elements with these statuses (e.g. ["live"]). Defaults to all statuses.',
+                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
-                    return $source->getCount(
-                        siteIds: $arguments['siteIds'] ?? null,
-                        sections: $arguments['sections'] ?? null,
-                        entryTypes: $arguments['entryTypes'] ?? null,
-                        status: $arguments['status'] ?? null,
-                    );
+                    [$model, $args] = self::scoped($source, $arguments);
+                    return $model->getCount(...$args);
                 },
             ],
             'isInUse' => [
@@ -79,16 +125,14 @@ class Relations extends ObjectType implements SingularTypeInterface
                     'status' => [
                         'name' => 'status',
                         'type' => Type::listOf(Type::string()),
-                        'description' => 'Only include source elements with these statuses (e.g. ["live"]). Defaults to all statuses.',
+                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
-                    return $source->getIsInUse(
-                        siteIds: $arguments['siteIds'] ?? null,
-                        sections: $arguments['sections'] ?? null,
-                        entryTypes: $arguments['entryTypes'] ?? null,
-                        status: $arguments['status'] ?? null,
-                    );
+                    // only what the schema may read, consistent with `count` and `elements`; plugin settings
+                    // (SEOmatic) are not mixed in here, see `isUsedInSeomaticGlobalSettings`
+                    [$model, $args] = self::scoped($source, $arguments);
+                    return $model->getCount(...$args) > 0;
                 },
             ],
             'isUsedInSeomaticGlobalSettings' => [
@@ -115,7 +159,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     'status' => [
                         'name' => 'status',
                         'type' => Type::listOf(Type::string()),
-                        'description' => 'Only include source elements with these statuses (e.g. ["live"]). Defaults to all statuses.',
+                        'description' => 'Only include source elements with these statuses (e.g. ["disabled"]). Defaults to live entries and enabled other elements. Requires the “Query for non-enabled elements” schema scope.',
                     ],
                     'limit' => [
                         'name' => 'limit',
@@ -127,19 +171,14 @@ class Relations extends ObjectType implements SingularTypeInterface
                     ],
                 ],
                 'resolve' => function(RelationsModel $source, array $arguments) {
-                    $siteIds = $arguments['siteIds'] ?? null;
-                    $sections = $arguments['sections'] ?? null;
-                    $entryTypes = $arguments['entryTypes'] ?? null;
+                    [$model, $args] = self::scoped($source, $arguments);
+                    // never more than Craft's maxGraphqlResults, like Craft's own queries
+                    $max = Craft::$app->getConfig()->getGeneral()->maxGraphqlResults;
                     $limit = $arguments['limit'] ?? null;
-                    $offset = $arguments['offset'] ?? 0;
-                    return $source->getElements(
-                        siteIds: $siteIds,
-                        limit: $limit,
-                        offset: $offset,
-                        sections: $sections,
-                        entryTypes: $entryTypes,
-                        status: $arguments['status'] ?? null,
-                    );
+                    if ($max && ($limit === null || $limit > $max)) {
+                        $limit = $max;
+                    }
+                    return $model->getElements(...$args + ['limit' => $limit, 'offset' => $arguments['offset'] ?? 0]);
                 },
                 'complexity' => GqlHelper::relatedArgumentComplexity(GqlService::GRAPHQL_COMPLEXITY_EAGER_LOAD),
             ],
