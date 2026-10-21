@@ -31,9 +31,10 @@ export PATH="/opt/homebrew/opt/postgresql@14/bin:/opt/homebrew/opt/mysql@8.0/bin
 MYSQL="mysql -u$DB_USER -h$DB_SERVER -P$DB_PORT --protocol=tcp${DB_PASSWORD:+ -p$DB_PASSWORD}"
 # COVERAGE=1: every PHP process the suites run (the console scripts, the dev server, the queue) prepends
 # dev/coverage.php (pcov, line coverage of src/ into storage/coverage); dev/coverage-report.php merges and prints it
+# (no opcache: the built-in server uses it, and its optimizer drops lines such as `continue;` from what pcov sees)
 PHP=(php)
 ROUTER="$PROJECT_DIR/vendor/craftcms/cms/bootstrap/router.php"
-if [ "${COVERAGE:-0}" = 1 ]; then export COVERAGE_PROJECT_DIR="$PROJECT_DIR"; PHP=(php -d pcov.enabled=1 -d "pcov.directory=$PLUGIN_DIR/src" -d "auto_prepend_file=$PLUGIN_DIR/dev/coverage.php"); ROUTER="$PLUGIN_DIR/dev/coverage-router.php"; fi
+if [ "${COVERAGE:-0}" = 1 ]; then export COVERAGE_PROJECT_DIR="$PROJECT_DIR"; PHP=(php -d pcov.enabled=1 -d opcache.enable=0 -d "pcov.directory=$PLUGIN_DIR/src" -d "auto_prepend_file=$PLUGIN_DIR/dev/coverage.php"); ROUTER="$PLUGIN_DIR/dev/coverage-router.php"; fi
 
 db_up() {
   if [ "$DB_DRIVER" = "mysql" ]; then

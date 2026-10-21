@@ -135,10 +135,10 @@ class ElementExtractorFormieFormService implements InterfaceElementExtractor, In
                 return false; // encrypted values cannot be rewritten here
             }
             $count = 0;
-            foreach ($element->getFieldValuesForField(ElementField::class) as $key => $value) {
-                if (!($value instanceof ElementQueryInterface)) {
-                    continue;
-                }
+            // element fields hold a query (Formie normalizes every value to one); anything else holds no reference
+            $queries = array_filter($element->getFieldValuesForField(ElementField::class), fn(mixed $value): bool => $value instanceof ElementQueryInterface);
+            /** @var array<string, ElementQueryInterface> $queries */
+            foreach ($queries as $key => $value) {
                 /** @var int[] $ids swap() keeps the shape of what it gets */
                 $ids = self::swap(array_map(intval(...), (clone $value)->status(null)->ids()), $from, $to, $count);
                 if (in_array($to->id, $ids, true)) {

@@ -248,15 +248,12 @@ class ReplaceController extends Controller
     }
 
     /**
-     * Names of the sites the usages are in (the ticked ones, or all), when there is more than one site.
+     * Names of the sites the usages are in (the ticked ones, or all); the wizard shows them from two on.
      * @param list<int>|null $sourceIds
      * @return list<string>
      */
     private function wizardSites(ElementInterface $from, ?array $sourceIds): array
     {
-        if (!Craft::$app->getIsMultiSite()) {
-            return [];
-        }
         $siteIds = (new \craft\db\Query())
             ->select(['sourceSiteId'])
             ->distinct()

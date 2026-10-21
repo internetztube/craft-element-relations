@@ -221,6 +221,35 @@ return function (array $ctx): void {
     ReplaceService::resume($record((int)$done['operationId']));
     check($jobs() === $queuedBefore, 'resuming an operation that is not running queues nothing');
 
+    // --- "everywhere", queued as the control panel does: the job finishes without a list of sources
+    $everywhere = ReplaceService::replace($from, $to, null, queue: true);
+    $app->getQueue()->run();
+    $result = $record((int)$everywhere['operationId'])?->getResult() ?? [];
+    check(($result['replaced'] ?? null) === 1 && $ids($source) === [$to->id], 'a queued replacement everywhere replaces in every source (' . json_encode($result) . ')');
+    ReplaceService::rollback($record((int)$everywhere['operationId']));
+    $flush();
+
+    // --- a field of the plan deleted before the job runs: the usage is reported as not replaced, nothing changes
+    $queued = ReplaceService::replace($from, $to, [$source->id], queue: true);
+    $operation = $record((int)$queued['operationId']);
+    $operation->plan = json_encode(array_map(fn(array $group): array => ['rows' => array_map(fn(array $row): array => ['fieldId' => 999999] + $row, $group['rows'])] + $group, $operation->getPlan()));
+    $operation->save(false);
+    $app->getQueue()->run();
+    $result = $record((int)$queued['operationId'])?->getResult() ?? [];
+    check(($result['replaced'] ?? null) === 0 && str_contains(implode(' ', $result['skipped'] ?? []), 'Failing source') && $ids($source) === [$from->id], 'a field deleted after the replacement was queued: the usage is reported as not replaced (' . implode(' ', $result['skipped'] ?? []) . ')');
+
+    // --- the helpers' edge cases
+    check(ReplaceService::guaranteeRevision(['support' => ReplaceService::REVISIONS_YES, 'ownerId' => 999999999, 'siteId' => (int)$from->siteId], null, '', null) === null, 'no revision for an owner that is gone');
+    check(!ReplaceService::canEditField(new Entry(), $app->getFields()->getFieldByHandle('relatedEntries'), $editor), 'an element without a field layout: a non-admin may edit none of its fields');
+    ReplaceService::refreshEverySite([999999999], []);
+    check(true, 'refreshing an element of an unknown type does nothing');
+    $flat = new ReflectionMethod(ReplaceService::class, 'keepMemoryFlat');
+    Craft::info('keep memory flat', 'element-relations');
+    $flat->invoke(null, 98);
+    $buffered = count(Craft::getLogger()->messages);
+    $flat->invoke(null, 99);
+    check($buffered > 0 && Craft::getLogger()->messages === [], "a long run in one process flushes Craft's log buffer every 100 owners ($buffered messages)");
+
     // cleanup
     foreach (ReplacementRecord::find()->where(['fromId' => [$from->id, $to->id]])->all() as $operation) {
         $operation->delete();

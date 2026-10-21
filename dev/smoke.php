@@ -234,6 +234,37 @@ $a1Usage = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
 $a1Usage->setAuthorIds([craft\elements\User::find()->username('admin')->one()->id]); // seeded entries have no author
 $authorsHtml = $a1Usage->getAttributeHtml('authors'); // Craft Solo has no Authors column
 check((Craft::$app->edition === craft\enums\CmsEdition::Solo ? $authorsHtml === '' : str_contains($authorsHtml, 'chip')) && str_contains($a1Usage->getAttributeHtml('status'), 'status-label') && $a1Usage->getAttributeHtml('postDate') !== '' && str_contains($a1Usage->getAttributeHtml('link'), 'href'), 'Authors / Status / Post Date / Link columns render on an entry loaded through Usage');
+$craftEdition = Craft::$app->edition;
+$columns = [];
+foreach ([craft\enums\CmsEdition::Pro, craft\enums\CmsEdition::Solo] as $edition) {
+    Craft::$app->edition = $edition; // in memory, like permissions.php
+    $columns[$edition->name] = array_keys(Usage::tableAttributes());
+}
+Craft::$app->edition = $craftEdition;
+check(in_array('authors', $columns['Pro'], true) && !array_intersect(['authors', 'revisionCreator'], $columns['Solo']), 'Craft Solo: no Authors or Last Edited By column to choose (like Entry), Craft Pro: both');
+$viaBefore = Usage::$via[(int)$a1->id] ?? null;
+Usage::$via[(int)$a1->id] = [['fieldId' => 999999, 'type' => 'field', 'disabledIn' => null]];
+check(internetztube\elementRelations\helpers\ElementSummary::viaHtml($a1) === '', 'Field column: a field deleted since the cache row was written names nothing (no error)');
+Usage::$via[(int)$a1->id] = $viaBefore ?? [];
+$relationsField = Craft::$app->getFields()->getFieldByHandle('relations');
+$goneLayout = new craft\models\FieldLayout(['type' => Entry::class]);
+$goneTab = new craft\models\FieldLayoutTab(['name' => 'Usages', 'layout' => $goneLayout]);
+$goneTab->setElements([new craft\fieldlayoutelements\CustomField(null, ['fieldUid' => craft\helpers\StringHelper::UUID()]), new craft\fieldlayoutelements\CustomField($relationsField)]);
+$goneLayout->setTabs([$goneTab]);
+$withGoneField = new class extends Entry {
+    public ?craft\models\FieldLayout $layout = null;
+
+    public function getFieldLayout(): ?craft\models\FieldLayout
+    {
+        return $this->layout;
+    }
+};
+$withGoneField->layout = $goneLayout;
+check($relationsField->getTabHash($withGoneField) === $goneTab->getHtmlId(), 'the link to the tab of the field: a deleted field still in the layout is passed over');
+$cacheRowsOfB = fn(): int => (int)(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $b->id])->count();
+$rowsOfB = $cacheRowsOfB();
+(new internetztube\elementRelations\jobs\ResaveElementRelationsJob(['items' => [['elementId' => 999999999, 'siteId' => $b->siteId], ['elementId' => $b->id, 'siteId' => 999999]]]))->execute(Craft::$app->getQueue());
+check(!(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => 999999999])->exists() && $cacheRowsOfB() === $rowsOfB, "a queued refresh of an element deleted for good since, or of a site it is no longer in, does nothing ($rowsOfB rows of Page B kept)");
 $assetUsage = Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one(); // the seeded test asset (seed.php)
 Usage::$via[(int)$assetUsage->id] ??= [];
 check($assetUsage->getAttributeHtml('authors') === '' && $assetUsage->getAttributeHtml('postDate') === '' && str_contains($assetUsage->getAttributeHtml('filename'), '.png'), 'columns an element type lacks render empty in a Usage index (asset: Authors, Post Date), its own still work (Filename)');

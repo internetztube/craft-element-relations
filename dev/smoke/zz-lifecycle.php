@@ -112,7 +112,9 @@ return function (array $ctx): void {
             $twoX = $schema(); // what a 2.x install has
         }
         if ($name === 'm261020_000000_replacements') {
-            // as the first 3.2 development builds left it: no revisions, plan or state columns, shorter text columns
+            // as the first 3.2 development builds left it: no revisions, plan or state columns, shorter text columns,
+            // the changes still in a JSON column instead of their own table
+            $db->createCommand()->dropTable('{{%elementrelations_replacement_changes}}')->execute();
             foreach (['revisions', 'plan', 'state'] as $column) {
                 $db->createCommand()->dropColumn('{{%elementrelations_replacements}}', $column)->execute();
             }

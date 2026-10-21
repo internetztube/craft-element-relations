@@ -256,10 +256,7 @@ class ElementRelations extends Plugin
                 ];
             }
         });
-        foreach (self::PRO_ELEMENT_TYPES as $class) {
-            if (!class_exists($class)) {
-                continue;
-            }
+        foreach (self::PRO_ELEMENT_TYPES as $class) { // a type that is not installed (Commerce) never fires the event
             Event::on($class, Element::EVENT_REGISTER_ACTIONS, function (RegisterElementActionsEvent $event): void {
                 if (self::canReplace()) {
                     $event->actions[] = ReplaceRelations::class;
@@ -280,8 +277,9 @@ class ElementRelations extends Plugin
         }
 
         // what a user may view among the usages is cached; forget it whenever that could change: a usage (relating
-        // element) or a user saved, deleted or restored, group assignments, project config (sections, volumes, group
-        // permissions); new or changed relations reset it in ExtractorService
+        // element) or a user saved, deleted or restored, group assignments, a user's permissions (Craft's permissions
+        // screen saves no element), project config (sections, volumes, group permissions); new or changed relations
+        // reset it in ExtractorService
         $forgetPermissions = fn() => \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         $forgetIfUsage = function (\craft\events\ElementEvent $event) use ($forgetPermissions): void {
             $element = $event->element;
@@ -297,6 +295,7 @@ class ElementRelations extends Plugin
             Event::on(\craft\services\Elements::class, $eventName, $forgetIfUsage);
         }
         Event::on(\craft\services\Users::class, \craft\services\Users::EVENT_AFTER_ASSIGN_USER_TO_GROUPS, $forgetPermissions);
+        Event::on(UserPermissions::class, UserPermissions::EVENT_AFTER_SAVE_USER_PERMISSIONS, $forgetPermissions);
         foreach ([\craft\services\ProjectConfig::EVENT_ADD_ITEM, \craft\services\ProjectConfig::EVENT_UPDATE_ITEM, \craft\services\ProjectConfig::EVENT_REMOVE_ITEM] as $eventName) {
             Event::on(\craft\services\ProjectConfig::class, $eventName, $forgetPermissions);
         }

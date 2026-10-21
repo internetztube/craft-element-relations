@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 /**
  * Merges the coverage the integration suites wrote (dev/coverage.php) and prints it: the total, the files below the
- * bar, and an HTML report in storage/coverage/html. Exits 1 when src/ is below COVERAGE_MIN percent (default 98).
+ * bar, and an HTML report in storage/coverage/html. Exits 1 when src/ is below COVERAGE_MIN percent (default 100).
  * Run: php dev/coverage-report.php <craft-project-dir>
  */
 
@@ -15,7 +15,7 @@ use SebastianBergmann\CodeCoverage\Report\Html\Facade as HtmlReport;
 $projectDir = $argv[1] ?? throw new RuntimeException('Usage: php dev/coverage-report.php <craft-project-dir>');
 require $projectDir . '/vendor/autoload.php';
 $dir = $projectDir . '/storage/coverage';
-$min = (float)(getenv('COVERAGE_MIN') ?: 98);
+$min = (float)(getenv('COVERAGE_MIN') ?: 100);
 
 $merged = null;
 foreach (glob($dir . '/*.cov') ?: [] as $file) {

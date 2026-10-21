@@ -385,7 +385,7 @@ class UsageQuery extends ElementQuery
         $cached = $cache->getOrSet(
             'element-relations:viewable:' . md5($key),
             fn(): array => self::computeViewablePairs($targetIds, $viewer),
-            600, // a safety net: permissions saved in code without saving the user fire no event
+            600, // a safety net for what no event reports (a plugin's view rule that depends on something else)
             new \yii\caching\TagDependency(['tags' => [self::PERMISSION_CACHE_TAG]]),
         );
         return self::$_pairs[$key] = $cached;
@@ -407,7 +407,8 @@ class UsageQuery extends ElementQuery
             ->leftJoin(['assets' => Table::ASSETS], '[[assets.id]] = [[elements.id]]')
             ->leftJoin(['categories' => Table::CATEGORIES], '[[categories.id]] = [[elements.id]]')
             ->where(['cache.targetElementId' => $targetIds, 'elements.dateDeleted' => null, 'elements.revisionId' => null])
-            ->andWhere(['not', ['cache.sourceElementId' => null]]);
+            ->andWhere(['not', ['cache.sourceElementId' => null]])
+            ->andWhere(['elements.type' => Craft::$app->getElements()->getAllElementTypes()]); // like beforePrepare()
         /** @var list<array{id: int|string, siteId: int|string, type: string}> $candidates */
         $candidates = $base->andWhere(self::viewCondition($viewer))->all();
 
@@ -417,10 +418,8 @@ class UsageQuery extends ElementQuery
         }
         $elementsService = Craft::$app->getElements();
         $pairs = [];
+        /** @var class-string<ElementInterface> $type registered types only (see $base) */
         foreach ($byTypeAndSite as $type => $sites) {
-            if (!is_subclass_of($type, ElementInterface::class)) {
-                continue;
-            }
             foreach ($sites as $siteId => $ids) {
                 foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
                     /** @var ElementInterface[] $loaded */
@@ -539,12 +538,11 @@ class UsageQuery extends ElementQuery
         foreach ($rows as $row) {
             $idsByTypeAndSite[$types[$row['id']] ?? ''][$row['siteId']][] = (int)$row['id'];
         }
+        unset($idsByTypeAndSite['']); // hard-deleted since the query ran
 
         $elements = [];
+        /** @var class-string<ElementInterface> $type the query lists registered types only (see beforePrepare()) */
         foreach ($idsByTypeAndSite as $type => $sites) {
-            if (!is_subclass_of($type, ElementInterface::class)) {
-                continue;
-            }
             foreach ($sites as $siteId => $ids) {
                 /** @var ElementInterface[] $loaded */
                 $loaded = $type::find()

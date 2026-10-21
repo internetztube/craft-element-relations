@@ -40,4 +40,10 @@ return function (array $ctx): void {
     replaceRoundTrip($form, $default, 'Formie field default value', fn(Form $f, $t) => (int)($f->getFieldByHandle('entries')->defaultValue[0]['id'] ?? 0) === $t->id);
     replaceRoundTrip($form, $ctx['asset'], 'Formie notification attachment', fn(Form $f, $t) => (int)($f->getNotifications()[0]->attachAssets[0]['id'] ?? 0) === $t->id);
     replaceRoundTrip($submission, $ctx['target'], 'Formie submission value', fn(Submission $s, $t) => array_map('intval', $s->getFieldValue('entries')->ids()) === [$t->id]);
+
+    // a submission with encrypted values (Formie locks them) is never rewritten
+    $locked = Submission::find()->id($submission->id)->one();
+    $locked->hasLockedContent(); // Formie reads the content state first
+    $locked->getContentState()->lockedValuesByUid = ['encrypted' => ['value' => '…']];
+    check(\internetztube\elementRelations\services\extractors\ElementExtractorFormieFormService::replace($locked, $ctx['target'], $default) === false && $locked->getFieldValue('entries')->ids() === [$ctx['target']->id], 'Formie: a submission with encrypted values is not rewritten');
 };

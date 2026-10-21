@@ -64,7 +64,8 @@ return function (array $ctx): void {
         $app->getUserPermissions()->saveUserPermissions($user->id, $permissions);
         return User::find()->id($user->id)->status(null)->one();
     };
-    $viewerA = $makeUser('er-viewer-a', ['accesscp', "viewentries:$pages->uid", "viewpeerentries:$pages->uid", ...$siteScopes, ElementRelations::PERMISSION_REPLACE, ElementRelations::PERMISSION_ROLLBACK, "saveentries:$pages->uid", "savepeerentries:$pages->uid"]);
+    $permissionsA = ['accesscp', "viewentries:$pages->uid", "viewpeerentries:$pages->uid", ...$siteScopes, ElementRelations::PERMISSION_REPLACE, ElementRelations::PERMISSION_ROLLBACK, "saveentries:$pages->uid", "savepeerentries:$pages->uid"];
+    $viewerA = $makeUser('er-viewer-a', $permissionsA);
     $viewerB = $makeUser('er-viewer-b', ['accesscp', "viewentries:$pages->uid", ...$siteScopes]);
     check($viewerA->can("viewEntries:$pages->uid") && !$viewerA->can("viewEntries:$secret->uid") && !$viewerA->can('viewUsers'), 'fixture: viewer A may view pages (incl. peers), not the secret section, not users');
 
@@ -93,6 +94,45 @@ return function (array $ctx): void {
     $submissionTitle = (string)(verbb\formie\elements\Submission::find()->status(null)->one() ?? '');
     check($submissionTitle === '' || $usages($c, $viewerA, $submissionTitle)['count'] === 0, "viewer A: searching for a Formie submission's title finds nothing (no existence oracle)");
     check(\internetztube\elementRelations\elements\db\UsageQuery::hiddenCount([$c->id], $viewerA) === $admin['count'] - $a['count'], 'hiddenCount() is exactly what is left out (' . ($admin['count'] - $a['count']) . ')');
+
+    // what a user may view is cached; it follows every change
+    $usageQuery = \internetztube\elementRelations\elements\db\UsageQuery::class;
+    // permissions saved for a user (Craft's permissions screen saves no element): "other authors' entries" is decided per
+    // element, so it is cached; a target viewer A may still view (the secret entry, with its section's permissions)
+    $peerSource = new Entry(['sectionId' => $pages->id, 'typeId' => $pageType->id, 'title' => 'ER Peer source']);
+    $peerSource->setFieldValue('relatedEntries', [$secretEntry->id]);
+    $elements->saveElement($peerSource) or throw new RuntimeException(json_encode($peerSource->getErrors()));
+    $flush();
+    $withSecret = [...$permissionsA, "viewentries:$secret->uid", "viewpeerentries:$secret->uid"];
+    $app->getUserPermissions()->saveUserPermissions($viewerA->id, $withSecret);
+    $granted = $usages($secretEntry, $viewerA);
+    $app->getUserPermissions()->saveUserPermissions($viewerA->id, array_values(array_diff($withSecret, ["viewpeerentries:$pages->uid"])));
+    $revoked = $usages($secretEntry, $viewerA);
+    $app->getUserPermissions()->saveUserPermissions($viewerA->id, $permissionsA);
+    $elements->deleteElement($peerSource, true);
+    $flush();
+    check($titles($granted['elements']) === ['ER Peer source'] && $revoked['count'] === 0 && $revoked['elements'] === [], 'viewer A: permissions saved for the user apply to the list right away (another author\'s entry is left out once they may no longer view those: ' . json_encode($titles($revoked['elements'])) . ')');
+    $matrixPage = Entry::find()->title('Page via Matrix')->one();
+    $deny = function (craft\events\AuthorizationCheckEvent $event) use ($matrixPage, $viewerA): void {
+        if ((int)$event->element?->id === (int)$matrixPage->id && (int)$event->user->id === (int)$viewerA->id) {
+            $event->authorized = false;
+        }
+    };
+    $usages($c, $viewerA); // what viewer A may view, cached
+    yii\base\Event::on(craft\services\Elements::class, craft\services\Elements::EVENT_AUTHORIZE_VIEW, $deny);
+    $stale = $usages($c, $viewerA); // a plugin's view rule that changed without any event
+    $usageQuery::resetPermissionCache();
+    $fresh = $usages($c, $viewerA);
+    yii\base\Event::off(craft\services\Elements::class, craft\services\Elements::EVENT_AUTHORIZE_VIEW, $deny);
+    $usageQuery::resetPermissionCache();
+    check(!in_array('Page via Matrix', $titles($stale['elements']), true) && in_array('RESTRICTED:' . Entry::class, $titles($stale['elements']), true), 'viewer A: a view rule that changed without an event: until the cache is reset the list shows a placeholder in its place, never the element');
+    check($fresh['count'] === $a['count'] - 1 && !in_array('Page via Matrix', $titles($fresh['elements']), true) && !array_filter($fresh['elements'], fn($e) => $e instanceof RestrictedUsage), "viewer A: …once the cache is reset, it is left out ({$fresh['count']} of {$a['count']})");
+    $cache = $app->getCache();
+    $app->set('cache', null);
+    $usageQuery::resetPermissionCache();
+    $noCache = $usages($c, $viewerA);
+    $app->set('cache', $cache);
+    check($titles($noCache['elements']) === $titles($a['elements']) && $noCache['count'] === $a['count'], "viewer A: without a data cache configured, the same list ({$noCache['count']})");
 
     // a restricted user cannot switch the restriction off or list arbitrary elements
     try {
@@ -126,6 +166,8 @@ return function (array $ctx): void {
     $input = $asViewer(fn() => $field->getInputHtml($c->getFieldValue('relations'), $c));
     check(str_contains($input, 'data-element-relations-hidden="' . ($admin['count'] - $a['count']) . '"') && !str_contains($input, 'ER Secret source'), 'viewer A: the field says how many usages they may not see (so nobody takes the element for unused)');
     check(str_contains($preview, 'more you cannot view'), 'viewer A: the index column preview mentions the hidden usages too');
+    $hint = fn(?array $ids) => internetztube\elementRelations\fields\ElementRelationsField::revisionHintFor($c, $ids);
+    check($asViewer(fn() => $hint(null)) === $hint(array_values(array_map(fn($e) => (int)$e->id, $a['elements']))), "viewer A: the wizard's revision hint for all usages counts only the ones they may replace in");
     $export = $asViewer(fn() => $field->serializeValue($c->getFieldValue('relations'), $c));
     check(!in_array($secretEntry->id, $export['elementIds'], true) && $export['count'] === count($export['elementIds']), 'viewer A: exports leave out what they may not view');
     // the type dropdown counts are computed per type with the same restriction
@@ -185,6 +227,11 @@ return function (array $ctx): void {
     $adminLocked = ReplaceService::replace($c, $target, [$locked->id]);
     $flush();
     check($adminLocked['replaced'] === 1, 'an admin can');
+    $app->getUser()->setIdentity($viewerA);
+    $lockedBack = ReplaceService::rollback(ReplacementRecord::findOne($adminLocked['operationId']));
+    $app->getUser()->setIdentity($identityBefore);
+    $flush();
+    check($lockedBack['restored'] === 0 && str_contains(implode(' ', $lockedBack['skipped']), 'no permission') && !in_array('ER Locked source', relatingTitles($c), true), "viewer A cannot roll it back either: the field is left as it is (" . implode(' | ', $lockedBack['skipped']) . ')');
     ReplacementRecord::findOne($adminLocked['operationId'])?->delete();
     $elements->deleteElement($locked, true);
     $pages->setEntryTypes(array_values(array_filter($pages->getEntryTypes(), fn($t) => $t->id !== $lockedType->id)));
