@@ -1,0 +1,10 @@
+includes:
+    - vendor/craftcms/phpstan/phpstan.neon
+
+parameters:
+    level: 5
+    paths:
+        - src
+    ignoreErrors:
+        # Optional third-party plugins that are not installed here.
+        - '#(nystudio107|verbb|presseddigital|lenz|benf|ether|vaersaagod|justinholtweb|craft\\redactor|craft\\ckeditor|craft\\commerce)\\#'

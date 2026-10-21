@@ -2,7 +2,6 @@
 
 namespace internetztube\elementRelations\services\extractors;
 
-use craft\base\Element;
 use craft\base\ElementInterface;
 use craft\base\Field;
 use craft\elements\db\ElementQuery;
@@ -26,14 +25,13 @@ class FieldExtractorBaseRelationService implements InterfaceFieldExtractor
         /** @var ElementQuery $query */
         $query = $element->{$field->handle}->status(null);
 
-        /** @var Element $entries */
         $elements = [
             ...$query->all(),
             ...$query->drafts()->all(),
         ];
 
         return collect($elements)
-            ->map(function (Element $element) use ($field, $baseRecord) {
+            ->map(function (ElementInterface $element) use ($field, $baseRecord) {
                 $record = clone $baseRecord;
                 $record->setAttributes([
                     'type' => ElementRelationsCacheRecord::TYPE_FIELD,

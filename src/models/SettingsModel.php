@@ -13,6 +13,7 @@ class SettingsModel extends Model
     {
         return [
             [['bulkRefreshBatchSize'], 'required'],
+            [['bulkRefreshBatchSize'], 'integer', 'min' => 1],
         ];
     }
 }

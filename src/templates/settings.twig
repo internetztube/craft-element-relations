@@ -2,8 +2,11 @@
 
 {{ forms.textField({
     first: true,
-    label: 'Bulk-refresh batch size',
+    type: 'number',
+    min: 1,
+    label: 'settings-batch-size-label' | t('element-relations'),
+    instructions: 'settings-batch-size-instructions' | t('element-relations'),
     name: 'bulkRefreshBatchSize',
     value: settings.bulkRefreshBatchSize,
-    instructions: 'Specify the maximum number of elements to handle per queue job during a bulk relation refresh.' | t('expanded-singles'),
+    errors: settings.getErrors('bulkRefreshBatchSize'),
 }) }}

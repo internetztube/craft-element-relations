@@ -1,0 +1,40 @@
+{# Type dropdown for the field's index: Craft's menu button markup, placed after the status menu by the script below. #}
+{% set total = types|map(t => t.count)|reduce((carry, n) => carry + n, 0) %}
+<div class="element-relations-type-menu" data-element-relations-type-menu="{{ id }}">
+    <button type="button" class="btn menubtn" aria-label="{{ 'field-column-type'|t('element-relations') }}">{{ 'field-all-types'|t('element-relations') }}</button>
+    <div class="menu">
+        <ul class="padded">
+            <li><a class="sel flex flex-justify" data-type="">{{ 'field-all-types'|t('element-relations') }} <span class="badge">{{ total|number }}</span></a></li>
+            {% for class, type in types %}
+                <li><a class="flex flex-justify" data-type="{{ class }}">{{ type.label }} <span class="badge">{{ type.count|number }}</span></a></li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% js %}
+window.ElementRelationsTypeMenu = window.ElementRelationsTypeMenu || function ($menu) {
+    var $index = $menu.closest('.element-index');
+    var tries = 0;
+    var attach = function () {
+        var index = $index.data('elementIndex');
+        var $btn = $menu.find('.menubtn');
+        var menuBtn = $btn.data('menubtn');
+        if ((!index || !menuBtn) && tries++ < 40) { return setTimeout(attach, 50); } // index + Craft's menu button init are async
+        if (!menuBtn) { menuBtn = new Garnish.MenuBtn($btn); }
+        $menu.insertAfter($index.find('.statusmenubtn').parent());
+        menuBtn.on('optionSelect', function (ev) {
+            var $option = $(ev.option);
+            $option.closest('.menu').find('.sel').removeClass('sel');
+            $option.addClass('sel');
+            $btn.text($option.contents().first().text().trim());
+            index.settings.criteria.elementTypes = $option.data('type') || null;
+            index.setPage(1);
+            index.updateElements();
+        });
+    };
+    attach();
+};
+{% endjs %}
+{% js %}
+ElementRelationsTypeMenu($('[data-element-relations-type-menu="{{ id }}"]'));
+{% endjs %}

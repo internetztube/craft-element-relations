@@ -1,4 +1,4 @@
-# Element Relations Plugin for Craft CMS 4.x and 5.x
+# Element Relations Plugin for Craft CMS 5
 
 This plugin shows all relations of an element. For example, where an asset, entry or any other element is linked.
 
@@ -9,10 +9,8 @@ __Feature Requests are welcome!__
 
 ## Requirements
 
-This plugin requires Craft CMS 4.0.0 or 5.0.0 later.
+This plugin requires Craft CMS 5.3 or later. Use the 3.1.x releases for Craft 4.
 
-__For Craft CMS 4:__
-When using SEOmatic: MySQL 8.0.17+, MariaDB 10.4.6+, or PostgreSQL 13+ is required.
 
 ## Installation
 To install this plugin, follow these steps:
@@ -26,6 +24,7 @@ As a basis the relations table is used. This means that any field that stores re
 
 * Entries, Assets, Categories, Globals, Users, Products, ... 
 * Matrix
+* Content Block, Addresses (Craft 5 core nested fields)
 * Neo
 * SuperTable
 * User Photo
@@ -35,10 +34,21 @@ As a basis the relations table is used. This means that any field that stores re
 * Hyper
 * LinkIt
 * TypedLinkField
-* Formie  
+* Link (Craft 5 core field)
+* Vizy
+* Navigation (nodes linking an element, shown as their menu)
+* Wishlist (list items, shown as their list)
+* Formie (form redirect entries, element field defaults, notification attachments, submission field values)
+* FreeLink
+* SEO (by Ether)
+* LinkMate  
 ... and many more.
 
 ## Usage
+
+### Field settings
+
+The field is Craft's element index, so its settings are the ones you know from Craft's relational fields: View Mode (table or cards; authors can switch it in the View menu, which also offers more table columns), Show the status menu and Elements per page. On multi-site installs the list covers every site at once, with a Site column.
 
 ### GraphQL
 The Element Relations field exposes its data in GraphQL. Query the field by its handle to
@@ -64,7 +74,8 @@ information for a field named `relationsField` on an entry:
             siteIds: [],
             limit: 2,
             sections: ['sectionHandle'],
-            entryTypes: ['entryTypeHandle']
+            entryTypes: ['entryTypeHandle'],
+            status: ['live']
         ) {
           id
           title
@@ -100,6 +111,11 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% if relationsModel.isInUse(sections: ['sectionHandle'], entryTypes: ['entryTypeHandle']) %}
     {# ... #}
 {% endif %}
+
+{# Only count live elements (default: every status, including disabled) #}
+{% if relationsModel.isInUse(status: ['live']) %}
+    {# ... #}
+{% endif %}
 ```
 
 #### Elements
@@ -128,7 +144,8 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
     limit: null,
     offset: 0,
     sections: [],
-    entryTypes: []
+    entryTypes: [],
+    status: null
 ) %}
 ```
 
@@ -150,13 +167,26 @@ Obtain a `RelationsModel` instance from any element’s relations field, then us
 {% set sites = relationsModel.sites %}
 ```
 
-#### Special / SEOmatic
+#### Element queries
 ```twig
-{# Detect usage in SEOmatic global settings #}
-{% if relationsModel.isUsedInSeomaticGlobalSettings %}
-    {# ... #}
-{% endif %}
+{# Any element query can be filtered by what it uses #}
+{% set pages = craft.entries().usesElement(asset).all() %}
 ```
+Across all element types at once (entries, products, menus, ... returned as their real classes), in PHP:
+```php
+use internetztube\elementRelations\elements\Usage;
+
+$everything = Usage::find()->usesElement($asset)->search('contact')->all();
+```
+
+#### Non-element usages
+```twig
+{# Plugin settings that reference the element, e.g. SEOmatic's global or per-section SEO image #}
+{% for usage in relationsModel.globalUsages %}
+    <a href="{{ usage.url }}">{{ usage.label }}</a>
+{% endfor %}
+```
+
 
 ## Screenshots
 
@@ -177,6 +207,18 @@ Create Field
 
 Add to Field Layout
 ![Field Edit Page](screenshots/fieldlayout.png)
+
+## Development
+`dev/dev.sh` spins up a throwaway Craft 5 project (PostgreSQL via Homebrew) with the plugin symlinked in, seeds test content and starts a server at http://localhost:8080/admin (admin / password).
+
+```sh
+dev/dev.sh                      # setup + serve (PostgreSQL)
+DB_DRIVER=mysql dev/dev.sh      # same on MySQL (own project dir via PROJECT_DIR=...)
+dev/dev.sh smoke                # seed, rebuild cache, run dev/smoke.php (180 assertions)
+vendor/bin/phpstan              # static analysis
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs PHPStan and the same `dev/dev.sh ci` smoke test on PHP 8.2 and 8.3 against MySQL 8 and PostgreSQL 14, with every supported plugin installed.
 
 ## Issues
 Please report any issues you find to the [Issues](https://github.com/internetztube/craft-element-relations/issues) page.
