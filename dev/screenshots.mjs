@@ -54,7 +54,7 @@ const DEBUGGING_PORT = 9333;
  * @property {number[]} replaceIn usages the replace shots tick
  * @property {{path: string}} social
  * @property {{path: string}} guide
- * @property {{path: string}} hongKong
+ * @property {{id: number, path: string}} hongKong
  * @property {{path: string}} homepage
  * @property {{path: string}} usedInField
  * @property {{path: string}} editors
@@ -67,6 +67,7 @@ const DEBUGGING_PORT = 9333;
  * @property {string} text one line below the headline
  * @property {'Lite' | 'Pro'} edition
  * @property {string} [path] page to open first; without it the shot continues on the current page
+ * @property {string} [user] who the shot is taken as (default: CP_USER, an admin); e.g. the demo's editor `jonas`
  * @property {'side' | 'wide'} [layout] where the window sits (default: side)
  * @property {{width?: number, height?: number}} [viewport] another browser viewport for this shot, in CSS pixels
  * @property {string[]} points two or three key points next to the shot
@@ -158,12 +159,28 @@ window.placeNotices = (region) => {
     Object.assign(container.style, { position: 'fixed', left: region.x + 24 + 'px', right: 'auto', bottom: 'auto' });
     container.style.top = region.y + region.height - 24 - container.offsetHeight + 'px';
 };
+// index actions ask with the browser's confirm() (e.g. Delete): answered "OK" like the user would; a native dialog
+// would block the headless page
+window.confirm = () => true;
 /** The sources next to an index would show at the window's left edge, cut. */
 window.hideSources = () => { document.querySelector('#sidebar').style.visibility = 'hidden'; };
 /** The usage list's "Replace…" button, once usages are ticked. */
 window.replaceButton = () => $$('.element-relations button').find((button) => button.textContent.trim() === 'Replace…');
 /** The open replace wizard's slideout. */
 window.wizardSlideout = () => document.querySelector('.element-relations-wizard')?.closest('.slideout');
+/** Searches an index, ticks one element and runs an index action on it, then waits for the notice it answers with. */
+window.findAndRun = async (index, search, id, action, params, expect) => {
+    index.$search.val(search).trigger('input'); // like typing: Craft searches after a short pause
+    await sleep(900);
+    await indexReady(index, 'the search');
+    const row = document.querySelector('.elements table tbody tr[data-id="' + id + '"]');
+    if (!row) throw new Error('Not listed: ' + id);
+    index.view.elementSelect.selectItem($(row));
+    await sleep(300);
+    index.submitAction(action, params);
+    await until(() => $$('.notification').some((n) => expect.test(n.textContent)), 'the notice');
+    await sleep(500);
+};
 window.visibleModal = () => $('.modal:visible').last().data('modal') ?? Garnish.Modal.visibleModal;
 // trial and dev mode notices are not part of what the plugin looks like
 const style = document.createElement('style');
@@ -322,6 +339,8 @@ const SHOTS = [
             picker.modal.elementIndex.view.selectElementById(${demo.replacement.id});
             picker.modal.selectElements();
             await until(() => document.querySelector('.element-relations-wizard [data-review-to] .chip'), 'the chosen replacement');
+            // the whole review (summary and the sites line) in view, step 1 may scroll off
+            document.querySelector('.element-relations-wizard').lastElementChild.scrollIntoView({ block: 'end' });
             // the page shows through the shade left of the slideout; just the shade looks cleaner
             document.querySelector('#global-container').style.visibility = 'hidden';
             await sleep(700);
@@ -398,6 +417,53 @@ const SHOTS = [
         `,
     },
     {
+        name: 'in-use-delete', edition: 'Pro', layout: 'wide', viewport: { width: 1600 }, user: 'jonas',
+        points: ['Delete, disable, expire, schedule', 'Only live usages count', 'A permission lets editors through'],
+        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
+        place: `placeNotices(region);`,
+        highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
+        title: 'Keep what is in use',
+        text: 'Editors can’t delete or take offline what live content uses. The error says where it is used.',
+        path: '/admin/assets/images',
+        act: `
+            await indexReady(pageIndex(), 'the asset index');
+            document.querySelector('[data-view="table"]')?.click();
+            await indexReady(pageIndex(), 'the table');
+            hideSources();
+            await findAndRun(pageIndex(), 'city towers', ${demo.skyline.id}, 'craft\\\\elements\\\\actions\\\\DeleteAssets', {}, /can’t be deleted/);
+        `,
+    },
+    {
+        name: 'in-use-dialog', edition: 'Pro', user: 'jonas', viewport: { width: 1100, height: 900 },
+        points: ['In Craft’s own delete dialog', 'The usages listed, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        focus: `$$('.modal').filter((m) => /visitors see/.test(m.textContent)).at(-1)`,
+        highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /visitors see/.test(e.textContent)).slice(-1)]`,
+        title: 'Before deleting: where it is used',
+        text: 'Craft’s delete dialog lists the live usages, and “Replace…” swaps them in one go. Without the permission there is no way past it.',
+        path: demo.skyline.path,
+        act: `
+            new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
+            await until(() => $$('.modal').some((m) => /visitors see/.test(m.textContent)), 'the delete dialog', 30000);
+            await sleep(1500);
+        `,
+        after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
+    },
+    {
+        name: 'in-use-disable', edition: 'Pro', layout: 'wide', viewport: { width: 1600 }, user: 'jonas',
+        points: ['Also for one site, an expiry date or a later post date', 'Drafts and disabled entries don’t count'],
+        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
+        place: `placeNotices(region);`,
+        highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
+        title: 'Disabling is checked too',
+        text: 'Hong Kong has 33 stories pointing to it: it stays live until they are replaced or an editor with the permission decides.',
+        path: '/admin/content/entries/destinations',
+        act: `
+            await indexReady(pageIndex(), 'the destinations');
+            hideSources();
+            await findAndRun(pageIndex(), 'Hong Kong', ${demo.hongKong.id}, 'craft\\\\elements\\\\actions\\\\SetStatus', { status: 'disabled' }, /can’t be disabled/);
+        `,
+    },
+    {
         name: 'field-settings', edition: 'Lite',
         points: ['Like Craft’s relation fields', 'Authors switch the view in the index'],
         focus: `['View Mode', 'Show the status menu', 'Elements per page'].map((label) => inPane(byText('label', label)[0]?.closest('.field')))`,
@@ -409,11 +475,11 @@ const SHOTS = [
     {
         // below 1000 px the nav collapses: the pane is the viewport minus 48 px
         name: 'permissions', edition: 'Pro', viewport: { width: 770, height: 4000 },
-        points: ['Replacing and rolling back are permissions', 'Everything else follows Craft’s view and save permissions'],
+        points: ['Replacing, rolling back, deleting what is in use', 'Everything else follows Craft’s view and save permissions'],
         focus: `inPane(permissionGroup())`,
         highlight: `[[permissionGroup()]]`,
         title: 'Permissions',
-        text: 'Replacing and rolling back are permissions; everything else follows Craft’s view and save permissions.',
+        text: 'Replacing, rolling back and deleting or disabling what is in use are permissions; everything else follows Craft’s.',
         path: demo.editors.path,
         act: `
             await sleep(500);
@@ -773,18 +839,25 @@ const browser = await launchChrome();
 try {
     await browser.send('Page.enable');
     await resize(browser, VIEWPORT);
-    await open(browser, `${baseUrl}/admin/login`);
-    const login = await evaluate(browser, `
-        const response = await fetch(Craft.getActionUrl('users/login'), {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': Craft.csrfTokenValue },
-            body: JSON.stringify({ loginName: ${JSON.stringify(process.env.CP_USER ?? 'mara')}, password: ${JSON.stringify(process.env.CP_PASSWORD ?? 'password')} }),
-        });
-        return response.status;
-    `);
-    if (login !== 200) {
-        throw new Error(`Login failed (HTTP ${login})`);
-    }
+    const defaultUser = process.env.CP_USER ?? 'mara';
+    /** Logs in (a fresh session; the demo users have the dev password). @param {string} username */
+    const login = async (username) => {
+        await browser.send('Network.clearBrowserCookies');
+        await open(browser, `${baseUrl}/admin/login`);
+        const status = await evaluate(browser, `
+            const response = await fetch(Craft.getActionUrl('users/login'), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': Craft.csrfTokenValue },
+                body: JSON.stringify({ loginName: ${JSON.stringify(username)}, password: ${JSON.stringify(process.env.CP_PASSWORD ?? 'password')} }),
+            });
+            return response.status;
+        `);
+        if (status !== 200) {
+            throw new Error(`Login as ${username} failed (HTTP ${status})`);
+        }
+    };
+    await login(defaultUser);
+    let currentUser = defaultUser;
 
     /** @type {{shot: Shot, raw: string, area: Area, address: string}[]} */
     const taken = [];
@@ -805,6 +878,10 @@ try {
         await resize(browser, viewport);
         // shots without a path continue on the page of the previous one, so they run with it
         if (shot.path) {
+            if ((shot.user ?? defaultUser) !== currentUser) {
+                currentUser = shot.user ?? defaultUser;
+                await login(currentUser);
+            }
             currentPath = shot.path;
             await open(browser, baseUrl + shot.path);
             await evaluate(browser, PAGE_HELPERS);

@@ -146,17 +146,19 @@ The plugin is a single Lite edition today; everything in [Features](#features) e
 - **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them, so saving many or large entries never blocks the page. The notice shows the progress and offers Undo when it is done. A job that got lost (a worker stopped) is resumed where it got: automatically while the notice waits, with Resume in the history, or on the command line.
 - **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line-pro).
+- **Protect what is in use:** in the control panel, an element that live content uses (what visitors see: live entries, enabled elements, plus plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled for later; the error names the usages. On Craft 5.10+ Craft's delete dialog lists them up front, with “Replace…” and, only with the permission, “Delete anyway”. The edit page, slideouts and the index's Delete / Set status / Delete for site actions are covered. Drafts and disabled elements that point to it don't count. Users with “Delete or disable elements that are in use” (admins) may; console commands, migrations, queue jobs and settings changes (e.g. deleting a section) are never blocked.
 
 ### Permissions
 
 What a control panel user sees in the field follows Craft's permissions (`Elements::canView()`): elements they may not view are left out of the list, its search, sorting, counts and exports. A line below the list says how many usages are hidden, so nobody takes an element for unused.
 
-Pro adds two permissions:
+Pro adds three permissions:
 
 | Permission | Allows |
 |---|---|
 | Replace element references | “Replace…” in the field and “Replace everywhere…” |
 | Roll back replacements | Undo, Roll back and Revert to revisions, for their own replacements |
+| Delete or disable elements that are in use | Deleting, disabling, expiring or scheduling elements that live content uses |
 
 Admins have both, can roll back anyone's replacements and see everyone's in the history; other users see their own. Replacing also needs permission to view both elements, to save every element that gets changed and to edit the field (a field layout's “Who can edit” condition); everything else is skipped and not named. A queued replacement runs as the user who started it and is not run when they are gone or lost the permission.
 

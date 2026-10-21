@@ -151,7 +151,7 @@ class ReplaceController extends Controller
         $everywhere = $this->request->getQueryParam('scope') === 'everywhere';
         $sourceIds = $everywhere ? null : $this->ids($this->request->getQueryParam('sourceIds', []));
         $criteria = $this->criteria($this->request->getQueryParam('criteria'));
-        $listTotal = $sourceIds ? count($this->listIds($from, $criteria)) : 0;
+        $listRows = $sourceIds ? $this->listRows($from, $criteria) : [];
         return $this->asCpScreen()
             ->title(Craft::t('element-relations', 'wizard-title', ['element' => (string)$from]))
             ->action('element-relations/replace/replace')
@@ -162,8 +162,10 @@ class ReplaceController extends Controller
                 'everywhere' => $everywhere,
                 'usages' => $sourceIds ? $this->wizardUsages($from, $sourceIds) : [],
                 'total' => $everywhere ? (new RelationsModel((int)$from->id, (int)$from->siteId))->getSourceOwnerCount() : count($sourceIds ?? []),
+                // every site the usages are in is replaced (a page in English and German, both)
+                'sites' => $this->wizardSites($from, $sourceIds),
                 // more in the list than ticked (other pages): offer all of them
-                'listTotal' => $listTotal > count($sourceIds ?? []) ? $listTotal : 0,
+                'listTotal' => count(array_unique($listRows)) > count($sourceIds ?? []) ? count(array_unique($listRows)) : 0,
                 'criteria' => $criteria,
                 'revisionHint' => \internetztube\elementRelations\fields\ElementRelationsField::revisionHintFor($from, $sourceIds),
             ]);
@@ -239,12 +241,47 @@ class ReplaceController extends Controller
     }
 
     /**
-     * The usages in the field's list with these filters (one id per relating element, every site), as the user may
-     * see them.
+     * Names of the sites the usages are in (the ticked ones, or all), when there is more than one site.
+     * @param list<int>|null $sourceIds
+     * @return list<string>
+     */
+    private function wizardSites(ElementInterface $from, ?array $sourceIds): array
+    {
+        if (!Craft::$app->getIsMultiSite()) {
+            return [];
+        }
+        $siteIds = (new \craft\db\Query())
+            ->select(['sourceSiteId'])
+            ->distinct()
+            ->from('{{%elementrelations_cache}}')
+            ->where(['targetElementId' => $from->id])
+            ->andWhere(['not', ['sourceElementId' => null]])
+            ->andFilterWhere(['sourcePrimaryOwnerId' => $sourceIds])
+            ->column();
+        $sites = Craft::$app->getSites();
+        return array_values(array_filter(array_map(
+            fn(mixed $id): ?string => is_numeric($id) ? $sites->getSiteById((int)$id, true)?->getName() : null,
+            $siteIds,
+        )));
+    }
+
+    /**
+     * The relating elements in the filtered list, each once.
      * @param array<string, mixed> $criteria
      * @return list<int>
      */
     private function listIds(ElementInterface $from, array $criteria): array
+    {
+        return array_values(array_unique($this->listRows($from, $criteria)));
+    }
+
+    /**
+     * The rows of the field's list with these filters, as the user may see them: one per relating element and site,
+     * so an id repeats for each of its sites (a "place").
+     * @param array<string, mixed> $criteria
+     * @return list<int>
+     */
+    private function listRows(ElementInterface $from, array $criteria): array
     {
         $condition = $criteria['condition'] ?? null;
         unset($criteria['condition']);
@@ -261,7 +298,7 @@ class ReplaceController extends Controller
                 $condition->modifyQuery($query);
             }
         }
-        return array_values(array_unique(array_map(intval(...), $query->ids())));
+        return array_values(array_map(intval(...), $query->ids()));
     }
 
     /**

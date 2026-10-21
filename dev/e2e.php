@@ -391,6 +391,9 @@ if ($notes && $notesTo) {
     $all = count((new internetztube\elementRelations\models\RelationsModel($notes->id, $notes->siteId))->getSourceElementIds());
     [$status, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}']));
     check($status === 200 && str_contains($wizardHtml, 'value="list"') && str_contains($wizardHtml, "All $all usages in the list"), "a ticked page of 20: the wizard offers all $all in the list");
+    if (Craft::$app->getIsMultiSite()) {
+        check(str_contains($wizardHtml, 'In every site they are used in'), 'the review says the replacement covers every site the usages are in');
+    }
     [$status, $body, $json] = $replaceAndRun(['fromId' => $notes->id, 'toId' => $notesTo->id, 'siteId' => $notes->siteId, 'scope' => 'list', 'criteria' => '{}']);
     check($status === 200 && ($json['replaced'] ?? 0) === $all && $all > 20, "all in the list: $all replaced, not just the ticked page (" . substr($body, 0, 160) . ')');
     [$status] = $rollbackAndRun((int)($json['operationId'] ?? 0));
@@ -542,6 +545,107 @@ check($status === 200 && ($json['done'] ?? true) === false, 'its job is gone and
 check(($finishedJson['status'] ?? '') === 'applied' && in_array('E2E stuck source', $relating($stuckTo), true), 'the status request resumed it, and it finished');
 foreach ([$stuckSource, $stuckTo, $stuckFrom] as $entry) {
     $elements->deleteElement($entry, true);
+}
+
+// --- Pro: elements in use can't be deleted or taken offline in the control panel without the permission
+echo "In use: delete and disable guard\n";
+// on the demo's journal articles: the test pages have a Formie "Forms" field, and Formie's query for its empty value
+// fails on PostgreSQL when a non-admin saves (a Formie bug, unrelated to this check)
+$journal = Craft::$app->getEntries()->getSectionByHandle('journal') ?? throw new RuntimeException('Run the seed first');
+$articleTypeId = Craft::$app->getEntries()->getEntryTypeByHandle('article')->id;
+$article = function (string $title, array $fields = [], bool $enabled = true) use ($journal, $articleTypeId, $elements): Entry {
+    $entry = new Entry(['sectionId' => $journal->id, 'typeId' => $articleTypeId, 'title' => $title, 'enabled' => $enabled]);
+    $entry->setFieldValues($fields);
+    $elements->saveElement($entry) or throw new RuntimeException(json_encode($entry->getErrors()));
+    return $entry;
+};
+foreach (Entry::find()->section('journal')->title('E2E *')->status(null)->all() as $old) {
+    $elements->deleteElement($old, true);
+}
+$inUse = $article('E2E in use');
+$article('E2E in use source', ['relatedArticles' => [$inUse->id]]);
+$notUsed = $article('E2E not in use');
+$byDisabledOnly = $article('E2E used by a disabled entry only');
+$article('E2E disabled source', ['relatedArticles' => [$byDisabledOnly->id]], false);
+$flush();
+// an editor who may edit and delete these entries, but not elements in use
+foreach (craft\elements\User::find()->username('e2e-editor')->status(null)->all() as $old) {
+    $elements->deleteElement($old, true);
+}
+$editorPassword = bin2hex(random_bytes(8)); // a throwaway test login for this run
+$editor = new craft\elements\User(['username' => 'e2e-editor', 'email' => 'e2e-editor@example.test', 'newPassword' => $editorPassword, 'active' => true, 'pending' => false]);
+$elements->saveElement($editor, false) or throw new RuntimeException(json_encode($editor->getErrors()));
+$editorPermissions = [
+    'accessCp',
+    ...array_map(fn($site) => "editSite:$site->uid", Craft::$app->getSites()->getAllSites()),
+    ...array_map(fn($p) => "$p:$journal->uid", ['viewEntries', 'createEntries', 'saveEntries', 'deleteEntries', 'viewPeerEntries', 'savePeerEntries', 'deletePeerEntries']),
+];
+Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, $editorPermissions);
+$editorHttp = new Http($base);
+[, , $info] = $editorHttp->action('users/session-info', [], 'GET');
+$editorHttp->csrf = $info['csrfTokenValue'] ?? null;
+[$status] = $editorHttp->action('users/login', ['loginName' => 'e2e-editor', 'password' => $editorPassword]);
+[, , $info] = $editorHttp->action('users/session-info', [], 'GET');
+$editorHttp->csrf = $info['csrfTokenValue'] ?? $editorHttp->csrf;
+check($status === 200 && ($info['username'] ?? '') === 'e2e-editor', "the editor is logged in (HTTP $status)");
+$stillThere = fn(Entry $entry): bool => (bool)Entry::find()->id($entry->id)->status(null)->exists();
+$isLive = fn(Entry $entry): bool => Entry::find()->id($entry->id)->status(null)->one()?->getStatus() === Entry::STATUS_LIVE;
+
+[$status, , $json] = $editorHttp->action('elements/delete', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId]);
+$errors = json_encode($json['errors'] ?? [], JSON_UNESCAPED_UNICODE);
+check($status === 400 && str_contains($errors, 'can’t be deleted') && str_contains($errors, 'E2E in use source') && $stillThere($inUse), "edit page: deleting an element in use is refused, naming the usage (HTTP $status: " . substr($errors, 0, 200) . ')');
+[$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'enabled' => false]);
+check($status === 400 && str_contains(json_encode($json['errors']['enabled'] ?? [], JSON_UNESCAPED_UNICODE), 'can’t be disabled') && $isLive($inUse), "edit page: disabling it is refused on the Enabled field (HTTP $status)");
+[$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'expiryDate' => ['date' => '2001-01-01', 'time' => '10:00 AM', 'timezone' => 'UTC']]);
+check($status === 400 && str_contains(json_encode($json['errors']['expiryDate'] ?? [], JSON_UNESCAPED_UNICODE), 'can’t expire') && $isLive($inUse), "edit page: an expiry date in the past is refused (HTTP $status)");
+[$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'postDate' => ['date' => '2099-01-01', 'time' => '10:00 AM', 'timezone' => 'UTC']]);
+check($status === 400 && str_contains(json_encode($json['errors']['postDate'] ?? [], JSON_UNESCAPED_UNICODE), 'can’t be scheduled') && $isLive($inUse), "edit page: scheduling it for later is refused (HTTP $status)");
+[$status, , $json] = $editorHttp->action('elements/save', ['elementId' => $inUse->id, 'siteId' => $inUse->siteId, 'enabledForSite' => false]);
+check($status === 400 && str_contains(json_encode($json['errors']['enabled'] ?? [], JSON_UNESCAPED_UNICODE), 'can’t be disabled for') && $isLive($inUse), "edit page: disabling it for this site is refused, naming the site (HTTP $status)");
+$indexAction = fn(string $action, array $params, Entry $entry) => $editorHttp->action('element-indexes/perform-action', [
+    'elementType' => Entry::class, 'context' => 'index', 'source' => "section:$journal->uid", 'elementAction' => $action,
+    'elementIds' => [$entry->id], 'criteria' => ['siteId' => $entry->siteId, 'status' => null],
+    'viewState' => ['mode' => 'table', 'static' => false],
+] + $params);
+[$status, , $json] = $indexAction(craft\elements\actions\Delete::class, [], $inUse);
+check($status === 400 && str_contains($json['message'] ?? '', 'can’t be deleted') && $stillThere($inUse), "index: the Delete action is refused with the reason (HTTP $status: " . ($json['message'] ?? '') . ')');
+[$status, , $json] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
+check($status === 400 && str_contains($json['message'] ?? '', 'can’t be disabled') && $isLive($inUse), "index: Set status → Disabled is refused (HTTP $status)");
+// Craft 5.10+'s delete dialog: the usages as a blocker, no way past it without the permission; its delete is refused
+$dialog = fn(string $route) => $editorHttp->action("delete-elements/$route", ['elementType' => Entry::class, 'elementIds' => [$inUse->id], 'siteId' => $inUse->siteId]);
+if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
+    [$status, , $json] = $dialog('deletion-blockers');
+    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_contains($b['summary'] ?? '', 'visitors see')));
+    check($status === 200 && $ours && str_contains($ours[0]['summary'], 'E2E in use source') && !array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), "delete dialog: the usages are a blocker, without “Delete anyway” for the editor (HTTP $status: " . ($ours[0]['summary'] ?? json_encode($json['blockers'] ?? [])) . ')');
+    check(str_contains($ours[0]['details'] ?? '', 'Craft.createElementIndex') || str_contains($json['bodyHtml'] ?? '', 'usesElement'), 'delete dialog: it lists the usages');
+    [$status, , $json] = $dialog('delete');
+    check(($json['showAsFailure'] ?? false) === true && $stillThere($inUse), "delete dialog: deleting anyway is refused (HTTP $status: " . ($json['message'] ?? '') . ')');
+}
+[$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $byDisabledOnly);
+check($status === 200 && !$isLive($byDisabledOnly), "only live usages count: one used by a disabled entry can be disabled (HTTP $status)");
+[$status] = $editorHttp->action('elements/delete', ['elementId' => $notUsed->id, 'siteId' => $notUsed->siteId]);
+check($status === 200 && !$stillThere($notUsed), "an element nobody uses can be deleted (HTTP $status)");
+// with the permission
+Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, [...$editorPermissions, ElementRelations::PERMISSION_IN_USE]);
+[$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
+check($status === 200 && !$isLive($inUse), "with “Delete or disable elements that are in use” the editor may (HTTP $status)");
+if (defined(craft\base\Element::class . '::EVENT_DEFINE_DELETION_BLOCKERS')) {
+    $inUse->enabled = true;
+    $elements->saveElement($inUse);
+    [, , $json] = $dialog('deletion-blockers');
+    $ours = array_values(array_filter($json['blockers'] ?? [], fn($b) => str_contains($b['summary'] ?? '', 'visitors see')));
+    check($ours && array_filter($ours[0]['actions'], fn($a) => ($a['label'] ?? '') === 'Delete anyway'), 'with the permission the dialog offers “Delete anyway”');
+}
+$inUse->enabled = true;
+$elements->saveElement($inUse);
+// Lite: nothing is guarded
+Craft::$app->getUserPermissions()->saveUserPermissions($editor->id, $editorPermissions);
+$switchEdition('lite');
+[$status] = $indexAction(craft\elements\actions\SetStatus::class, ['status' => 'disabled'], $inUse);
+check($status === 200 && !$isLive($inUse), "Lite: no guard (HTTP $status)");
+$switchEdition('pro');
+foreach ([...Entry::find()->section('journal')->title('E2E *')->status(null)->all(), $editor] as $element) {
+    $elements->deleteElement($element, true);
 }
 
 // --- Lite: no action, endpoint refused
