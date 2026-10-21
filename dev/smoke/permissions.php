@@ -5,7 +5,6 @@
  * Creates a section "ER Secret" with one entry using Page C, and two users; everything is deleted again.
  */
 
-use craft\elements\Asset;
 use craft\elements\Entry;
 use craft\elements\User;
 use craft\enums\CmsEdition;
