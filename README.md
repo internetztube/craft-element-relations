@@ -2,7 +2,7 @@
 
 **See where every element is used. Replace it everywhere, safely.**
 
-One list of everything that links to an entry, asset, category, product or any other element: across element types, sites, rich text and the plugins your project uses. It is Craft's own element index, so it looks and works like the rest of the control panel.
+One list of everything that links to an entry, asset, category, product or any other element. It covers all element types, all sites, rich text and the plugins you use. The list is Craft's own element index, so it looks and works like the rest of the control panel.
 
 ![Element Relations: where an element is used, the unused filter, replace with a review, and Craft’s delete dialog with the usages](docs/screenshots/readme.jpg)
 
@@ -10,30 +10,30 @@ One list of everything that links to an entry, asset, category, product or any o
 
 ## Why
 
-Every Craft project ends up asking the same things: *Can I delete this asset? Which pages show this category? Where is the old logo still used?* Craft's relations table knows a part of the answer. It knows nothing about CKEditor links, Link fields of plugins, SEOmatic images, Navigation menus, Formie forms or Vizy blocks. Element Relations answers in one place, for all of it, and lets you act on the answer.
+Every Craft project asks the same questions. Can I delete this asset? Which pages show this category? Where is the old logo still used? Craft's relations table knows part of the answer. It knows nothing about CKEditor links, link fields from plugins, SEOmatic images, Navigation menus, Formie forms or Vizy blocks. Element Relations answers all of it in one place, and lets you act on the answer.
 
 ## What you get
 
-- **One answer, every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms. Each row names where it lives, the field that holds the link and the site; an element used in two sites or through two fields is one row and counts once, everywhere.
-- **Everything that can link.** Anything in Craft's relations table works out of the box. Rich text, link fields and plugins that store references elsewhere are read by dedicated extractors, 13 plugins today (see [Supported fields and plugins](#supported-fields-and-plugins)).
-- **Plugin settings count.** Usages that are not elements, such as SEOmatic's global or per-section SEO image, are listed below the field.
-- **Native, not bolted on.** Craft's search, sorting, status and Drafts filter, table or card view, the View menu's columns, Craft's own filter rules and sort options of the types in the list (Section, Post Date, Author, Filename, Group, …), plus type and site dropdowns with counts. An index column shows the first usages and the total, and sorts by it.
-- **Permission-aware.** Users only see usages they may view; a line says how many are hidden, so nobody takes an element for unused.
-- **In code, too.** `isInUse`, counts and the relating elements in Twig and GraphQL, `usesElement` on any element query.
-- **Built for scale.** Relations are extracted on save into one indexed table; saves that change no custom field skip the work. Lists and counts stay paginated and SQL-based; the load test runs one asset used by 100,000 entries ([`dev/stress.php`](dev/stress.php)): its list opens in under a second.
-- **Find what nobody uses.** A “Used anywhere” rule in Craft's filter, on top of any source and with Craft's bulk actions; `craft.assets().unused()`.
-- **Replace anywhere.** Swap an element for another everywhere, or in the usages you tick, in a slideout right from the field, or on the command line (also with a CSV mapping, for migrations). Every supported field and plugin is rewritten the way it was read.
-- **Undo, roll back, revisions.** Undo in the notice, a history with Roll back in Utilities, revisions with notes for entries, Revert to revisions.
-- **Keep what is in use.** Editors can't delete or take offline what live content uses; Craft's delete dialog lists the usages with “Replace…” right there.
-- **Never blocks the page.** Replacements and rollbacks run as batched queue jobs, as the user who started them, and resume when a worker dies.
+- **One list for every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms. Each row shows where the element lives, which field holds the link, and which site. An element used in two sites, or through two fields, is one row and counts once.
+- **Everything that can link.** Anything in Craft's relations table works out of the box. Rich text, link fields and plugins that store links elsewhere are read by their own extractors. 13 plugins today, see [Supported fields and plugins](#supported-fields-and-plugins).
+- **Plugin settings count too.** Usages that are not elements, like SEOmatic's global SEO image, are listed below the field.
+- **Native.** Craft's search, sorting, status and drafts filter, table or card view, the columns of the View menu, and Craft's own filter rules and sort options (Section, Post Date, Author, Filename, Group, …). Plus dropdowns for element type and site, with counts. An index column shows the first usages and the total, and you can sort by it.
+- **Follows permissions.** Users only see usages they may view. A line says how many are hidden, so nobody takes an element for unused.
+- **In code too.** `isInUse`, counts and the related elements in Twig and GraphQL. `usesElement` on any element query.
+- **Built for scale.** Relations are read on save and stored in one indexed table. Saves that change no custom field skip the work. Lists and counts are paged SQL queries. The load test uses one asset in 100,000 entries ([`dev/stress.php`](dev/stress.php)); its list opens in under a second.
+- **Find what nobody uses.** A “Used anywhere” rule in Craft's filter. It works on any source, with Craft's bulk actions. In code: `craft.assets().unused()`.
+- **Replace anywhere.** Swap one element for another, everywhere or only in the usages you tick. From the field, or from the command line (also with a CSV file, for migrations). Every supported field and plugin is rewritten the same way it was read.
+- **Undo, roll back, revisions.** Undo in the notice. A history with Roll back under Utilities. Entries get a revision with a note. Revert to revisions.
+- **Keep what is in use.** Editors can't delete or take offline what live content uses. Craft's delete dialog lists the usages, with “Replace…” right there.
+- **Never blocks the page.** Replacements and rollbacks run as queue jobs in batches, as the user who started them. They resume if a worker dies.
 
 ## Tested
 
-Three suites run on every push, on PHP 8.2 and 8.3 against MySQL 8 and PostgreSQL 14: the console smoke test, the control panel over HTTP and the control panel in headless Chrome. 1,444 assertions, every supported plugin seeded and round-tripped (extract, replace, roll back), 100 % line coverage of `src/`. [`dev/TESTS.md`](dev/TESTS.md) lists every assertion in one sentence each.
+Three test suites run on every push, on PHP 8.2 and 8.3, on MySQL 8 and PostgreSQL 14: a console test, the control panel over HTTP, and the control panel in headless Chrome. 1,457 checks. Every supported plugin is seeded and round-tripped (read, replace, roll back). 100 % line coverage of `src/`. [`dev/TESTS.md`](dev/TESTS.md) lists every check in one sentence.
 
 ## Requirements
 
-Craft CMS 5.3 or later, PHP 8.2 or later. Use the 3.1.x releases for Craft 4.
+Craft CMS 5.3 or later, PHP 8.2 or later. For Craft 4, use the 3.1.x releases.
 
 ## Installation
 
@@ -44,30 +44,30 @@ composer require internetztube/craft-element-relations
 php craft plugin/install element-relations
 ```
 
-Then create an **Element Relations** field and add it to the field layouts of the elements you want to inspect (assets, entries, categories, …). Installing the plugin builds the relations cache for existing content in the queue.
+Then create an **Element Relations** field and add it to the field layouts of the elements you want to inspect (assets, entries, categories, …). After the install, the plugin builds its cache for existing content in the queue.
 
 ## Configuration
 
-Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to override the plugin settings per environment:
+Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to set the plugin settings per environment:
 
 | Setting | Default | Description |
 |---|---|---|
-| `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole relations cache is rebuilt. |
-| `protectInUse` | `true` | Protect elements that live content uses from being deleted or taken offline (see [Protection](#protect-what-is-in-use)). |
+| `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole cache is rebuilt. |
+| `protectInUse` | `true` | Elements that live content uses can't be deleted or taken offline (see [Protection](#protect-what-is-in-use)). |
 
-Field settings (per field): View Mode (table or cards; authors can switch it, the View menu offers every column of the element types in the list), Show the status menu, Elements per page.
+Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Elements per page.
 
-The cache can be rebuilt any time under Utilities → Element Relations or with `php craft element-relations/resave-relations`.
+You can rebuild the cache any time under Utilities → Element Relations, or with `php craft element-relations/resave-relations`.
 
 ## Supported fields and plugins
 
-Anything that stores its targets in Craft's relations table works out of the box, including:
+Anything that stores its targets in Craft's relations table works out of the box:
 
 - Entries, Assets, Categories, Tags, Users, Products and other relation fields, also inside Matrix, Neo, Super Table, Content Block and Addresses
-- Craft's Link field and plugin fields implementing `RelationalFieldInterface`
+- Craft's Link field and plugin fields that implement `RelationalFieldInterface`
 - User photos
 
-Dedicated extractors (each one can also rewrite what it reads, for replace):
+Own extractors (each one can also rewrite what it reads, for replace):
 
 | Plugin | What is read |
 |---|---|
@@ -76,7 +76,7 @@ Dedicated extractors (each one can also rewrite what it reads, for replace):
 | Hyper, LinkIt, Typed Link Field, LinkMate, FreeLink | element links |
 | Vizy | link marks, images, fields inside blocks |
 | SEO (by Ether) | social images |
-| Navigation | nodes linking an element (listed as their menu) |
+| Navigation | nodes that link to an element (listed as their menu) |
 | Wishlist | list items (listed as their list) |
 | Formie | redirect entries and rules, element field defaults, notification attachments, submission values |
 
@@ -101,19 +101,19 @@ Get the `RelationsModel` from the element's field:
 {% for element in relationsModel.elementsIterator(siteIds: [], batchSize: 100) %}…{% endfor %}
 {% set sites = relationsModel.sites %}
 
-{# plugin settings that reference the element, e.g. SEOmatic's global SEO image #}
+{# plugin settings that use the element, e.g. SEOmatic's global SEO image #}
 {% for usage in relationsModel.globalUsages %}
     <a href="{{ usage.url }}">{{ usage.label }}</a>
 {% endfor %}
 ```
 
-A complete example site using all of this (destination pages listing their stories, backlinks, author pages): [`dev/templates`](dev/templates).
+A full example site that uses all of this (destination pages that list their stories, backlinks, author pages): [`dev/templates`](dev/templates).
 
-For elements with thousands of usages use `count`/`isInUse` (one SQL query each), pass a `limit` to `elements`, or walk them with `elementsIterator` (batches); `elements` without a limit loads every relating element.
+For elements with thousands of usages, use `count` or `isInUse` (one SQL query each), give `elements` a limit, or loop with `elementsIterator` (batches). `elements` without a limit loads every related element.
 
-`siteIds`: omitted = the element's site, `[]` = all sites. With `[]` an element used in two sites counts once and `elements` returns it once (in the first site it is used in); drafts never count on the front end unless `drafts: null`. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.
+`siteIds`: leave it out for the element's site, `[]` for all sites. With `[]`, an element used in two sites counts once, and `elements` returns it once (in the first site it is used in). `status` and `drafts`: leave them out for what visitors may see on the front end (live entries, enabled elements, no drafts). In the control panel and on the console, the default is every status, drafts included. `status: null, drafts: null` means everything, everywhere.
 
-Statuses are per element type (`live` for entries and products, `enabled` for categories and assets, `active` for users); a list may mix them and each type takes the words it knows: `status: ['live', 'enabled']`. `sections` and `entryTypes` return entries only. For anything else, use Craft's own queries with `usesElement`: `craft.products().type('clothing').usesElement(entry)`, `craft.assets().volume('photos').usesElement(entry).orderBy('title')`, any element type, any of Craft's params.
+Statuses depend on the element type: `live` for entries and products, `enabled` for categories and assets, `active` for users. A list may mix them; each type takes the words it knows: `status: ['live', 'enabled']`. `sections` and `entryTypes` return entries only. For anything else, use Craft's own queries with `usesElement`: `craft.products().type('clothing').usesElement(entry)`, `craft.assets().volume('photos').usesElement(entry).orderBy('title')`. Any element type, any of Craft's params.
 
 ### Element queries
 
@@ -122,7 +122,7 @@ Statuses are per element type (`live` for entries and products, `enabled` for ca
 {% set unusedAssets = craft.assets().unused().all() %}
 ```
 
-Across all element types at once (entries, products, menus, … returned as their real classes), with any of Craft's query params:
+All element types at once (entries, products, menus, …, each as its real class), with any of Craft's query params:
 
 ```twig
 {% set everything = craft.usages().usesElement(asset).search('contact').all() %}
@@ -137,9 +137,9 @@ $everything = Usage::find()->usesElement($asset)->search('contact')->all();
 
 ### GraphQL
 
-The relations field only returns what the GraphQL schema may read: elements of sections, volumes, groups and sites outside the schema are left out, and element types without a GraphQL scope (Formie, Navigation, Wishlist, other plugin elements) are never returned. Without `status`, entries must be live and other elements enabled; `status` needs the “Query for non-enabled elements” scope.
+The relations field returns only what the schema may read. Elements of sections, volumes, groups and sites outside the schema are left out. Element types without a GraphQL scope (Formie, Navigation, Wishlist, other plugin elements) are never returned. Without `status`, entries must be live and other elements enabled. `status` needs the “Query for non-enabled elements” scope.
 
-Craft's own queries take a `usesElement` argument, so any query with any of Craft's arguments works, with Craft's scoping and status defaults: `entries(section: "news", usesElement: 12) { title }`, `products(type: "clothing", usesElement: 12) { id }`, `assets(usesElement: [12, 13]) { url }`, `entryCount(usesElement: 12)`; `status: null` for every status. Up to 50,000 usages; above that, the relations field's `count` and `elements` (with a limit).
+Craft's own queries take a `usesElement` argument. So any query with any of Craft's arguments works, with Craft's scoping and status defaults: `entries(section: "news", usesElement: 12) { title }`, `products(type: "clothing", usesElement: 12) { id }`, `assets(usesElement: [12, 13]) { url }`, `entryCount(usesElement: 12)`. `status: null` means every status. This works up to 50,000 usages; above that, use the relations field's `count` and `elements` with a limit.
 
 ```graphql
 {
@@ -161,16 +161,16 @@ Craft's own queries take a `usesElement` argument, so any query with any of Craf
 
 In detail:
 
-- **Unused:** “Used anywhere” rule in Craft's index filter (on top of any source, with Craft's bulk actions) and in custom-source conditions; create a custom source with it for a fixed “Unused” entry in the sidebar. `unused()` element query param. Non-element usages (SEOmatic settings) count as used.
-- **Replace:** tick usages in the field's list and choose “Replace…” (or “Replace everywhere…” in an element index); a slideout picks the replacement, lets you untick usages or take all in the filtered list, across pages, and shows a summary before anything changes. Plugin settings are listed for a manual change. Only elements the user may save are touched.
-- **Undo and rollback:** the success notice has an Undo button; Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the reference back and keeps later edits. Entries get a revision with a note for each step.
-- **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them, so saving many or large entries never blocks the page. The notice shows the progress and offers Undo when it is done. A job that got lost (a worker stopped) is resumed where it got: automatically while the notice waits, with Resume in the history, or on the command line.
+- **Unused:** a “Used anywhere” rule in Craft's index filter. It works on any source, with Craft's bulk actions, and in custom sources (make a custom source with it for a fixed “Unused” entry in the sidebar). In code: the `unused()` query param. Plugin settings (SEOmatic) count as a usage.
+- **Replace:** tick usages in the field's list and choose “Replace…”, or choose “Replace everywhere…” in an element index. A slideout opens: pick the replacement, untick usages or take all in the filtered list (across pages), and read a summary before anything changes. Plugin settings are listed for a manual change. Only elements the user may save are touched.
+- **Undo and rollback:** the success notice has an Undo button. Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the link back and keeps later edits. Entries get a revision with a note for each step.
+- **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them. So saving many or large entries never blocks the page. The notice shows the progress and offers Undo when the job is done. If a job gets lost (a worker stopped), it resumes where it was: by itself while the notice waits, with Resume in the history, or on the command line.
 - **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line).
-- <a id="protect-what-is-in-use"></a>**Protect what is in use:** in the control panel, an element that live content uses (what visitors see: live entries, enabled elements, plus plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled for later; the error names the usages the user may view and counts the others. On Craft 5.10+ Craft's delete dialog lists them up front, with “Replace…” and, only with the permission, “Delete anyway”. The edit page, slideouts and the index's Delete / Set status / Delete for site actions are covered. Drafts and disabled elements that point to it don't count. Users with “Delete or disable elements that are in use” (admins) may; console commands, migrations, queue jobs and settings changes (e.g. deleting a section) are never blocked.
+- <a id="protect-what-is-in-use"></a>**Protect what is in use:** in the control panel, an element that live content uses (live entries, enabled elements, plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled. The error names the usages the user may view and counts the rest. On Craft 5.10 and later, Craft's delete dialog lists them first, with “Replace…” and, only with the permission, “Delete anyway”. This covers the edit page, slideouts and the index actions Delete, Set status and Delete for site. Drafts and disabled elements that point to it don't count. Users with the permission “Delete or disable elements that are in use” (admins) may go ahead. Console commands, migrations, queue jobs and settings changes (like deleting a section) are never blocked.
 
 ### Permissions
 
-What a control panel user sees in the field follows Craft's permissions (`Elements::canView()`): elements they may not view are left out of the list, its search, sorting, counts and exports. A line below the list says how many usages are hidden, so nobody takes an element for unused.
+What a user sees in the field follows Craft's permissions (`Elements::canView()`). Elements they may not view are left out of the list, search, sorting, counts and exports. A line below the list says how many usages are hidden, so nobody takes an element for unused.
 
 Three permissions:
 
@@ -180,22 +180,22 @@ Three permissions:
 | Roll back replacements | Undo, Roll back and Revert to revisions, for their own replacements |
 | Delete or disable elements that are in use | Deleting, disabling, expiring or scheduling elements that live content uses |
 
-Admins have both, can roll back anyone's replacements and see everyone's in the history; other users see their own. Replacing also needs permission to view both elements, to save every element that gets changed and to edit the field (a field layout's “Who can edit” condition); everything else is skipped and not named. A queued replacement runs as the user who started it and is not run when they are gone or lost the permission.
+Admins have all of them. They can roll back anyone's replacements and see everyone's in the history; other users see their own. Replacing also needs the right to view both elements, to save every element that changes, and to edit the field (the field layout's “Who can edit” rule). Everything else is skipped and not named. A queued replacement runs as the user who started it. It does not run if that user is gone or lost the permission.
 
 ### Revisions
 
-Entries changed by a replacement or rollback get a revision with a note, including entries whose Matrix (or other nested) content changed. Element types without revisions (assets, categories, global sets, plugin elements) and entries in sections with versioning off get none; the wizard, the success message and the history say how many. The history offers two ways back:
+Entries changed by a replacement or rollback get a revision with a note. This includes entries whose Matrix (or other nested) content changed. Element types without revisions (assets, categories, global sets, plugin elements) and entries in sections with versioning off get none; the wizard, the success message and the history say how many. The history offers two ways back:
 
-- **Roll back:** swaps the replacement back for the original; changes made since are kept.
-- **Revert to revisions:** reverts the changed entries to their revision from before the replacement with Craft's revision revert (changes since are discarded); elements without revisions are swapped back.
+- **Roll back:** swaps the link back to the original. Changes made since are kept.
+- **Revert to revisions:** puts the changed entries back to their revision from before the replacement, with Craft's own revision revert. Changes made since are lost. Elements without revisions are swapped back.
 
 ## Command line
 
-Replacements from the command line run right away (no queue), without a user, and land in the history like any other, so they can be rolled back:
+Replacements from the command line run right away (no queue), without a user. They land in the history like any other, so you can roll them back:
 
 ```sh
 php craft element-relations/replace 12 34                  # replace element #12 with #34 everywhere
-php craft element-relations/replace 12 34 --usages=56,78   # only in these relating elements (ids as listed in the field)
+php craft element-relations/replace 12 34 --usages=56,78   # only in these related elements (ids as listed in the field)
 php craft element-relations/replace 12 34 --dry-run        # list what would change, change nothing
 php craft element-relations/replace 12 34 --site=de        # elements of another site (handle or id)
 php craft element-relations/replace/map duplicates.csv     # many at once: one "from,to" pair of ids per line
@@ -204,7 +204,7 @@ php craft element-relations/replace/rollback 1234          # roll one back (--re
 php craft element-relations/replace/resume 1234            # continue one whose queue job got lost (e.g. a worker stopped)
 ```
 
-A mapping file may have a header line and `#` comments, e.g. after merging duplicate assets:
+A mapping file may have a header line and `#` comments. For example, after merging duplicate assets:
 
 ```csv
 from,to
@@ -213,7 +213,7 @@ from,to
 415,388
 ```
 
-In a content migration, call the service directly:
+In a content migration, call the service:
 
 ```php
 use craft\elements\Asset;
@@ -227,7 +227,7 @@ public function safeUp(): bool
 }
 ```
 
-`ReplaceService::replace($from, $to, $onlySourceIds)` returns `replaced`, `skipped` (usages that need a manual change), `operationId` and `withoutRevision`; `ReplaceService::rollback()` undoes an operation.
+`ReplaceService::replace($from, $to, $onlySourceIds)` returns `replaced`, `skipped` (usages that need a manual change), `operationId` and `withoutRevision`. `ReplaceService::rollback()` undoes an operation.
 
 ## Events
 
@@ -240,7 +240,7 @@ use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\ReplaceService;
 use yii\base\Event;
 
-// a field extractor implements InterfaceFieldExtractor (and InterfaceFieldReplacer to support replace);
+// a field extractor implements InterfaceFieldExtractor (and InterfaceFieldReplacer for replace);
 // the first extractor that returns records for a field wins, so put specific ones first
 Event::on(ExtractorService::class, ExtractorService::EVENT_REGISTER_FIELD_EXTRACTORS, function (RegisterComponentTypesEvent $event) {
     array_unshift($event->types, MyFieldExtractor::class);
@@ -260,15 +260,15 @@ Event::on(ReplaceService::class, ReplaceService::EVENT_AFTER_REPLACE, function (
 
 ## Logging
 
-Extractor errors, replacements and rollbacks are logged to `storage/logs/element-relations-<date>.log`. In dev mode extractor errors are thrown instead.
+Extractor errors, replacements and rollbacks go to `storage/logs/element-relations-<date>.log`. In dev mode, extractor errors are thrown instead.
 
 ## Screenshots
 
-Every feature, in the demo site: [docs/README.md](docs/README.md).
+Every feature, shown in the demo site: [docs/README.md](docs/README.md).
 
 ## Development
 
-`dev/dev.sh` spins up a throwaway Craft 5 project with every supported plugin and a second site, seeds test content and starts a server at http://localhost:8080/admin (admin / password). Next to the test fixtures (section “Pages”) the seed builds a demo site for screenshots ([`dev/demo.php`](dev/demo.php)): “Transit”, a travel journal with articles, team, company pages, a homepage of content blocks, menus, forms, drafts and German translations, with the author's own photos ([Frederic Köberl on Unsplash](https://unsplash.com/@internetztube)) (downloaded on the first seed; drawn pictures without network).
+`dev/dev.sh` creates a throwaway Craft 5 project with every supported plugin and a second site. It seeds test content and starts a server at http://localhost:8080/admin (admin / password). Next to the test content (section “Pages”), the seed builds a demo site for the screenshots ([`dev/demo.php`](dev/demo.php)): “Transit”, a travel journal with articles, a team, company pages, a homepage made of content blocks, menus, forms, drafts and German translations. The photos are the author's own ([Frederic Köberl on Unsplash](https://unsplash.com/@internetztube)). They are downloaded on the first seed; without network, drawn placeholders are used.
 
 ```sh
 dev/dev.sh                      # setup + serve (PostgreSQL)
@@ -279,7 +279,7 @@ dev/dev.sh screenshots          # retake docs/screenshots from the demo site (he
 vendor/bin/phpstan              # static analysis
 ```
 
-GitHub Actions runs PHPStan, the smoke test and the control-panel test on PHP 8.2 and 8.3 against MySQL 8 and PostgreSQL 14.
+GitHub Actions runs PHPStan, the smoke test and the control panel tests on PHP 8.2 and 8.3, on MySQL 8 and PostgreSQL 14.
 
 ## Support
 

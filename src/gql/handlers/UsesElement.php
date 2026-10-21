@@ -5,7 +5,7 @@ namespace internetztube\elementRelations\gql\handlers;
 
 use craft\db\Query;
 use craft\db\Table;
-use craft\errors\GqlException;
+use GraphQL\Error\UserError;
 use craft\gql\base\ArgumentHandler;
 
 /**
@@ -16,8 +16,8 @@ use craft\gql\base\ArgumentHandler;
  */
 final class UsesElement extends ArgumentHandler
 {
-    /** Below PostgreSQL's 65,535 bound parameters, which Craft's `siteSettingsId` would exceed. */
-    public const MAX_USAGES = 50000;
+    /** At most this many usages; more would exceed PostgreSQL's 65,535 bound parameters in Craft's `siteSettingsId`. */
+    public static int $maxUsages = 50000;
 
     protected string $argumentName = 'usesElement';
 
@@ -27,8 +27,21 @@ final class UsesElement extends ArgumentHandler
      */
     public function handleArgumentCollection(array $argumentList = []): array
     {
-        $targetIds = array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, (array)$argumentList[$this->argumentName]);
+        $pairs = $this->handleArgument($argumentList[$this->argumentName]);
         unset($argumentList[$this->argumentName]);
+        // no usage: match nothing (an empty list would mean "any")
+        $given = isset($argumentList['siteSettingsId']) ? array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, (array)$argumentList['siteSettingsId']) : null;
+        $argumentList['siteSettingsId'] = ($given === null ? $pairs : array_values(array_intersect($given, $pairs))) ?: [0];
+        return $argumentList;
+    }
+
+    /**
+     * The element-site pairs (`elements_sites.id`) of everything that uses the given element(s).
+     * @return list<int>
+     */
+    protected function handleArgument(mixed $argumentValue): array
+    {
+        $targetIds = array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, (array)$argumentValue);
         $pairs = array_map(intval(...), (new Query())
             ->select(['elements_sites.id'])
             ->distinct()
@@ -36,19 +49,11 @@ final class UsesElement extends ArgumentHandler
             ->innerJoin(['elements_sites' => Table::ELEMENTS_SITES], '[[elements_sites.elementId]] = [[elementrelations_cache.sourcePrimaryOwnerId]] AND [[elements_sites.siteId]] = [[elementrelations_cache.sourceSiteId]]')
             ->where(['elementrelations_cache.targetElementId' => $targetIds])
             ->andWhere(['not', ['elementrelations_cache.sourceElementId' => null]])
-            ->limit(self::MAX_USAGES + 1)
+            ->limit(self::$maxUsages + 1)
             ->column());
-        if (count($pairs) > self::MAX_USAGES) {
-            throw new GqlException(sprintf('`usesElement`: more than %d usages; use the element’s relations field (`count`, `elements` with a limit) instead.', self::MAX_USAGES));
+        if (count($pairs) > self::$maxUsages) {
+            throw new UserError(sprintf('`usesElement`: more than %d usages; use the element’s relations field (`count`, `elements` with a limit) instead.', self::$maxUsages));
         }
-        // no usage: match nothing (an empty list would mean "any")
-        $given = isset($argumentList['siteSettingsId']) ? array_map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0, (array)$argumentList['siteSettingsId']) : null;
-        $argumentList['siteSettingsId'] = ($given === null ? $pairs : array_values(array_intersect($given, $pairs))) ?: [0];
-        return $argumentList;
-    }
-
-    protected function handleArgument(mixed $argumentValue): mixed
-    {
-        return $argumentValue; // handleArgumentCollection() does the work: it writes another argument
+        return $pairs;
     }
 }

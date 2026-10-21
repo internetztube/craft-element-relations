@@ -298,6 +298,13 @@ $result = Craft::$app->getGql()->executeQuery($schema, '{ entry(id: ' . $b->id .
     entries(usesElement: ' . $b->id . ', status: null) { id } live: entries(usesElement: ' . $b->id . ') { id } }');
 check(count($result['data']['entry']['relations']['all'] ?? []) === 12, 'an explicit status: null means every status (12, Page A12 included): ' . json_encode($result['errors'] ?? null));
 check(count($result['data']['entries'] ?? []) === 12 && count($result['data']['live'] ?? []) === 11, 'Craft’s own entries query takes usesElement: 12 with status: null, 11 by default');
+$oneUsage = Entry::find()->usesElement($b)->one();
+$result = Craft::$app->getGql()->executeQuery($schema, '{ entries(usesElement: ' . $b->id . ', siteSettingsId: [' . $oneUsage->siteSettingsId . ', 999999999]) { id } }');
+check(array_column($result['data']['entries'] ?? [], 'id') === [(string)$oneUsage->id], 'usesElement with siteSettingsId: the intersection (' . json_encode($result['errors'] ?? null) . ')');
+internetztube\elementRelations\gql\handlers\UsesElement::$maxUsages = 1;
+$result = Craft::$app->getGql()->executeQuery($schema, '{ entries(usesElement: ' . $b->id . ') { id } }');
+internetztube\elementRelations\gql\handlers\UsesElement::$maxUsages = 50000;
+check(str_contains(json_encode($result['errors'] ?? []), 'more than 1 usages'), 'usesElement refuses more usages than the limit, with a hint: ' . json_encode($result['errors'][0]['message'] ?? null));
 
 $cModel = new RelationsModel((int)Entry::find()->title('Page C')->one()->id, (int)$b->siteId);
 $notEntries = fn(array $elements): array => array_filter($elements, fn(ElementInterface $e): bool => !$e instanceof Entry);

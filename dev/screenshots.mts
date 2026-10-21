@@ -260,13 +260,13 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'readme-unused', viewport: { width: 1120, height: 580 },
-        points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
+        points: ['Works on any source, with Craft’s bulk actions', 'The same rule in custom sources'],
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
         inset: false,
         caption: 'Find what nobody uses',
         title: 'Find what nobody uses',
-        text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
+        text: 'A “Used anywhere” rule in Craft’s filter. It works on any source, with Craft’s bulk actions.',
         path: '/admin/assets/images',
         act: `${UNUSED_FILTER_ACT}`,
     },
@@ -278,19 +278,19 @@ const SHOTS: Shot[] = [
         inset: false,
         caption: 'Replace it everywhere, with a review first',
         title: 'Review, then replace',
-        text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
+        text: 'Pick the replacement, check the usages, read the summary. Then it runs in the background.',
         path: demo.skyline.path,
         act: `${TICK_USAGES_ACT} ${OPEN_WIZARD_ACT}`,
     },
     {
         name: 'readme-protect', viewport: { width: 1120, height: 700 }, user: 'jonas',
-        points: ['Usages Craft can’t see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        points: ['Usages Craft does not see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
         focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
         inset: false,
-        caption: 'Nothing breaks by accident',
-        title: 'Nothing breaks by accident',
-        text: 'Two forms redirect to “Thank you”. Craft would delete it without a word; Element Relations stops it first.',
+        caption: 'Can’t be deleted while in use',
+        title: 'Can’t be deleted while in use',
+        text: 'Two forms send people to “Thank you”. Craft would delete it without a warning. Element Relations stops that.',
         path: demo.thankYou.path,
         act: `${DELETE_DIALOG_ACT}`,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
@@ -327,7 +327,7 @@ const SHOTS: Shot[] = [
         focus: `[document.querySelector('[role="tablist"]'), inPane(document.querySelector('.element-relations'))]`,
         highlight: `[byText('[role="tab"]', 'Used in')]`,
         title: 'On any element type',
-        text: 'Add the field to entries, assets, categories, users, products or global sets, e.g. on its own tab.',
+        text: 'Add the field to entries, assets, categories, users, products or global sets, for example on its own tab.',
         path: demo.hongKong.path,
         act: `clickTab('Used in'); await sleep(300); await indexReady(fieldIndex(), 'the usage list');`,
     },
@@ -337,7 +337,7 @@ const SHOTS: Shot[] = [
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 7)]`,
         highlight: `[column('Used in').slice(0, 5)]`,
         title: 'Right in the element index',
-        text: 'As a column, with a preview of the first usages and the total. Sortable by number of usages.',
+        text: 'A column with the first usages and the total. The index can be sorted by it.',
         path: '/admin/assets/images',
         act: `await indexReady(pageIndex(), 'the asset index'); document.querySelector('[data-view="table"]')?.click(); await indexReady(pageIndex(), 'the table');`,
     },
@@ -347,29 +347,29 @@ const SHOTS: Shot[] = [
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[document.querySelector('.element-relations-heading'), document.querySelector('.element-relations-heading')?.nextElementSibling]]`,
         title: 'Plugin settings count, too',
-        text: 'Usages that are not elements, such as SEOmatic’s global SEO image, are listed below the field.',
+        text: 'Usages that are not elements, like SEOmatic’s global SEO image, are listed below the field.',
         path: demo.social.path,
         act: `await sleep(800);`,
     },
     {
         name: 'used-filter', viewport: { width: 1600 },
-        points: ['On top of any source, with Craft’s bulk actions', 'The same rule in custom sources'],
+        points: ['Works on any source, with Craft’s bulk actions', 'The same rule in custom sources'],
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
         cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         caption: 'Find what nobody uses',
         title: 'Find what nobody uses',
-        text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
+        text: 'A “Used anywhere” rule in Craft’s filter. It works on any source, with Craft’s bulk actions.',
         path: '/admin/assets/images',
         act: `${UNUSED_FILTER_ACT}`,
     },
     {
         name: 'replace',
-        points: ['Tick the usages, like in any index', 'Or all in the list, on every page', 'Element Relations’ own button, next to Craft’s'],
+        points: ['Tick the usages, like in any index', 'Or all in the list, on every page', 'Its own button, next to Craft’s'],
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[replaceButton()]]`,
         title: 'Replace it where you choose',
-        text: 'Tick usages in the list, choose “Replace…”: every field and plugin is rewritten the way it was read.',
+        text: 'Tick usages in the list and choose “Replace…”. Every field and plugin is rewritten the same way it was read.',
         path: demo.skyline.path,
         act: `${TICK_USAGES_ACT}`,
     },
@@ -381,7 +381,7 @@ const SHOTS: Shot[] = [
         cover: `wizardSlideout()`,
         caption: 'Replace, with a review first',
         title: 'Review, then replace',
-        text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
+        text: 'Pick the replacement, check the usages, read the summary. Then it runs in the background.',
         act: `${OPEN_WIZARD_ACT}`,
     },
     {
@@ -468,11 +468,11 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'in-use-dialog', user: 'jonas',
-        points: ['Usages Craft can’t see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        points: ['Usages Craft does not see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
         focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
-        title: 'Nothing breaks by accident',
-        text: 'Two forms redirect to “Thank you”. Craft would delete it without a word; Element Relations stops it first.',
+        title: 'Can’t be deleted while in use',
+        text: 'Two forms send people to “Thank you”. Craft would delete it without a warning. Element Relations stops that.',
         path: demo.thankYou.path,
         act: `${DELETE_DIALOG_ACT}`,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
@@ -481,7 +481,7 @@ const SHOTS: Shot[] = [
         name: 'delete-compare', user: 'jonas', viewport: { height: 1500 },
         points: ['The same asset, the same dialog', 'Craft checks relation fields and CKEditor', 'Element Relations also finds links, menus and forms'],
         title: 'What Craft’s delete dialog misses',
-        text: 'The same PDF, deleted by an editor: Craft 5.10 on its own, and with Element Relations.',
+        text: 'The same PDF, deleted by an editor. Left: Craft 5.10 alone. Right: with Element Relations.',
         path: demo.guide.path,
         compare: [
             {
@@ -522,7 +522,7 @@ const SHOTS: Shot[] = [
         name: 'compare',
         points: ['The page, not the Matrix block inside it', 'Where it sits, which field, which sites', 'Rich text, links, menus, forms and SEO too'],
         title: 'Know what you replace',
-        text: 'The same asset: Craft lists the blocks that relate to it, Element Relations the pages your editors know.',
+        text: 'The same asset. Craft lists the Matrix blocks that link to it. Element Relations lists the pages your editors know.',
         path: demo.skyline.path,
         compare: [
             {
@@ -566,7 +566,7 @@ const SHOTS: Shot[] = [
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
         highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
         title: 'Disabling is checked too',
-        text: '33 stories point to Hong Kong: it stays live until they are replaced or the permission says otherwise.',
+        text: '33 stories link to Hong Kong. It stays live until they are replaced, or someone with the permission disables it.',
         path: '/admin/content/entries/destinations',
         act: `
             await indexReady(pageIndex(), 'the destinations');
@@ -588,7 +588,7 @@ const SHOTS: Shot[] = [
         focus: `inPane(permissionGroup())`,
         highlight: `[[permissionGroup()]]`,
         title: 'Permissions',
-        text: 'Replacing, rolling back and deleting what is in use are permissions; the rest follows Craft’s.',
+        text: 'Replacing, rolling back and deleting what is in use are permissions of their own. The rest follows Craft’s.',
         path: demo.editors.path,
         act: `
             await sleep(500);
@@ -899,7 +899,7 @@ function readmeHtml(cards: Taken[]): { html: string, height: number } {
         <div class="head">
             <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations</div>
             <h1>See where every element is used. Replace it everywhere, safely.</h1>
-            <p>One list of everything that links to an entry, asset, category or product, across element types, sites, rich text and plugins.</p>
+            <p>One list of everything that links to an entry, asset, category or product. All element types, all sites, rich text and plugins.</p>
             <div class="chips">${chips}</div>
         </div>
         ${panels}
