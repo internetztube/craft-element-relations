@@ -320,6 +320,22 @@ class RelationsModel
             if ($types !== null && !in_array($elementType, $types, true)) {
                 continue;
             }
+            // a section or entry type names entries: no other type can match it
+            if ((!empty($sections) || !empty($entryTypes)) && !is_a($elementType, \craft\elements\Entry::class, true)) {
+                continue;
+            }
+            // statuses are per type ("live" for entries and products, "enabled" for categories, "active" for users, …)
+            // and Craft aborts a query asked for one its type doesn't know: give each type only the words it knows, and
+            // skip it when none is left. Types without statuses (tags, global sets, addresses) only ever count as enabled.
+            $statusForType = $status;
+            if ($status !== null) {
+                $statusForType = $elementType::hasStatuses()
+                    ? array_values(array_intersect((array)$status, array_keys($elementType::statuses())))
+                    : (in_array('enabled', (array)$status, true) ? null : []);
+                if ($statusForType === []) {
+                    continue;
+                }
+            }
             $query = $factory ? $factory($elementType) : ElementRelations::find($elementType);
             if (!$query instanceof ElementQuery) {
                 continue;
@@ -330,11 +346,12 @@ class RelationsModel
                 ->provisionalDrafts(false);
             // explicit statuses (null: all of them), or everything outside site requests; otherwise Craft's own
             // default (live/enabled, or the GraphQL resolver's)
-            if ($factory ? $status !== null : ($statusGiven || !$siteDefaults)) {
-                $query->status($status);
+            if ($factory ? $statusGiven : ($statusGiven || !$siteDefaults)) {
+                $query->status($statusForType);
             }
-            // the site of the relating element; `usesElement` matches the cache rows of that site
-            empty($siteIds) ? $query->site('*')->unique() : $query->siteId($siteIds); // every site: each element once
+            // the site of the relating element; `usesElement` matches the cache rows of that site. Several sites (or
+            // all): each element once, in the first of them it uses the element in
+            empty($siteIds) ? $query->site('*')->unique() : $query->siteId($siteIds)->unique();
 
             if ($search) {
                 $query->search($search);

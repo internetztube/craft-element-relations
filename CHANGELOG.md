@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Field settings: view mode, status menu, elements per page.
 - Element indexes can sort by the field (number of usages); exports include the count and the IDs. [#60](https://github.com/internetztube/craft-element-relations/issues/60)
 - Twig and GraphQL: `status` argument for `count`, `isInUse`, `elements`, `elementsIterator`. [#56](https://github.com/internetztube/craft-element-relations/issues/56)
-- Element queries: `usesElement(element)`; `Usage::find()` queries all element types at once; `relationsModel.globalUsages` for plugin settings.
+- Element queries: `usesElement(element)` in Twig and PHP (`craft.products().type('clothing').usesElement(entry)`) and as an argument of Craft's own GraphQL queries (`entries(section: "news", usesElement: 12)`, `products(…)`, `assets(…)`), with Craft's arguments, scoping and status defaults; `Usage::find()` queries all element types at once; `relationsModel.globalUsages` for plugin settings. [#56](https://github.com/internetztube/craft-element-relations/issues/56)
 - Integrations: Vizy, FreeLink, SEO (by Ether), LinkMate, Navigation, Wishlist, Formie; SEOmatic Twitter and Open Graph images. Any field using Craft's relations table (incl. the Link field) is picked up automatically.
 - Events to add or remove extractors and usage providers, and around replacements.
 - Own log file: `storage/logs/element-relations-<date>.log`.
@@ -45,6 +45,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - Trashed elements keep their usages; restoring brings them back.
 - Relations in rich text containing `||` were lost.
+- `sections` / `entryTypes` in Twig and GraphQL also returned products, categories and tags using the element; they now return entries only. [#56](https://github.com/internetztube/craft-element-relations/issues/56)
+- `status` lists are applied per element type: `['live', 'enabled']` no longer drops categories and assets (Craft aborts a query asked for a status its type doesn't know, and "live" is an entry status); tags, global sets and addresses, which have no statuses, only ever match "enabled".
+- GraphQL: an explicit `status: null` returns every status, like Craft's own queries; it was treated as omitted.
+- An element used in several of the requested sites was returned twice (GraphQL `siteIds: []`, Twig with several `siteIds`); each element once now.
 - Relations inside a disabled Matrix block are listed, marked as not live.
 - Fresh installs lacked the cache table's indexes (slow lookups on large sites).
 - Elements of removed or disabled plugins counted as usages.

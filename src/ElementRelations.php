@@ -254,6 +254,18 @@ class ElementRelations extends Plugin
             $event->behaviors['elementRelations'] = ElementQueryBehavior::class;
         });
 
+        // … and as an argument of Craft's own GraphQL queries (`entries(usesElement: 12)`, `products(…)`), see gql/handlers
+        Event::on(\craft\gql\base\ElementArguments::class, \craft\gql\base\ElementArguments::EVENT_DEFINE_ARGUMENTS, function (\craft\events\DefineGqlArgumentsEvent $event): void {
+            $event->arguments['usesElement'] = [
+                'name' => 'usesElement',
+                'type' => \GraphQL\Type\Definition\Type::listOf(\craft\gql\types\QueryArgument::getType()),
+                'description' => 'Narrows the query results to elements that use the given element(s), as Element Relations finds them (relation and link fields, rich text, menus, forms, …). Takes an element ID or a list of them.',
+            ];
+        });
+        Event::on(\craft\gql\ArgumentManager::class, \craft\gql\ArgumentManager::EVENT_DEFINE_GQL_ARGUMENT_HANDLERS, function (\craft\events\RegisterGqlArgumentHandlersEvent $event): void {
+            $event->handlers['usesElement'] = \internetztube\elementRelations\gql\handlers\UsesElement::class;
+        });
+
         // columns of the field's Usage index (one list across all element types, see elements/Usage.php)
         Event::on(Element::class, Element::EVENT_DEFINE_ATTRIBUTE_HTML, function (DefineAttributeHtmlEvent $event): void {
             /** @var Element $element */

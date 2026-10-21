@@ -117,6 +117,8 @@ For elements with thousands of usages use `count`/`isInUse` (one SQL query each)
 
 `siteIds`: omitted = the element's site, `[]` = all sites. With `[]` an element used in two sites counts once and `elements` returns it once (in the first site it is used in); drafts never count on the front end unless `drafts: null`. `status` and `drafts`: omitted = what visitors may see on the front end (live entries, enabled elements, no drafts), every status and drafts in the control panel and console; `status: null, drafts: null` for everything.
 
+Statuses are per element type (`live` for entries and products, `enabled` for categories and assets, `active` for users); a list may mix them and each type takes the words it knows: `status: ['live', 'enabled']`. `sections` and `entryTypes` return entries only. For anything else, use Craft's own queries with `usesElement`: `craft.products().type('clothing').usesElement(entry)`, `craft.assets().volume('photos').usesElement(entry).orderBy('title')`, any element type, any of Craft's params.
+
 ### Element queries
 
 ```twig
@@ -135,6 +137,8 @@ $everything = Usage::find()->usesElement($asset)->search('contact')->all();
 ### GraphQL
 
 The relations field only returns what the GraphQL schema may read: elements of sections, volumes, groups and sites outside the schema are left out, and element types without a GraphQL scope (Formie, Navigation, Wishlist, other plugin elements) are never returned. Without `status`, entries must be live and other elements enabled; `status` needs the “Query for non-enabled elements” scope.
+
+Craft's own queries take a `usesElement` argument, so any query with any of Craft's arguments works, with Craft's scoping and status defaults: `entries(section: "news", usesElement: 12) { title }`, `products(type: "clothing", usesElement: 12) { id }`, `assets(usesElement: [12, 13]) { url }`, `entryCount(usesElement: 12)`; `status: null` for every status. Up to 50,000 usages; above that, the relations field's `count` and `elements` (with a limit).
 
 ```graphql
 {

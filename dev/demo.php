@@ -56,10 +56,12 @@ function field(string $handle): FieldInterface
 
 function ensureField(string $class, array $config): FieldInterface
 {
-    if ($field = Craft::$app->getFields()->getFieldByHandle($config['handle'])) {
+    // an existing field gets the settings changed here since the last seed
+    $field = Craft::$app->getFields()->getFieldByHandle($config['handle']);
+    if ($field && array_filter($config, fn($value, $key) => $field->$key !== $value, ARRAY_FILTER_USE_BOTH) === []) {
         return $field;
     }
-    $field = new $class($config);
+    $field ? Craft::configure($field, $config) : $field = new $class($config);
     Craft::$app->getFields()->saveField($field) or fail($field);
     return $field;
 }
@@ -535,7 +537,7 @@ if ($phase === 'schema') {
     }
 
     $imageField = fn(string $name, string $handle) => ensureField(AssetsField::class, [
-        'name' => $name, 'handle' => $handle, 'sources' => ["volume:$images->uid"], 'maxRelations' => 1, 'viewMode' => 'large',
+        'name' => $name, 'handle' => $handle, 'sources' => ["volume:$images->uid"], 'defaultUploadLocationSource' => "volume:$images->uid", 'maxRelations' => 1, 'viewMode' => 'large',
         'restrictFiles' => true, 'allowedKinds' => ['image'],
     ]);
     $imageField('Hero image', 'heroImage');
@@ -554,7 +556,7 @@ if ($phase === 'schema') {
     ensureField(Link::class, ['name' => 'Link', 'handle' => 'buttonLink', 'types' => ['entry', 'asset', 'url']]);
     ensureField(verbb\formie\fields\Forms::class, ['name' => 'Form', 'handle' => 'contactForm', 'maxRelations' => 1]);
     ensureField(nystudio107\seomatic\fields\SeoSettings::class, ['name' => 'SEO', 'handle' => 'seo']);
-    ensureField(AssetsField::class, ['name' => 'Gallery', 'handle' => 'gallery', 'sources' => ["volume:$images->uid"], 'viewMode' => 'large', 'restrictFiles' => true, 'allowedKinds' => ['image']]);
+    ensureField(AssetsField::class, ['name' => 'Gallery', 'handle' => 'gallery', 'sources' => ["volume:$images->uid"], 'defaultUploadLocationSource' => "volume:$images->uid", 'viewMode' => 'large', 'restrictFiles' => true, 'allowedKinds' => ['image']]);
     $imageField('Logo', 'logoImage');
     ensureField(EntriesField::class, ['name' => 'Destinations', 'handle' => 'destinations', 'maxRelations' => 3]);
     ensureField(EntriesField::class, ['name' => 'Featured destination', 'handle' => 'featuredDestination', 'maxRelations' => 1]);

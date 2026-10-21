@@ -323,6 +323,23 @@ try {
         const live = await run(`return $('.lightswitch').filter((i, e) => /^enabledForSite/.test($(e).find('input').attr('name') ?? '')).first().hasClass('on');`);
         check(saved.notices.some((n) => /saved/i.test(n)) && live, `a plain save still works and Taipei stays live: "${saved.notices.find((n) => /saved/i.test(n)) ?? saved.notices.join(' | ')}"`);
     });
+    await scenario('editor: a usage opens in Craft’s slideout editor on double-click', async () => {
+        await as('jonas');
+        await visit(demo.skyline.path);
+        const edit: { row: string, title: string } = await run(`
+            await until(() => fieldIndex() && $('.element-relations .elements tbody tr[data-id]').length, 'the list');
+            const row = $('.element-relations .elements tbody tr[data-id]').first();
+            const label = row.find('.chip .label, .element .label').first();
+            label.trigger('dblclick');
+            await until(() => $('.slideout:visible .field input[type="text"]').length, 'Craft’s slideout editor');
+            // the first text input of an entry's slideout is its Title
+            const result = { row: label.text().trim(), title: $('.slideout:visible .field input[type="text"]').first().val() };
+            $('.slideout:visible button').filter((i, b) => b.textContent.trim() === 'Cancel').first().click();
+            await until(() => !$('.slideout:visible').length, 'the slideout to close');
+            return result;
+        `);
+        check(edit.row !== '' && edit.title === edit.row, `double-clicking “${edit.row}” in the list opens Craft’s slideout editor for it`);
+    });
 } finally {
     await browser.close();
 }
