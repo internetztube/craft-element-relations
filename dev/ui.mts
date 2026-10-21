@@ -309,9 +309,9 @@ try {
             const loaded = browser.once('Page.loadEventFired');
             await run(`${prepare} await sleep(300); document.querySelector('#save-btn-container button.submit, #action-buttons button.submit').click();`);
             await loaded;
-            await sleep(800);
             await evaluate(browser, PAGE_HELPERS);
-            return run(`return { notices: notices(), errors: $$('.errors li, ul.errors li').map((e) => e.textContent.trim()), live: $('.lightswitch').filter((i, e) => /^enabledForSite/.test($(e).find('input').attr('name') ?? '')).first().hasClass('on') };`);
+            // Craft shows its notice or error after the load event, late on a slow runner
+            return run(`await until(() => notices().length || $$('.errors li').length, 'Craft’s answer to the save'); return { notices: notices(), errors: $$('.errors li, ul.errors li').map((e) => e.textContent.trim()), live: $('.lightswitch').filter((i, e) => /^enabledForSite/.test($(e).find('input').attr('name') ?? '')).first().hasClass('on') };`);
         };
         // the sidebar of a multi-site entry has one switch per site the user may edit: English here
         const siteSwitch = `$('.lightswitch').filter((i, e) => /^enabledForSite/.test($(e).find('input').attr('name') ?? '')).first().data('lightswitch')`;
