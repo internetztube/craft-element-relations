@@ -15,3 +15,32 @@ Shows where an element is used. Relations are extracted on element save into `{{
 - Non-element usages (plugin settings) in `RelationsModel::GLOBAL_USAGE_PROVIDERS`; they are cache rows with `sourceElementId = null` and a `globalKey`, written by the provider's `refresh()` (settings-record events + full rebuild), not computed at read time.
 - Editions: `ElementRelations::editions()` offers Pro only when the `features.editions` flag in `config/element-relations.php` is on (the dev seed writes that file); gate Pro behaviour with `ElementRelations::isPro()`, decided per call (never at init). Pro today: `unused()` query param + `elements/conditions/UsedConditionRule` (the “Used anywhere” filter; no extra index source on purpose: the filter works on top of every source and respects its permissions), `elements/actions/ReplaceUsages` (“Replace…” on the usages ticked in the field's list; `Usage::actions()` returns only it, so Craft shows checkboxes, and none of Craft's default actions) and `ReplaceRelations` (“Replace everywhere…” on element indexes), both opening the wizard (a `CpScreenSlideout`: `templates/_field/replace.twig` opens `ReplaceController::actionWizard()` / `_field/wizard.twig`; scopes: ticked, all in the filtered list, everywhere) on `services/ReplaceService` (`PRO_ELEMENT_TYPES`). The control panel always queues (`replace(queue: true)`, `queueRollback()`, `jobs/ReplaceElementJob` / `RollbackJob`) and the field polls `actionStatus()`; the CLI (`console/controllers/ReplaceController`) and migrations run synchronously. `services/InUseGuard` blocks deleting / taking offline elements with live usages in the control panel's element actions (`ElementRelations::guardsInUse()`, permission `PERMISSION_IN_USE`); on Craft 5.10+ `elements/deletionblockers/InUseDeletionBlocker` puts them in Craft's delete dialog. Detection/display stays free.
 - `CHANGELOG.md` has an `Unreleased` section; add user-facing changes there.
+
+## Quirks (found the hard way)
+Craft
+- The Permissions screen saves no user element: per-user permission changes only fire `UserPermissions::EVENT_AFTER_SAVE_USER_PERMISSIONS` (group changes `EVENT_AFTER_ASSIGN_USER_TO_GROUPS`). Anything cached per user must listen to both.
+- Craft caches element index queries for an hour, tagged by the listed type; usage lists change when *other* elements are saved, so `usesElement` / `unused` queries bypass that cache.
+- The index JS always sends a `siteId`; listing every site needs `UsageQuery::$allSites`. The status menu's "Drafts" only works with `canHaveDrafts` in the index's jsSettings. Edit pages strip the URL hash (no deep links to a field).
+- Tag and category group ids overlap: filter `groupId` per element type, never across.
+- A site added after a category group exists reaches that group in project config only (the seed creates the second site first).
+- Scripts that bootstrap Craft without `run()` never fire `EVENT_AFTER_REQUEST`, so the plugin's deferred refresh doesn't run: `php craft element-relations/resave-relations && php craft queue/run`.
+- In site requests `status: null` / `drafts: null` would read as "not given": `RelationsModel` uses an explicit `DEFAULT`.
+- MySQL returns numbers as strings (cast); PostgreSQL returns rows that tie on the sort in any order (sort in PHP before comparing).
+- A batched queue job can vanish (worker died, reservation lost): operations without progress for 10 min are resumed.
+- Craft Solo has no user management (Authors / Last Edited By hidden, user-photo test uses the admin).
+- Test tricks: `new Entry()` has no field layout; `Craft::$app->edition` can be set in memory; `Craft::$app->set('cache', null)` runs without a data cache; `Event::on()` on a class that isn't installed is harmless (no `class_exists` guard needed).
+
+Plugins
+- Hyper memoizes `getLinkTypes()`; a `setLinkTypes()` after it is not saved. Read `fields.<uid>.settings.linkTypes` from project config instead.
+- Formie keeps encrypted (locked) values in `getContentState()->lockedValuesByUid`; call `hasLockedContent()` first, it loads the state. Form data is shared across sites (refresh the sibling sites, don't report them as skipped).
+- Rich text: `||` appears in plain text; match reference tags as a whole.
+- JSDoc inline object types `{ … }` in Twig-rendered scripts clash with `{{ }}`: use named typedefs.
+
+Tests and coverage
+- PHP's built-in server runs no `auto_prepend_file` for its router (`dev/coverage-router.php`), and `php -r` subprocesses skip it too (they `require ini_get('auto_prepend_file')` themselves).
+- The built-in server (cli-server SAPI) uses `opcache.enable`, not `enable_cli`; its optimizer drops jumps like `continue;`, which then never show as covered. Coverage runs with opcache off. In the raw `.cov` files a line *absent* in a process was not executable there (optimized away); *miss* means it was executable and did not run. `dev/coverage-gaps.php` lists the uncovered lines.
+- `PROJECT_DIR` must be absolute.
+- Long-lived dev databases hide ordering bugs in the seed: reproduce CI failures with `dev/dev.sh reset`.
+- Each push runs CI twice (push + pull_request). Read the result with `gh run list --json conclusion` or `gh run view <id> --log-failed`, never from a piped `gh run watch`.
+- Chrome on CI runners is slow (30 s to start); coverage slows the server further and exposes races. Wait for what Craft renders late (the "x of n" element count) before reading it.
+- The Claude in Chrome extension's synthetic clicks don't fire DOM events on CP edit pages; check JS handlers through `javascript_tool`.
