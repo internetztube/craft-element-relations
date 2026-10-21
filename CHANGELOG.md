@@ -7,73 +7,54 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## Unreleased (3.2.0)
 
 ### Breaking changes
-Check these before updating from 3.1.x; the details are in the sections below.
-- **Craft 5.3+ only** (`craftcms/cms ^5.3.0`). Craft 4 sites stay on 3.1.x; Composer won't install 3.2 there.
-- **Twig in site requests:** `count`, `isInUse` and `elements` default to what visitors may see (live entries, enabled elements, no drafts). Pass `status: null, drafts: null` for the old behaviour. The control panel and the console are unchanged.
-- **GraphQL:** the same defaults; only what the schema may read is returned; the `status` argument needs the “Query for non-enabled elements” scope; `isInUse` no longer counts plugin settings (use `isUsedInSeomaticGlobalSettings`).
-- **Numbers count elements:** an element used in several sites, or through several fields, counts once, so some counts get smaller.
-- **Removed control-panel internals:** the `elementRelationsElementPreviewHtml` Twig function, the `element-relations/paginate` action, `assetbundles\ElementRelationsAsset` and `services\DatabaseService`. Only custom code calling them is affected.
-
-### Changed
-- **Breaking (front end):** in site requests `count`, `isInUse` and `elements` in Twig default to what visitors may see (live entries, enabled elements, no drafts). Pass `status: null` and `drafts: null` for everything, as before. The control panel and console keep including every status and drafts.
-- **Craft 5.3+ only.** Craft 4 stays on the 3.1.x releases.
-- **One row per element.** An element used in several sites is listed once (in the site you are on when it uses the element there), its Site column says “English, German”, and every number counts elements: the list, the dropdown badges, the wizard, the notices, the history, the delete dialog, Twig's `count([])` and `elements([])` with all sites, and the command line.
-- **The field is now Craft's own element index.** One list of everything that uses the element, across all element types, with Craft's search, sorting, pagination, table and card views, status menu (live, pending, expired, disabled; plus a Drafts toggle) and element chips linking to the edit pages. On multi-site installs it lists every site at once, with a Site column (sortable) instead of Craft's per-site site menu. On top of that: type and site dropdowns with counts, and columns for the element type, where it lives (section › entry type, volume, group, product type) and the field that holds the link. Sorting and the filter take Craft's own sort options and rules of the element types in the list (Section, Entry Type, Author, Post Date, Volume, Filename, File Type, File Size, Group, Email, …). The View menu offers every column of the element types in the list, like Craft's own indexes (Section, Entry Type, Post Date and Authors when entries use the element; Filename and File Size for assets; Group, Email, …); a row whose type has no such column stays empty. Below the list, non-element usages such as SEOmatic's global or per-section settings appear as chips linking to the respective settings page.
-- **Field settings** like Craft's relational fields: View Mode (table or cards), Show the status menu, Elements per page.
-- **Fewer relation refreshes.** Saving an element without changing a custom field no longer queues a refresh; that covers site propagation and the nested Matrix entries Craft saves along with their owner. A refresh writes to the cache table only when the relations actually changed. Elements read by an element-level extractor (user photo, navigation node, wishlist item, Formie form/submission) always refresh. Revisions never do.
-- Any field that stores its targets in Craft's relations table (Craft 5.3+ `RelationalFieldInterface`) is picked up automatically, including Craft's core Link field and plugin fields implementing the interface.
-- An exception in one extractor (e.g. after a third-party plugin update) no longer fails the whole refresh job, which left every other element of the batch without relations. Errors are logged under the `element-relations` category.
-- The field no longer stores anything in the element content column; its value is computed from the relations cache.
-- Drafts show the relations of their canonical element instead of a "Drafts cannot be used in relations" hint.
-- `siteIds` consistently means the site of the *relating* (source) element in every method. Previously `count()`/`elements()` filtered by the target site while `countFast()` filtered by the source site, so the two could disagree on multi-site installs with cross-site relations.
-- The plugin icon keeps its glyph on a brighter coral-to-crimson background.
-- Element chips in element index columns link to the element's edit page again on Craft 5. Supersedes [#59](https://github.com/internetztube/craft-element-relations/pull/59). Thank you, [@sebastian-works](https://github.com/sebastian-works)!
+- **Craft 5.3+ only.** Craft 4 sites stay on 3.1.x.
+- **Twig on the front end** (`count`, `isInUse`, `elements`) counts only what visitors may see: live entries, enabled elements, no drafts. Pass `status: null, drafts: null` for the old behaviour. Control panel and console are unchanged.
+- **GraphQL** uses the same defaults and returns only what the schema may read. The `status` argument needs the “Query for non-enabled elements” scope. `isInUse` no longer counts plugin settings (use `isUsedInSeomaticGlobalSettings`).
+- **An element counts once**, however many sites or fields it uses the target in, so some numbers get smaller.
+- **Removed** (control-panel internals): the `elementRelationsElementPreviewHtml` Twig function, the `element-relations/paginate` action, `assetbundles\ElementRelationsAsset`, `services\DatabaseService`.
 
 ### Added
-- Lite shows admins, in one quiet line under the usage list and in the plugin settings, what Pro would do there, with a link to the Plugin Store (only when Pro can be bought; editors never see it).
-- Pro: “Protect elements in use” setting (`protectInUse`, on by default) to switch the delete and disable protection off.
-- Editions (Lite/Pro) behind a feature flag: `'features' => ['editions' => true]` in `config/element-relations.php` makes the Pro edition selectable; `ElementRelations::isPro()` is the gate.
-- Element indexes can sort by the field (number of relating elements), like any sortable field.
-- **Pro: Unused.** A “Used anywhere” rule for Craft’s element conditions: in the index filter on top of any source, with Craft’s bulk actions, and in custom sources. Plus the `unused()` element query param (`craft.assets().unused()`). Non-element usages (SEOmatic settings) count as used.
-- **Pro: Replace.** Tick usages in the field's list (Craft's checkboxes) and choose “Replace…” in its action bar, or “Replace everywhere…” on an element index; both open a slideout: pick the replacement, check the usages (the ticked ones, all in the list with its filters across every page, or everywhere), review a summary, replace. Everywhere a number appears (the list, the wizard, the notice, the history, the delete dialog, the command line) it counts elements: an element used in two sites is listed once, its Site column says “English, German”, and it counts once. The notice and the history count what the list lost or got back, measured before and after.
-- **Pro: Undo and rollback.** Every replacement is logged; the wizard's notice has an Undo button and Utilities → Element Relations lists all replacements with Roll back. Rolling back swaps the reference back and keeps later edits.
-- **Pro: In the background.** Replacements and rollbacks from the control panel run as queue jobs as the user who started them, in batches (elements with tens of thousands of usages stay within the queue's time limit; a batch that fails keeps what was done and stays undoable; one whose job got lost, e.g. because a worker stopped, is resumed where it got: by the field while it waits, with Resume in the history, or `replace/resume`); the notice shows the progress and offers Undo when it is done.
-- **Pro: Protect what is in use.** In the control panel, elements with live usages (live entries, enabled elements, plugin settings) can't be deleted, disabled (also for a site), expired or scheduled, from the edit page or the index's actions, without the new permission “Delete or disable elements that are in use”; the error says where they are used. On Craft 5.10+ Craft's delete dialog lists the usages first, with “Replace…” and, with the permission, “Delete anyway”. Console, migrations, queue jobs and settings changes are not affected.
-- **Pro: Command line.** `php craft element-relations/replace <from> <to>` (`--usages`, `--site`, `--dry-run`), `replace/map <file.csv>` for many pairs at once (e.g. after merging duplicates), `replace/history` and `replace/rollback`; and `ReplaceService::replace()` for content migrations.
-- **Pro: Revisions.** Entries changed by a replacement or rollback get a revision with a note, attributed to the user.
-- **Pro: Permissions** “Replace element references” and “Roll back replacements” (admins have both). Users can roll back their own replacements; admins all of them. Replacing needs permission to view both elements and to save every element that gets changed.
-- **Pro: Revert to revisions.** Besides Roll back (swap the reference back, keep later edits), the history offers “Revert to revisions”: entries are reverted to their revision from before the replacement with Craft's own revision revert; other elements are swapped back. Entries whose Matrix (or other nested) content changed get an owner revision too, which Craft would not create for a nested save. The wizard, the success message and the history say how many usages keep no revision (element types without revisions, sections with versioning off).
-- Events for developers: `ExtractorService::EVENT_REGISTER_FIELD_EXTRACTORS` / `EVENT_REGISTER_ELEMENT_EXTRACTORS` and `RelationsModel::EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS` to add or remove extractors, `ReplaceService::EVENT_BEFORE_REPLACE` (cancelable), `EVENT_AFTER_REPLACE`, `EVENT_AFTER_ROLLBACK`.
-- Own log file `storage/logs/element-relations-<date>.log` for extractor errors, replacements and rollbacks.
-- Documented `src/config.php` to copy to `config/element-relations.php`; settings overridden there are shown read-only in the control panel.
-- `usesElement` element query parameter, e.g. `craft.entries().usesElement(asset)` or `{usesElement: 123}` as element index criteria.
-- `internetztube\elementRelations\elements\Usage`: a virtual element type whose query spans all element types, e.g. `Usage::find()->usesElement($asset)->search('contact')->all()` returns entries, products, menus, ... as their real classes.
-- `relationsModel.globalUsages`: non-element usages (plugin settings) as `GlobalUsage` models (`label`, `url`, `provider`). `isUsedInSeomaticGlobalSettings` is kept. They are cache rows now (without a source element), refreshed when SEOmatic saves its settings and on full rebuilds, so the “unused” filter and the relation-count sort include them; `count` and `elements` stay element-only.
-- `status` argument for `count`, `isInUse`, `elements` and `elementsIterator` in Twig and GraphQL, e.g. `count(status: ['live'])`. [#56](https://github.com/internetztube/craft-element-relations/issues/56)
-- Element exports (CSV/JSON/XML) include the relation count and the IDs of the relating elements instead of `{}`. [#60](https://github.com/internetztube/craft-element-relations/issues/60)
-- New integrations: Vizy (links, images and fields inside blocks), FreeLink, SEO (by Ether) social images, LinkMate, Navigation (nodes, shown as their menu), Wishlist (items, shown as their list), Formie (form redirect entries and redirect rules, element field defaults, notification attachments, submission field values).
-- SEOmatic: Twitter and Open Graph images are covered in addition to the SEO image, and global settings are detected with any number of images (previously only with exactly one).
-- `dev/dev.sh`: local development environment (Craft 5 on PostgreSQL or MySQL via `DB_DRIVER=mysql`) with every supported plugin installed and a second site, seeds and smoke tests for every integration and for multi-site (`dev/seed/`, `dev/smoke/`).
-- GitHub Actions workflow running PHPStan, the smoke tests and `dev/e2e.php` (control panel over HTTP: login, edit page, the element index and replace endpoints the wizard uses) on PHP 8.2/8.3 × MySQL 8/PostgreSQL 14.
+- **The field is Craft's own element index**: one list of everything that uses the element, across element types and sites, with Craft's search, sorting, filters, status menu, table and card views, plus type and site dropdowns and columns for type, location, site and field. Plugin settings that use the element (e.g. SEOmatic) appear below it.
+- Field settings: view mode, status menu, elements per page.
+- Element indexes can sort by the field (number of usages); exports include the count and the IDs. [#60](https://github.com/internetztube/craft-element-relations/issues/60)
+- Twig and GraphQL: `status` argument for `count`, `isInUse`, `elements`, `elementsIterator`. [#56](https://github.com/internetztube/craft-element-relations/issues/56)
+- Element queries: `usesElement(element)`; `Usage::find()` queries all element types at once; `relationsModel.globalUsages` for plugin settings.
+- Integrations: Vizy, FreeLink, SEO (by Ether), LinkMate, Navigation, Wishlist, Formie; SEOmatic Twitter and Open Graph images. Any field using Craft's relations table (incl. the Link field) is picked up automatically.
+- Events to add or remove extractors and usage providers, and around replacements.
+- Own log file: `storage/logs/element-relations-<date>.log`.
+- Settings can be set in `config/element-relations.php` (copy `src/config.php`).
+
+### Added in Pro
+- **Unused**: a “Used anywhere” filter on every element index, and the `unused()` query param.
+- **Replace**: swap an element for another in the ticked usages, the filtered list, or everywhere; also from the command line (`element-relations/replace`, `replace/map <file.csv>`) and `ReplaceService::replace()`.
+- **Undo and history**: every replacement can be rolled back, or reverted to the revisions from before; Utilities → Element Relations lists them. Changed entries get a revision.
+- **In the background**: large replacements run as resumable queue jobs with progress.
+- **Protect what is in use**: elements with live usages can't be deleted or disabled in the control panel without a new permission; on Craft 5.10+ Craft's delete dialog lists the usages. Can be switched off (`protectInUse`).
+- Permissions: “Replace element references”, “Roll back replacements”, “Delete or disable elements that are in use”.
+
+### Changed
+- Users only see usages they may view; a line says how many are hidden.
+- Drafts show the relations of their canonical element.
+- Saving without field changes no longer queues a refresh; an error in one extractor no longer fails the whole job.
+- `siteIds` always means the site of the relating element.
+- The field stores nothing in the content table.
 
 ### Removed
-- The hand-built field UI: the React/MUI bundle (660 KB, loaded on every control panel page) and its Node toolchain, the `element-relations/paginate` controller action, the asset bundle, `services\DatabaseService` and the `elementRelationsElementPreviewHtml` Twig function (control-panel internal).
+- The React field UI (660 KB loaded on every control panel page).
 
 ### Fixed
-- On PostgreSQL, the usage list of an element a Formie form uses failed for control panel users without access to any form (Formie 4.0 builds invalid SQL for them).
-- Elements of a plugin that was removed or disabled no longer count as usages: they cannot be listed, so the counts and the “Used anywhere” filter leave them out too.
-- Fresh installs had no indexes on the relations cache's element columns (only upgrades got them), which made usage lookups slow on large sites. The indexes are created on install now and added where missing.
-- Rich text (CKEditor, Redactor) containing `||` outside a reference tag, e.g. “fast || cheap”, lost all its relations.
-- The Field column could also list the fields of another usage list rendered earlier in the same request.
-- Trashed elements keep their usages: they are left out of lists and counts (and no replacement touches them), Craft's “Trashed” status in the field lists them, and restoring brings them back as they were. Previously their relations were deleted with them and only came back with a full rebuild.
-- A relation inside a disabled Matrix block is listed, and the Field column says it is in a disabled block (not live).
-- **GraphQL only returns what the schema may read.** `count`, `isInUse` and `elements` of the relations field go through Craft's own GraphQL resolvers per element type (entries, assets, categories, tags, users, global sets, addresses, Commerce products), so sections, volumes, groups and sites outside the schema are left out; element types without a GraphQL scope model (Formie, Navigation, Wishlist, other plugin elements) are not returned. Breaking: without `status` the defaults are now live entries and enabled other elements (no drafts), and the `status` argument needs the “Query for non-enabled elements” scope, like Craft's own queries. `isInUse` no longer includes plugin settings; use `isUsedInSeomaticGlobalSettings`.
-- Control panel users only see what they may view: relating elements they lack permission for are left out of the field's list, its search, sorting and counts, checked with Craft's own `Elements::canView()` (sections, volumes, groups, sites, other authors' entries, drafts, plugin elements). A line below the list says how many usages are hidden, so nobody takes an element for unused. The same goes for the index column preview, the type dropdown, exports, the revision hint and every message; the list only ever shows usages of an element the user may view itself. Index request criteria cannot switch this off.
-- Pro: replacing and rolling back skip fields the user may not edit (a field layout's “Who can edit” condition), queued replacements are not run when the user who started them is gone or lost the permission, and the history in Utilities shows non-admins only their own replacements.
-- GraphQL `elements` never returns more than Craft's `maxGraphqlResults`.
-- The field's list and the Pro “Used anywhere” filter could show outdated results for up to an hour, because Craft caches element index queries per element type. Queries using the plugin's parameters bypass that cache now.
-- `getTabHash()` caught a non-existent exception class, so a field layout referencing a deleted field could still throw.
-- Settings page used the wrong translation category, and the batch size is validated server-side (integer, at least 1).
+- Trashed elements keep their usages; restoring brings them back.
+- Relations in rich text containing `||` were lost.
+- Relations inside a disabled Matrix block are listed, marked as not live.
+- Fresh installs lacked the cache table's indexes (slow lookups on large sites).
+- Elements of removed or disabled plugins counted as usages.
+- On PostgreSQL, the list failed for users without access to any Formie form.
+- Lists could show results up to an hour old (Craft's index cache).
+- Element chips in index columns link to their edit page again. Thank you, [@sebastian-works](https://github.com/sebastian-works)! [#59](https://github.com/internetztube/craft-element-relations/pull/59)
+- GraphQL `elements` respects `maxGraphqlResults`.
+- The Field column could list fields of another list on the same page.
+- A field layout referencing a deleted field could throw.
+- Settings page translations; the batch size is validated.
 
 ## 3.1.7 - 2025-10-15
 ### Fixed
