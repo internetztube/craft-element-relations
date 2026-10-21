@@ -108,12 +108,16 @@ try {
                 const button = $('[data-element-relations-menu][data-param="' + param + '"] .menubtn').data('menubtn');
                 return button ? [...button.menu.$container[0].querySelectorAll('.badge')].map((b) => Number(b.textContent.replace(/\\D/g, ''))) : [];
             };
+            // Craft fetches the "1–20 of 32" text after the rows, in a request of its own
+            const counted = () => until(() => /of \\d+/.test(countText()), 'the element count');
+            await counted();
             const before = { rows: rows(), count: countText(), types: badges('elementTypes'), sites: badges('inSites') };
             // the site dropdown: English only
             const menu = $('[data-element-relations-menu][data-param="inSites"] .menubtn').data('menubtn');
             const option = [...menu.menu.$container[0].querySelectorAll('a')].find((a) => a.textContent.includes('English'));
             menu.menu.selectOption(option);
             await indexReady(index, 'the English rows');
+            await counted();
             const siteCells = column('Site').slice(1).map((td) => td.textContent.trim());
             return { before, after: { rows: rows(), count: countText(), siteCells } };
         `);
