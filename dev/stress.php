@@ -78,16 +78,57 @@ if ($phase === 'create') {
     $section = Craft::$app->getEntries()->getSectionByHandle('pages');
     $existing = (int)Entry::find()->section('pages')->title('Stress *')->status(null)->count();
     echo "Creating " . max(0, $count - $existing) . " entries that use “{$target->title}” (#$target->id)…\n";
-    for ($i = $existing + 1; $i <= $count; $i++) {
+    $makeEntry = function (int $i) use ($section, $target, $elements): Entry {
         $entry = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => sprintf('Stress %05d', $i)]);
         $entry->setFieldValue('relatedAssets', [$target->id]);
-        $entry->resaving = true; // like a bulk resave: no revision per entry, much faster
+        $entry->resaving = true; // like a bulk resave: no revision per entry
         $elements->saveElement($entry, false, true, false) or throw new RuntimeException(json_encode($entry->getErrors()));
-        if ($i % 500 === 0) {
+        return $entry;
+    };
+    // the first one through Craft; the rest are its rows copied (Craft saves about one entry per second here, which
+    // is a day for 100,000): elements, elements_sites, entries, entries_authors, relations; no search index
+    $template = Entry::find()->section('pages')->title('Stress 00001')->status(null)->one() ?? $makeEntry(1);
+    $db = Craft::$app->getDb();
+    $row = fn(string $table, array $where) => (new craft\db\Query())->from("{{%$table}}")->where($where)->all();
+    $element = $row('elements', ['id' => $template->id])[0];
+    $sites = $row('elements_sites', ['elementId' => $template->id]);
+    $entryRow = $row('entries', ['id' => $template->id])[0];
+    $authors = $row('entries_authors', ['entryId' => $template->id]);
+    $relations = $row('relations', ['sourceId' => $template->id]);
+    unset($element['id'], $element['uid'], $entryRow['id']);
+    $now = craft\helpers\Db::prepareDateForDb(new DateTime());
+    $batch = ['elements_sites' => [], 'entries' => [], 'entries_authors' => [], 'relations' => []];
+    $flush = function () use (&$batch, $db): void {
+        foreach ($batch as $table => $rows) {
+            if ($rows) {
+                $db->createCommand()->batchInsert("{{%$table}}", array_keys($rows[0]), $rows)->execute();
+            }
+            $batch[$table] = [];
+        }
+    };
+    $transaction = $db->beginTransaction();
+    for ($i = max(2, $existing + 1); $i <= $count; $i++) {
+        $title = sprintf('Stress %05d', $i);
+        $slug = sprintf('stress-%05d', $i);
+        $db->createCommand()->insert('{{%elements}}', [...$element, 'dateCreated' => $now, 'dateUpdated' => $now, 'uid' => craft\helpers\StringHelper::UUID()])->execute();
+        $id = (int)$db->getLastInsertID('{{%elements}}');
+        foreach ($sites as $site) {
+            $batch['elements_sites'][] = [...array_diff_key($site, ['id' => 1]), 'elementId' => $id, 'title' => $title, 'slug' => $slug, 'uri' => $site['uri'] === null ? null : str_replace($template->slug, $slug, $site['uri']), 'dateCreated' => $now, 'dateUpdated' => $now, 'uid' => craft\helpers\StringHelper::UUID()];
+        }
+        $batch['entries'][] = ['id' => $id, ...$entryRow, 'dateCreated' => $now, 'dateUpdated' => $now];
+        foreach ($authors as $author) {
+            $batch['entries_authors'][] = [...$author, 'entryId' => $id];
+        }
+        foreach ($relations as $relation) {
+            $batch['relations'][] = [...array_diff_key($relation, ['id' => 1]), 'sourceId' => $id, 'dateCreated' => $now, 'dateUpdated' => $now, 'uid' => craft\helpers\StringHelper::UUID()];
+        }
+        if ($i % 1000 === 0) {
+            $flush();
             echo "  $i\n";
-            gc_collect_cycles();
         }
     }
+    $flush();
+    $transaction->commit();
     // one batched rebuild instead of a refresh job per entry
     (new craft\db\Query())->createCommand()->delete(craft\db\Table::QUEUE)->execute();
     Craft::$app->getQueue()->push(new internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob());

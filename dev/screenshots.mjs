@@ -26,11 +26,11 @@ if (!projectDir) {
  * Browser viewport of the control panel, in CSS pixels (a laptop's), captured at 3× so the insets stay sharp. Shots of
  * wide tables set a wider one.
  */
-const VIEWPORT = { width: 1368, height: 820, scale: 3 };
+const VIEWPORT = { width: 1440, height: 860, scale: 3 };
 /** The framed image: canvas size in CSS pixels and its device scale (2400 × 1800 px). */
 const FRAME = { width: 1600, height: 1200, scale: 1.5 };
 /** Where the browser window sits, in frame pixels: below the copy, as large as fits, centred. */
-const STAGE = { left: 88, top: 300, width: 1424, height: 830 };
+const STAGE = { left: 88, top: 248, width: 1424, height: 900 };
 /** Height of the window's title bar, in frame pixels. */
 const BAR = 36;
 /** The zoomed inset: at most this much of the window, at most this many frame pixels per CSS pixel, this far from the edge. */
@@ -62,6 +62,7 @@ const DEBUGGING_PORT = 9333;
  * @property {string[]} points two or three key points next to the shot
  * @property {string} [focus] JavaScript expression for the element(s) the page is scrolled to (default: the top); without `highlight` what the inset zooms into
  * @property {string} [highlight] JavaScript expression for groups of elements that get a ring; the inset zooms into the first group
+ * @property {boolean} [inset] false: rings only, no zoomed inset (the page shows the feature big enough)
  * @property {string} [cover] JavaScript expression for the part of the page the cover shows as a close-up (COVER_SHOTS)
  * @property {string} [caption] under that close-up
  * @property {string} [act] JavaScript run in the page before the capture (may await)
@@ -175,11 +176,13 @@ const SHOTS = [
         name: 'usage-list', edition: 'Lite',
         points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
         focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[...column('Field').slice(0, 3), ...column('Site').slice(0, 3)]]`,
-        cover: `document.querySelector('.element-relations').closest('.field') ?? document.querySelector('.element-relations')`,
-        caption: 'Everything that uses an element, in one list: where, through which field, in which site',
+        highlight: `[[...column('Field'), ...column('Site')]]`,
+        inset: false,
+        // the asset's page: title, preview and the "Used in" field, so it reads as an element's usages, not any index
+        cover: `[document.querySelector('#header') ?? document.querySelector('h1'), document.querySelector('.element-relations').closest('.field'), document.querySelector('#details')]`,
+        caption: 'Where an element is used',
         title: 'See where every element is used',
-        text: 'One list of everything that links to it: entries, Matrix blocks, products, menus, forms, in every site.',
+        text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',
         path: demo.skyline.path,
         act: `await indexReady(fieldIndex(), 'the usage list');`,
     },
@@ -203,7 +206,7 @@ const SHOTS = [
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[fieldIndex().$viewModeBtnContainer?.[0]]]`,
         title: 'Table or cards',
-        text: 'The field renders Craft’s native element index, so everything looks and works like the rest of the control panel.',
+        text: 'The field is Craft’s own element index, so it looks and works like the rest of the control panel.',
         path: demo.skyline.path,
         act: `await indexReady(fieldIndex(), 'the usage list'); document.querySelector('.element-relations [data-view="cards"]').click(); await indexReady(fieldIndex(), 'cards');`,
         // back to the table (Craft remembers the view), where the replace shots tick rows
@@ -211,7 +214,7 @@ const SHOTS = [
     },
     {
         name: 'entry-tab', edition: 'Lite',
-        points: ['Entries, assets, categories, users, products, global sets', 'On its own tab or next to the content'],
+        points: ['Entries, assets, categories, users, products…', 'On its own tab or next to the content'],
         focus: `[document.querySelector('[role="tablist"]'), inPane(document.querySelector('.element-relations'))]`,
         highlight: `[byText('[role="tab"]', 'Used in')]`,
         title: 'On any element type',
@@ -245,7 +248,7 @@ const SHOTS = [
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
         cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        caption: 'Pro: find what nobody uses, with Craft’s own filter',
+        caption: 'Pro · Find what nobody uses',
         title: 'Find what nobody uses',
         text: 'A “Used anywhere” rule in Craft’s filter, on top of any source and with Craft’s bulk actions.',
         path: '/admin/assets/images',
@@ -290,7 +293,7 @@ const SHOTS = [
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[replaceButton()]]`,
         title: 'Replace it where you choose',
-        text: 'Tick the usages right in the list and choose “Replace…”. Every supported field and plugin is rewritten the way it was read.',
+        text: 'Tick usages in the list, choose “Replace…”: every field and plugin is rewritten the way it was read.',
         path: demo.skyline.path,
         act: `
             await indexReady(fieldIndex(), 'the usage list');
@@ -309,7 +312,7 @@ const SHOTS = [
         focus: `wizardSlideout()`,
         highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
         cover: `wizardSlideout()`,
-        caption: 'Pro: replace it where you choose, with a review first, undo when it is done',
+        caption: 'Pro · Replace, with a review first',
         title: 'Review, then replace',
         text: 'The replacement, the ticked usages and a summary in one slideout. Then it runs in the background.',
         act: `
@@ -330,11 +333,11 @@ const SHOTS = [
     },
     {
         name: 'background', edition: 'Pro',
-        points: ['Saving many or large entries never blocks the page', 'Keep working while it runs'],
+        points: ['Saving many entries never blocks the page', 'Keep working while it runs'],
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[$$('.notification')]`,
         title: 'Runs in the background',
-        text: 'Replacements and rollbacks run as queue jobs, as the user who started them. The notice follows the job.',
+        text: 'Replacements run as queue jobs, as the user who started them. The notice follows the job.',
         act: `
             wizardSlideout().querySelector('button[type="submit"]').click();
             await until(() => $$('.notification').some((n) => /background/.test(n.textContent)), 'the running notice');
@@ -416,7 +419,7 @@ const SHOTS = [
         focus: `$$('.modal').filter((m) => /visitors see/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal *')].filter((e) => e.children.length < 3 && /visitors see/.test(e.textContent)).slice(-1)]`,
         title: 'Before deleting: where it is used',
-        text: 'Craft’s delete dialog lists the live usages, and “Replace…” swaps them in one go. Without the permission there is no way past it.',
+        text: 'Craft’s delete dialog lists the live usages and offers “Replace…”; no way past without the permission.',
         path: demo.skyline.path,
         act: `
             new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
@@ -427,11 +430,11 @@ const SHOTS = [
     },
     {
         name: 'in-use-disable', edition: 'Pro', viewport: { width: 1600 }, user: 'jonas',
-        points: ['Also for one site, an expiry date or a later post date', 'Drafts and disabled entries don’t count'],
+        points: ['Also per site, expiry dates and post dates', 'Drafts and disabled entries don’t count'],
         focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
         highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
         title: 'Disabling is checked too',
-        text: 'Hong Kong has 33 stories pointing to it: it stays live until they are replaced or an editor with the permission decides.',
+        text: '33 stories point to Hong Kong: it stays live until they are replaced or the permission says otherwise.',
         path: '/admin/content/entries/destinations',
         act: `
             await indexReady(pageIndex(), 'the destinations');
@@ -442,18 +445,18 @@ const SHOTS = [
         name: 'field-settings', edition: 'Lite',
         points: ['Like Craft’s relation fields', 'Authors switch the view in the index'],
         focus: `['View Mode', 'Show the status menu', 'Elements per page'].map((label) => inPane(byText('label', label)[0]?.closest('.field')))`,
-        title: 'Field settings like Craft’s relation fields',
+        title: 'Field settings',
         text: 'View mode, status menu and page size.',
         path: demo.usedInField.path,
         act: `await sleep(500);`,
     },
     {
         name: 'permissions', edition: 'Pro',
-        points: ['Replacing, rolling back, deleting what is in use', 'Everything else follows Craft’s view and save permissions'],
+        points: ['Replacing, rolling back, deleting what is in use', 'The rest follows Craft’s view and save rights'],
         focus: `inPane(permissionGroup())`,
         highlight: `[[permissionGroup()]]`,
         title: 'Permissions',
-        text: 'Replacing, rolling back and deleting or disabling what is in use are permissions; everything else follows Craft’s.',
+        text: 'Replacing, rolling back and deleting what is in use are permissions; the rest follows Craft’s.',
         path: demo.editors.path,
         act: `
             await sleep(500);
@@ -463,10 +466,10 @@ const SHOTS = [
     },
     {
         name: 'plugin-settings', edition: 'Lite',
-        points: ['Per environment in config/element-relations.php', 'Rebuild any time under Utilities or on the command line'],
+        points: ['Per environment in config/element-relations.php', 'Rebuild under Utilities or on the command line'],
         focus: `$$('#content .field').map(inPane)`,
         title: 'Plugin settings',
-        text: 'How many elements a queue job handles when the relations cache is rebuilt. Everything can be set per environment.',
+        text: 'How many elements a queue job handles when the cache is rebuilt; set per environment in config.',
         path: '/admin/settings/plugins/element-relations',
         act: `await sleep(500);`,
     },
@@ -643,7 +646,7 @@ async function measure(browser, shot) {
         const first = focus();
         // under Craft's sticky header when scrolled
         if (first && (first.y < 0 || first.y + first.height > innerHeight)) {
-            window.scrollBy(0, Math.round(first.y) - 100);
+            window.scrollBy(0, Math.round(first.y) - 60);
             await sleep(400);
         }
         const groups = (${shot.highlight ?? '[]'}).filter((group) => [group].flat().filter(Boolean).length).map((group) => regionOf(group, 6));
@@ -665,7 +668,7 @@ async function measure(browser, shot) {
     area.highlights = area.highlights.map(clip).filter(visible);
     const target = area.target && clip(area.target);
     area.target = target && visible(target) ? target : null;
-    if (area.target) {
+    if (area.target && shot.inset !== false) {
         const t = area.target, pad = INSET.pad;
         area.inset = clip({ x: t.x - pad, y: t.y - pad, width: t.width + 2 * pad, height: t.height + 2 * pad });
     }
@@ -816,12 +819,12 @@ function frameHtml({ shot, base, inset, area, address }) {
     return `<!doctype html><html><head><meta charset="utf-8"><style>
         ${PAGE_CSS}
         /* the copy above the window: brand, headline and line on the left, the points on the right */
-        .copy { position: absolute; left: ${STAGE.left}px; right: ${STAGE.left}px; top: 0; height: ${STAGE.top}px;
-            display: grid; grid-template-columns: 1fr 420px; column-gap: 72px; align-content: center; align-items: end; }
+        .copy { position: absolute; left: ${STAGE.left}px; right: ${STAGE.left}px; top: 0; height: ${STAGE.top}px; padding-bottom: 30px;
+            display: grid; grid-template-columns: 1fr 460px; column-gap: 64px; align-content: end; align-items: end; }
         .copy .brand, .copy h1, .copy p { grid-column: 1; }
         .copy ul { grid-column: 2; grid-row: 1 / span 3; align-self: end; margin: 0; padding: 0; list-style: none; display: grid; gap: 11px; }
-        h1 { font-size: 50px; margin: 18px 0 10px; }
-        p { font-size: 19px; line-height: 1.45; max-width: 980px; }
+        h1 { font-size: 48px; margin: 16px 0 8px; }
+        p { font-size: 19px; line-height: 1.45; text-wrap: balance; }
         li { position: relative; padding-left: 32px; font-size: 16.5px; line-height: 1.3; color: #e7ebf5; }
         li::before { content: ''; position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%;
             background: rgba(255, 90, 60, .2) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M6 12.5l4 4 8-9' fill='none' stroke='%23ff8a5c' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / 14px no-repeat; }
@@ -848,7 +851,7 @@ const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll ba
  * @param {{shot: Shot, cover: string, coverRegion: Region}[]} cards
  */
 function coverHtml(cards) {
-    const top = 470, bottom = 1130, gap = 28, caption = 44, margin = 88;
+    const top = 450, bottom = 1150, gap = 32, caption = 40, margin = 88;
     /** @param {typeof cards[number]} card */
     const ratio = (card) => card.coverRegion.height / card.coverRegion.width;
     /** @param {typeof cards[number]} card @param {number} w */
@@ -862,10 +865,10 @@ function coverHtml(cards) {
         return {
             slots: [
                 { card: first, left: x, top, width: Math.round(left) },
-                { card: second, left: x, top: top + height(first, left) + caption + gap, width: Math.round(left) },
+                { card: second, left: x, top: top + caption + height(first, left) + gap, width: Math.round(left) },
                 { card: tall, left: x + Math.round(left) + gap, top, width: Math.round(right) },
             ],
-            bottom: top + height(tall, right) + caption,
+            bottom: top + caption + height(tall, right),
         };
     };
     let { slots, bottom: end } = layout(FRAME.width - 2 * margin);
@@ -873,8 +876,8 @@ function coverHtml(cards) {
         ({ slots } = layout(Math.round((FRAME.width - 2 * margin) * (bottom - top) / (end - top))));
     }
     const crops = slots.map(({ card, left, top, width }) => `<figure class="crop" style="left:${left}px;top:${top}px;width:${width}px">
+        <figcaption><i></i>${escapeHtml(card.shot.caption ?? card.shot.title)}</figcaption>
         <div class="pic"><img src="${pathToFileURL(card.cover).href}" alt="" style="width:${width}px;height:${height(card, width)}px"></div>
-        <figcaption>${escapeHtml(card.shot.caption ?? card.shot.title)}</figcaption>
     </figure>`).join('');
     const chips = COVER_CHIPS.map((chip) => `<span>${escapeHtml(chip)}</span>`).join('');
     return `<!doctype html><html><head><meta charset="utf-8"><style>
@@ -886,17 +889,21 @@ function coverHtml(cards) {
         .chips { margin-top: 24px; display: flex; justify-content: center; gap: 12px; }
         .chips span { padding: 8px 16px; border-radius: 99px; font-size: 15px; font-weight: 600; color: #e7ebf5;
             background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .16); }
+        .spot { position: absolute; left: 50%; top: ${top + 120}px; width: 1500px; height: 700px; transform: translateX(-50%); pointer-events: none;
+            background: radial-gradient(closest-side, rgba(255, 90, 60, .16), transparent); filter: blur(40px); }
         .crop { position: absolute; margin: 0; }
-        .pic { border-radius: 12px; overflow: hidden; background: #fff;
-            box-shadow: 0 50px 100px -30px rgba(0, 0, 0, .75), 0 0 0 1px rgba(255, 255, 255, .14); }
+        .pic { border-radius: 14px; overflow: hidden; background: #fff;
+            box-shadow: 0 60px 120px -30px rgba(0, 0, 0, .8), 0 20px 40px -20px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .16), inset 0 1px 0 rgba(255, 255, 255, .6); }
         .pic img { display: block; }
-        figcaption { margin-top: 12px; font-size: 15px; line-height: 1.35; color: #c4cce0; }
+        figcaption { height: ${caption}px; display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; letter-spacing: .01em; color: #eef1f8; }
+        figcaption i { width: 9px; height: 9px; border-radius: 50%; background: ${ACCENT}; box-shadow: 0 0 10px rgba(255, 90, 60, .9); }
     </style></head><body>
         <div class="head">
             <img src="${PLUGIN_ICON}" alt=""><h1>Element Relations</h1>
             <p>See where every element is used in Craft CMS. Replace it everywhere, safely.</p>
             <div class="chips">${chips}</div>
         </div>
+        <div class="spot"></div>
         ${crops}
     </body></html>`;
 }
