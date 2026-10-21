@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## Unreleased (3.2.0)
 
+### Breaking changes
+Check these before updating from 3.1.x; the details are in the sections below.
+- **Craft 5.3+ only** (`craftcms/cms ^5.3.0`). Craft 4 sites stay on 3.1.x; Composer won't install 3.2 there.
+- **Twig in site requests:** `count`, `isInUse` and `elements` default to what visitors may see (live entries, enabled elements, no drafts). Pass `status: null, drafts: null` for the old behaviour. The control panel and the console are unchanged.
+- **GraphQL:** the same defaults; only what the schema may read is returned; the `status` argument needs the “Query for non-enabled elements” scope; `isInUse` no longer counts plugin settings (use `isUsedInSeomaticGlobalSettings`).
+- **Numbers count elements:** an element used in several sites, or through several fields, counts once, so some counts get smaller.
+- **Removed control-panel internals:** the `elementRelationsElementPreviewHtml` Twig function, the `element-relations/paginate` action, `assetbundles\ElementRelationsAsset` and `services\DatabaseService`. Only custom code calling them is affected.
+
 ### Changed
 - **Breaking (front end):** in site requests `count`, `isInUse` and `elements` in Twig default to what visitors may see (live entries, enabled elements, no drafts). Pass `status: null` and `drafts: null` for everything, as before. The control panel and console keep including every status and drafts.
 - **Craft 5.3+ only.** Craft 4 stays on the 3.1.x releases.
@@ -49,7 +57,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - GitHub Actions workflow running PHPStan, the smoke tests and `dev/e2e.php` (control panel over HTTP: login, edit page, the element index and replace endpoints the wizard uses) on PHP 8.2/8.3 × MySQL 8/PostgreSQL 14.
 
 ### Removed
-- The hand-built field UI: the React/MUI bundle (660 KB, loaded on every control panel page) and its Node toolchain, the `element-relations/paginate` controller action, the asset bundle and the `elementRelationsElementPreviewHtml` Twig function (control-panel internal).
+- The hand-built field UI: the React/MUI bundle (660 KB, loaded on every control panel page) and its Node toolchain, the `element-relations/paginate` controller action, the asset bundle, `services\DatabaseService` and the `elementRelationsElementPreviewHtml` Twig function (control-panel internal).
 
 ### Fixed
 - On PostgreSQL, the usage list of an element a Formie form uses failed for control panel users without access to any form (Formie 4.0 builds invalid SQL for them).
