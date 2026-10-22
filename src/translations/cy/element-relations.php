@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Sut mae’r rhestr yn edrych ar y dechrau. Gall awduron ei newid yn newislen Gweld y maes.',
     'settings-show-status-menu' => 'Dangos y ddewislen statws',
     'settings-page-size' => 'Elfennau fesul tudalen',
+    'settings-preview-limit' => 'Elfennau mewn colofnau mynegai',
     'settings-overridden' => 'Mae hwn yn cael ei ddiystyru gan y gosodiad `{name}` yn config/element-relations.php.',
     'settings-batch-size-label' => 'Maint swp ail-lwytho swmp',
     'settings-protect-label' => 'Diogelu elfennau sy’n cael eu defnyddio',

@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => '列表的初始外观。作者可以在字段的视图菜单中切换。',
     'settings-show-status-menu' => '显示状态菜单',
     'settings-page-size' => '每页元素数',
+    'settings-preview-limit' => '索引列中的元素数',
     'settings-overridden' => '此项已被 config/element-relations.php 中的 `{name}` 设置覆盖。',
     'settings-batch-size-label' => '批量刷新的批次大小',
     'settings-protect-label' => '保护正在使用的元素',

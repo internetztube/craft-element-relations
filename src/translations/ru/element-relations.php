@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Как список выглядит сначала. Авторы могут переключить его в меню «Вид» поля.',
     'settings-show-status-menu' => 'Показывать меню статуса',
     'settings-page-size' => 'Элементов на странице',
+    'settings-preview-limit' => 'Элементов в столбцах индекса',
     'settings-overridden' => 'Это переопределяется настройкой `{name}` в config/element-relations.php.',
     'settings-batch-size-label' => 'Размер пакета массового обновления',
     'settings-protect-label' => 'Защищать используемые элементы',

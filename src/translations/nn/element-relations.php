@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Korleis lista ser ut til å begynne med. Forfattarar kan byte i “Sjå”-menyen til feltet.',
     'settings-show-status-menu' => 'Vis statusmenyen',
     'settings-page-size' => 'Element per side',
+    'settings-preview-limit' => 'Element i indekskolonnar',
     'settings-overridden' => 'Dette blir overstyrt av innstillinga `{name}` i config/element-relations.php.',
     'settings-batch-size-label' => 'Batchstorleik ved oppbygging',
     'settings-protect-label' => 'Vern element i bruk',

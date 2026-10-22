@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Hvordan listen ser ud til at begynde med. Forfattere kan skifte den i feltets menu “Se”.',
     'settings-show-status-menu' => 'Vis statusmenuen',
     'settings-page-size' => 'Elementer pr. side',
+    'settings-preview-limit' => 'Elementer i indekskolonner',
     'settings-overridden' => 'Dette tilsidesættes af indstillingen `{name}` i config/element-relations.php.',
     'settings-batch-size-label' => 'Batchstørrelse ved genopbygning',
     'settings-protect-label' => 'Beskyt elementer i brug',

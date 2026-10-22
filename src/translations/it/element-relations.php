@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Come appare l’elenco all’inizio. Gli autori possono cambiarlo nel menu Visualizza del campo.',
     'settings-show-status-menu' => 'Mostra il menu di stato',
     'settings-page-size' => 'Elementi per pagina',
+    'settings-preview-limit' => 'Elementi nelle colonne dell’indice',
     'settings-overridden' => 'Questo valore è sovrascritto dall’impostazione `{name}` in config/element-relations.php.',
     'settings-batch-size-label' => 'Dimensione dei lotti dell’aggiornamento di massa',
     'settings-protect-label' => 'Proteggi gli elementi in uso',

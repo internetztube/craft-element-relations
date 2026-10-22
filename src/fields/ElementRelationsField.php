@@ -35,9 +35,6 @@ use yii\base\InvalidConfigException;
  */
 class ElementRelationsField extends Field implements PreviewableFieldInterface, SortableFieldInterface
 {
-    /** Chips shown in element index columns before Craft's "+N" badge takes over. */
-    private const PREVIEW_LIMIT = 10;
-
     /**
      * Dropdowns (element types, sites; with counts) for the toolbar of the index being rendered right now; picked up by
      * the `cp.elements.toolbar` hook (see ElementRelations::init()), templates/_field/filter-menu.twig. Craft offers no
@@ -54,6 +51,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     public bool $showStatusMenu = true;
     /** Elements per page */
     public ?int $pageSize = 20;
+    /** Chips shown in element index columns before the link to the total; each one is an element to load per row */
+    public ?int $previewLimit = 5;
 
     public static function displayName(): string
     {
@@ -87,6 +86,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $rules[] = [['viewMode'], 'in', 'range' => [self::VIEW_MODE_TABLE, self::VIEW_MODE_CARDS]];
         $rules[] = [['pageSize'], 'default', 'value' => 20];
         $rules[] = [['pageSize'], 'integer', 'min' => 1, 'max' => 500];
+        $rules[] = [['previewLimit'], 'default', 'value' => 5];
+        $rules[] = [['previewLimit'], 'integer', 'min' => 1, 'max' => 50];
         return $rules;
     }
 
@@ -122,6 +123,17 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             'size' => 4,
             'value' => $this->pageSize,
             'errors' => $this->getErrors('pageSize'),
+        ]);
+        $html .= Cp::textFieldHtml([
+            'label' => Craft::t('element-relations', 'settings-preview-limit'),
+            'id' => 'previewLimit',
+            'name' => 'previewLimit',
+            'type' => 'number',
+            'min' => 1,
+            'max' => 50,
+            'size' => 4,
+            'value' => $this->previewLimit,
+            'errors' => $this->getErrors('previewLimit'),
         ]);
         return $html;
     }
@@ -223,11 +235,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         if ($viewer) {
             // control panel users with limited permissions: only what they may view, plus how much they may not
             $visibleQuery = self::usageQuery($value, $viewer);
-            $elements = (clone $visibleQuery)->limit(self::PREVIEW_LIMIT)->all();
+            $elements = (clone $visibleQuery)->limit($this->previewLimit ?? 5)->all();
             $total = (int)$visibleQuery->count();
             $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
         } else {
-            $elements = $value->getElements([], self::PREVIEW_LIMIT);
+            $elements = $value->getElements([], $this->previewLimit ?? 5);
             $total = $value->getCountFast([]);
             $hidden = 0;
         }

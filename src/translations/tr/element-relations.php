@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Listenin başlangıçta nasıl göründüğü. Yazarlar bunu alanın Görünüm menüsünden değiştirebilir.',
     'settings-show-status-menu' => 'Durum menüsünü göster',
     'settings-page-size' => 'Sayfa başına öge',
+    'settings-preview-limit' => 'Dizin sütunlarındaki öge sayısı',
     'settings-overridden' => 'Bu ayar, config/element-relations.php içindeki `{name}` ayarı tarafından geçersiz kılınıyor.',
     'settings-batch-size-label' => 'Toplu yenileme parti boyutu',
     'settings-protect-label' => 'Kullanımdaki ögeleri koru',

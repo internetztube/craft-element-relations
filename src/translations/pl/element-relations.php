@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Jak lista wygląda na początku. Autorzy mogą to zmienić w menu Widok pola.',
     'settings-show-status-menu' => 'Pokaż menu statusu',
     'settings-page-size' => 'Elementów na stronę',
+    'settings-preview-limit' => 'Elementów w kolumnach indeksu',
     'settings-overridden' => 'To ustawienie jest nadpisywane przez `{name}` w config/element-relations.php.',
     'settings-batch-size-label' => 'Rozmiar partii przy zbiorczym odświeżaniu',
     'settings-protect-label' => 'Chroń używane elementy',

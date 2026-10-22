@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'איך הרשימה נראית בהתחלה. כותבים יכולים לשנות זאת בתפריט התצוגה של השדה.',
     'settings-show-status-menu' => 'הצג את תפריט המצב',
     'settings-page-size' => 'רכיבים לעמוד',
+    'settings-preview-limit' => 'רכיבים בעמודות האינדקס',
     'settings-overridden' => 'הגדרה זו נדרסת על ידי ההגדרה `{name}` ב-config/element-relations.php.',
     'settings-batch-size-label' => 'גודל אצווה לרענון מרוכז',
     'settings-protect-label' => 'הגן על רכיבים שבשימוש',

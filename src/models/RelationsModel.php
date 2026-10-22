@@ -67,6 +67,11 @@ class RelationsModel
     /** @var list<array{siteId: int, type: string, count: int}>|null relating elements per source site and element type */
     private ?array $_fastCountQueryResult = null;
 
+    private ?int $_sourceOwnerCount = null;
+
+    /** @var array<class-string<ElementInterface>, array{count: int, drafts: int}>|null relating elements (and drafts among them) per element type, most used first */
+    private ?array $_typeCounts = null;
+
     public function __construct(int $elementId, int $siteId)
     {
         $this->elementId = $elementId;
@@ -227,21 +232,37 @@ class RelationsModel
      */
     public function getCountsByType(): array
     {
-        // elements per type, each once whatever its sites (as the list shows them)
-        /** @var list<array{type: string, count: int|string}> $rows */
-        $rows = $this->fastSubQuery()
-            ->select(['type' => '[[elements.type]]', 'count' => 'COUNT(DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]])'])
-            ->groupBy(['[[elements.type]]'])
-            ->all();
-        $counts = [];
-        foreach ($rows as $row) {
-            // element types of uninstalled plugins stay in the cache until their elements are deleted
-            if (is_subclass_of($row['type'], ElementInterface::class)) {
-                $counts[$row['type']] = (int)$row['count'];
+        return array_map(fn(array $counts): int => $counts['count'], $this->typeCounts());
+    }
+
+    /**
+     * Elements per type, each once whatever its sites (as the list shows them), and how many of them are drafts (so
+     * the element queries can skip the drafts query of a type without any).
+     * @return array<class-string<ElementInterface>, array{count: int, drafts: int}>
+     */
+    private function typeCounts(): array
+    {
+        if ($this->_typeCounts === null) {
+            /** @var list<array{type: string, count: int|string, drafts: int|string}> $rows */
+            $rows = $this->fastSubQuery()
+                ->select([
+                    'type' => '[[elements.type]]',
+                    'count' => 'COUNT(DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]])',
+                    'drafts' => 'COUNT(DISTINCT CASE WHEN [[elements.draftId]] IS NOT NULL THEN [[elementrelations_cache.sourcePrimaryOwnerId]] END)',
+                ])
+                ->groupBy(['[[elements.type]]'])
+                ->all();
+            $counts = [];
+            foreach ($rows as $row) {
+                // element types of uninstalled plugins stay in the cache until their elements are deleted
+                if (is_subclass_of($row['type'], ElementInterface::class)) {
+                    $counts[$row['type']] = ['count' => (int)$row['count'], 'drafts' => (int)$row['drafts']];
+                }
             }
+            uasort($counts, fn(array $a, array $b): int => $b['count'] <=> $a['count']);
+            $this->_typeCounts = $counts;
         }
-        arsort($counts);
-        return $counts;
+        return $this->_typeCounts;
     }
 
     /**
@@ -277,7 +298,7 @@ class RelationsModel
     /** How many (primary owner) elements relate to this element, in any site. One COUNT query. */
     public function getSourceOwnerCount(): int
     {
-        return (int)$this->fastSubQuery()->count('DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]]');
+        return $this->_sourceOwnerCount ??= (int)$this->fastSubQuery()->count('DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]]');
     }
 
     /** A site (front-end) web request, where templates render for visitors. */
@@ -362,7 +383,10 @@ class RelationsModel
             }
 
             if ($drafts === null) {
-                $queries[] = (clone $query)->drafts(true);
+                // no draft of this type uses the element: its drafts query would come back empty
+                if ($this->typeCounts()[$elementType]['drafts'] ?? 1) {
+                    $queries[] = (clone $query)->drafts(true);
+                }
                 $queries[] = (clone $query)->drafts(false);
             } else {
                 $queries[] = $query->drafts($drafts);
@@ -401,10 +425,13 @@ class RelationsModel
         $remaining = $limit;
 
         foreach ($this->getElementQueries($siteIds, $sections, $entryTypes, $status, $drafts, $types, $search) as $query) {
-            $total = (int)$query->count();
-            if ($offset >= $total) {
-                $offset -= $total;
-                continue;
+            // counting only serves skipping whole queries for an offset (the first batch shows an empty query anyway)
+            if ($offset > 0) {
+                $total = (int)$query->count();
+                if ($offset >= $total) {
+                    $offset -= $total;
+                    continue;
+                }
             }
 
             $localOffset = $offset;

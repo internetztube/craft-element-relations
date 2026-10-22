@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'リストの初期表示です。作成者はフィールドの「表示」メニューで切り替えられます。',
     'settings-show-status-menu' => 'ステータスメニューを表示',
     'settings-page-size' => 'ページあたりのエレメント数',
+    'settings-preview-limit' => 'インデックス列のエレメント数',
     'settings-overridden' => 'この設定は config/element-relations.php の `{name}` 設定で上書きされています。',
     'settings-batch-size-label' => '一括更新のバッチサイズ',
     'settings-protect-label' => '使用中のエレメントを保護',

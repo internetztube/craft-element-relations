@@ -202,6 +202,12 @@ $preview = $field->getPreviewHtml($rel, $b);
 check(str_contains($preview, 'inline-chips') && str_contains($preview, 'Page A'), 'preview renders Craft element chips');
 check(str_contains($preview, 'previewCountBadge'), "preview uses Craft's +N badge");
 check(str_contains($preview, '12 total'), 'preview links to the field with the total count');
+// Craft shows the first chip and the other loaded elements behind "+N": 5 loaded = "+4"
+check(str_contains($preview, '>+4</span>'), 'preview loads 5 usages by default (one chip, the other 4 behind the +N badge)');
+$field->previewLimit = 2;
+check(str_contains($field->getPreviewHtml($rel, $b), '>+1</span>'), 'the field setting "Elements in index columns" sets how many usages the preview loads');
+$field->previewLimit = 5;
+check(!(new internetztube\elementRelations\fields\ElementRelationsField(['previewLimit' => 0]))->validate(['previewLimit']), 'the preview limit is at least 1');
 [$input, $unusedInput] = withWebRequest(fn() => [
     $field->getInputHtml($rel, $b),
     $field->getInputHtml($unused->getFieldValue('relations'), $unused),

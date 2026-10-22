@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Hur listan ser ut från början. Författare kan byta i fältets meny “Visa”.',
     'settings-show-status-menu' => 'Visa statusmenyn',
     'settings-page-size' => 'Element per sida',
+    'settings-preview-limit' => 'Element i indexkolumner',
     'settings-overridden' => 'Detta åsidosätts av inställningen `{name}` i config/element-relations.php.',
     'settings-batch-size-label' => 'Batchstorlek vid återuppbyggnad',
     'settings-protect-label' => 'Skydda element som används',

@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Wie die Liste zuerst aussieht. Autoren können sie im Menü «Ansicht» des Felds umschalten.',
     'settings-show-status-menu' => 'Statusmenü anzeigen',
     'settings-page-size' => 'Elemente pro Seite',
+    'settings-preview-limit' => 'Elemente in Index-Spalten',
     'settings-overridden' => 'Dies wird von der Einstellung `{name}` in config/element-relations.php überschrieben.',
     'settings-batch-size-label' => 'Stapelgrösse beim Neuaufbau',
     'settings-protect-label' => 'Verwendete Elemente schützen',

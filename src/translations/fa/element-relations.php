@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'فهرست در ابتدا چگونه نمایش داده شود. نویسندگان می‌توانند آن را از منوی نمایش فیلد تغییر دهند.',
     'settings-show-status-menu' => 'نمایش منوی وضعیت',
     'settings-page-size' => 'مؤلفه در هر صفحه',
+    'settings-preview-limit' => 'مؤلفه در ستون‌های فهرست',
     'settings-overridden' => 'این مقدار توسط تنظیم `{name}` در config/element-relations.php بازنویسی شده است.',
     'settings-batch-size-label' => 'اندازه دسته برای تازه‌سازی گروهی',
     'settings-protect-label' => 'محافظت از مؤلفه‌های در حال استفاده',

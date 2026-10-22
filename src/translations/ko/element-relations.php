@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => '목록의 초기 모양입니다. 작성자는 필드의 보기 메뉴에서 바꿀 수 있습니다.',
     'settings-show-status-menu' => '상태 메뉴 표시',
     'settings-page-size' => '페이지당 요소 수',
+    'settings-preview-limit' => '인덱스 열의 요소 수',
     'settings-overridden' => 'config/element-relations.php의 `{name}` 설정이 이 값을 덮어쓰고 있습니다.',
     'settings-batch-size-label' => '일괄 새로 고침 배치 크기',
     'settings-protect-label' => '사용 중인 요소 보호',

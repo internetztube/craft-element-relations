@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'L’apparence initiale de la liste. Les auteurs peuvent en changer dans le menu Affichage du champ.',
     'settings-show-status-menu' => 'Afficher le menu des statuts',
     'settings-page-size' => 'Éléments par page',
+    'settings-preview-limit' => 'Éléments dans les colonnes d’index',
     'settings-overridden' => 'Ce paramètre est remplacé par le paramètre `{name}` dans config/element-relations.php.',
     'settings-batch-size-label' => 'Taille des lots de rafraîchissement en masse',
     'settings-protect-label' => 'Protéger les éléments en cours d’utilisation',

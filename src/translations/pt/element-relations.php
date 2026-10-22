@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Como a lista aparece ao início. Os autores podem mudar no menu Ver do campo.',
     'settings-show-status-menu' => 'Mostrar o menu de situação',
     'settings-page-size' => 'Elementos por página',
+    'settings-preview-limit' => 'Elementos nas colunas do índice',
     'settings-overridden' => 'Isto está a ser substituído pela configuração `{name}` em config/element-relations.php.',
     'settings-batch-size-label' => 'Tamanho do lote da atualização em massa',
     'settings-protect-label' => 'Proteger elementos em uso',

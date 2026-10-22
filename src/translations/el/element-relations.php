@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Πώς φαίνεται η λίστα αρχικά. Οι συντάκτες μπορούν να το αλλάξουν από το μενού Προβολή του πεδίου.',
     'settings-show-status-menu' => 'Εμφάνιση του μενού κατάστασης',
     'settings-page-size' => 'Στοιχεία ανά σελίδα',
+    'settings-preview-limit' => 'Στοιχεία σε στήλες ευρετηρίου',
     'settings-overridden' => 'Αυτό παρακάμπτεται από τη ρύθμιση `{name}` στο config/element-relations.php.',
     'settings-batch-size-label' => 'Μέγεθος παρτίδας μαζικής ανανέωσης',
     'settings-protect-label' => 'Προστασία στοιχείων που χρησιμοποιούνται',

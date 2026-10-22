@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Így néz ki a lista először. A szerzők a mező Nézet menüjében átválthatják.',
     'settings-show-status-menu' => 'Állapotmenü mutatása',
     'settings-page-size' => 'Elemek oldalanként',
+    'settings-preview-limit' => 'Elemek az indexoszlopokban',
     'settings-overridden' => 'Ezt felülírja a config/element-relations.php `{name}` beállítása.',
     'settings-batch-size-label' => 'Tömeges frissítés kötegmérete',
     'settings-protect-label' => 'Használatban lévő elemek védelme',

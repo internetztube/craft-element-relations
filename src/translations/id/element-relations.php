@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Tampilan awal daftar. Penulis bisa mengubahnya di menu Tampilan pada field.',
     'settings-show-status-menu' => 'Tampilkan menu status',
     'settings-page-size' => 'Elemen per halaman',
+    'settings-preview-limit' => 'Elemen di kolom indeks',
     'settings-overridden' => 'Nilai ini ditimpa oleh pengaturan `{name}` di config/element-relations.php.',
     'settings-batch-size-label' => 'Ukuran batch penyegaran massal',
     'settings-protect-label' => 'Lindungi elemen yang sedang digunakan',

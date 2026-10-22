@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Тизме башында кандай көрүнөт. Авторлор муну талаанын «Көрүү» менюсунан өзгөртө алат.',
     'settings-show-status-menu' => 'Статус менюсун көрсөтүү',
     'settings-page-size' => 'Бир беттеги элементтер',
+    'settings-preview-limit' => 'Индекс мамычаларындагы элементтер',
     'settings-overridden' => 'Бул config/element-relations.php файлындагы `{name}` жөндөөсү менен кайра аныкталган.',
     'settings-batch-size-label' => 'Массалык жаңыртуунун топ өлчөмү',
     'settings-protect-label' => 'Колдонулуп жаткан элементтерди коргоо',

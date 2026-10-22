@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Hoe de lijst er eerst uitziet. Auteurs kunnen dit wisselen in het menu “Bekijken” van het veld.',
     'settings-show-status-menu' => 'Het statusmenu tonen',
     'settings-page-size' => 'Elementen per pagina',
+    'settings-preview-limit' => 'Elementen in indexkolommen',
     'settings-overridden' => 'Dit wordt overschreven door de instelling `{name}` in config/element-relations.php.',
     'settings-batch-size-label' => 'Batchgrootte bij herbouwen',
     'settings-protect-label' => 'Elementen in gebruik beschermen',

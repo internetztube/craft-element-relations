@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Ako zoznam vyzerá na začiatku. Autori ho môžu prepnúť v ponuke Pohľad pri poli.',
     'settings-show-status-menu' => 'Zobraziť ponuku stavu',
     'settings-page-size' => 'Prvkov na stránku',
+    'settings-preview-limit' => 'Prvkov v stĺpcoch prehľadu',
     'settings-overridden' => 'Toto nastavenie prepisuje `{name}` v config/element-relations.php.',
     'settings-batch-size-label' => 'Veľkosť dávky hromadnej obnovy',
     'settings-protect-label' => 'Chrániť používané prvky',

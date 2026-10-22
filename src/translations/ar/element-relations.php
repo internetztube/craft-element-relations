@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'كيف تبدو القائمة في البداية. يمكن للمحررين تغييرها من قائمة "عرض" في الحقل.',
     'settings-show-status-menu' => 'إظهار قائمة الحالة',
     'settings-page-size' => 'عدد العناصر في الصفحة',
+    'settings-preview-limit' => 'عدد العناصر في أعمدة الفهرس',
     'settings-overridden' => 'يتم تجاوز هذا بواسطة الإعداد `{name}` في config/element-relations.php.',
     'settings-batch-size-label' => 'حجم دفعة التحديث الشامل',
     'settings-protect-label' => 'حماية العناصر المستخدمة',

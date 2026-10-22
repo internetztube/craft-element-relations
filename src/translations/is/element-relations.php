@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'Hvernig listinn lítur út í fyrstu. Höfundar geta breytt því í Skoða-valmynd reitsins.',
     'settings-show-status-menu' => 'Sýna stöðuvalmyndina',
     'settings-page-size' => 'Frumefni á síðu',
+    'settings-preview-limit' => 'Frumefni í dálkum yfirlits',
     'settings-overridden' => 'Stillingin `{name}` í config/element-relations.php yfirskrifar þetta.',
     'settings-batch-size-label' => 'Lotustærð við heildaruppfærslu',
     'settings-protect-label' => 'Vernda frumefni í notkun',

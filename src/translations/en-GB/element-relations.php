@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'How the list looks at first. Authors can switch it in the field’s View menu.',
     'settings-show-status-menu' => 'Show the status menu',
     'settings-page-size' => 'Elements per page',
+    'settings-preview-limit' => 'Elements in index columns',
     'settings-overridden' => 'This is being overridden by the `{name}` setting in config/element-relations.php.',
     'settings-batch-size-label' => 'Bulk-refresh batch size',
     'settings-protect-label' => 'Protect elements in use',

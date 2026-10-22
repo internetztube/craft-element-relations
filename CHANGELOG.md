@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 4.0.1.2 - 2026-10-22
+
+### Added
+- Field setting “Elements in index columns”: how many usages an element index column loads before the link to the total. Default 5 (was 10).
+
+### Fixed
+- Element index columns of the field load about twice as fast: fewer queries per row (no count before loading the usages, no drafts query when no draft uses the element, the total counted once).
+
 ## 4.0.1.1 - 2026-10-22
 
 ### Fixed

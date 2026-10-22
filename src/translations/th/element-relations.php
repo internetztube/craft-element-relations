@@ -126,6 +126,7 @@ return [
     'settings-view-mode-instructions' => 'รูปแบบเริ่มต้นของรายการ ผู้เขียนสลับได้ในเมนูมุมมองของฟิลด์',
     'settings-show-status-menu' => 'แสดงเมนูสถานะ',
     'settings-page-size' => 'จำนวนองค์ประกอบต่อหน้า',
+    'settings-preview-limit' => 'จำนวนองค์ประกอบในคอลัมน์ดัชนี',
     'settings-overridden' => 'ค่านี้ถูกแทนที่โดยการตั้งค่า `{name}` ใน config/element-relations.php',
     'settings-batch-size-label' => 'ขนาดชุดของการรีเฟรชแบบกลุ่ม',
     'settings-protect-label' => 'ปกป้ององค์ประกอบที่กำลังใช้อยู่',
