@@ -21,7 +21,8 @@ use yii\db\Expression;
  * ```
  * Also usable as element index criteria (`{usesElement: 123}`), which is how the field renders its native indexes.
  * `usesElementSite` narrows it to the target in that site (or sites): the element × site whose usages the field lists.
- * `unused()` is the inverse for a single element type: `craft.assets().unused()` lists assets nothing relates to.
+ * `unused()` is the inverse for a single element type: `craft.assets().unused()` lists assets nothing relates to, in any
+ * site; `unused(false)` the ones something relates to; null (the default) does not filter.
  *
  * @property ElementQuery<array-key, ElementInterface> $owner
  */
@@ -74,15 +75,15 @@ class ElementQueryBehavior extends Behavior
     {
         /** @var Query<array-key, mixed> $subQuery created by prepare() before this event */
         $subQuery = $this->owner->subQuery;
-        if ($this->usesElement !== null || $this->unused) {
+        if ($this->usesElement !== null || $this->unused !== null) {
             // Craft caches element index queries for an hour, invalidated by the element type's cache tags. These
             // results also change when *other* elements are saved (a relation added somewhere, a source renamed or
             // disabled), which those tags never cover, so never serve them from the query cache.
             $this->owner->queryCacheDuration = null;
             $this->owner->queryCacheDependency = null;
         }
-        if ($this->unused) {
-            $subQuery->andWhere(['not exists', (new Query())
+        if ($this->unused !== null) {
+            $subQuery->andWhere([$this->unused ? 'not exists' : 'exists', (new Query())
                 ->select(['elementrelations_cache.id'])
                 ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
                 ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')])

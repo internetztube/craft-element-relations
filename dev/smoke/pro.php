@@ -46,6 +46,18 @@ return function (array $ctx): void {
     $unusedIds = Asset::find()->unused()->status(null)->ids();
     check(in_array($fresh->id, $unusedIds, true) && !in_array($asset->id, $unusedIds, true), 'unused(): fresh asset listed, used asset not');
     check(!in_array($asset->id, Asset::find()->unused()->ids(), true), 'SEOmatic global settings count as a usage');
+    $usedIds = Asset::find()->unused(false)->status(null)->ids();
+    $allIds = Asset::find()->status(null)->ids();
+    sort($allIds);
+    $both = [...$usedIds, ...$unusedIds];
+    sort($both);
+    check(in_array($asset->id, $usedIds, true) && !in_array($fresh->id, $usedIds, true), 'unused(false): the used asset listed, the fresh one not');
+    check($both === $allIds && array_intersect($usedIds, $unusedIds) === [], 'unused(false) and unused() split every asset: together all ' . count($allIds) . ', none in both');
+    $onCondition = Asset::createCondition();
+    $onCondition->addConditionRule(Craft::createObject(['class' => internetztube\elementRelations\elements\conditions\UsedConditionRule::class, 'value' => true]));
+    $viaOn = Asset::find()->status(null);
+    $onCondition->modifyQuery($viaOn);
+    check($viaOn->ids() === $usedIds, 'the "Used anywhere" rule (on) lists only what is used (it filtered nothing before)');
     check((int)(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['targetElementId' => $asset->id, 'sourceElementId' => null, 'type' => 'global-seomatic'])->count() >= 1, 'the SEOmatic global usage is a cache row without a source element');
     $condition = Asset::createCondition();
     $condition->addConditionRule(Craft::createObject(['class' => internetztube\elementRelations\elements\conditions\UsedConditionRule::class, 'value' => false]));

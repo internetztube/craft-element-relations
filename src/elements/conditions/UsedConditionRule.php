@@ -13,7 +13,7 @@ use internetztube\elementRelations\models\RelationsModel;
 
 /**
  * Pro: "Used anywhere" rule for Craft's element conditions (index filter HUD, custom sources, …).
- * Off = nothing relates to the element, see ElementQueryBehavior::$unused.
+ * On = something relates to the element, in any site; off = nothing does (ElementQueryBehavior::$unused).
  */
 class UsedConditionRule extends BaseLightswitchConditionRule implements ElementConditionRuleInterface
 {

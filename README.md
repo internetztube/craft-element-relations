@@ -120,6 +120,7 @@ Statuses depend on the element type: `live` for entries and products, `enabled` 
 ```twig
 {% set pages = craft.entries().usesElement(asset).all() %}
 {% set unusedAssets = craft.assets().unused().all() %}
+{% set usedAssets = craft.assets().unused(false).all() %}
 ```
 
 All element types at once (entries, products, menus, …, each as its real class), with any of Craft's query params:

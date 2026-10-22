@@ -11,6 +11,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - An element used only in other sites is never shown as unused. The field says “Used in other sites” and lists them, also for editors who may not edit those sites (named without a link). The index column says “Used in other sites: German”. Sorting by the field puts it between unused and used in this site.
 - The Site column is no longer shown by default (the View menu offers it).
 
+### Fixed
+- The “Used anywhere” filter turned on listed every element, unused ones too. It lists only what is used now; `unused(false)` does the same in queries.
+
 ## 4.0.1.4 - 2026-10-22
 
 ### Fixed
