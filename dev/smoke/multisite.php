@@ -42,7 +42,7 @@ return function (array $ctx): void {
     $inEn = $rel->forTargetSite();
     $inDe = (new RelationsModel($target->id, $de))->forTargetSite();
     check($inEn->getCountFast([]) === 1 && $inDe->getCountFast([]) === 1 && $inEn->getOtherSiteCounts() === [$de => 1] && $inDe->getOtherSiteCounts() === [$en => 1], 'per site of the target: 1 usage of the English version, 1 of the German one; each names the other site');
-    check((int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'usesElementSite' => $de, 'allSites' => true])->count() === 1 && (int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'usesElementSite' => '0', 'allSites' => true])->count() === 0, 'usesElementSite narrows the Usage query to the target in that site');
+    check((int)Usage::find()->allSites()->usesElement($target->id)->usesElementSite($de)->count() === 1 && (int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'usesElementSite' => '0', 'allSites' => true])->count() === 0, 'usesElementSite narrows the Usage query to the target in that site');
 
     check((int)Usage::find()->usesElement($target)->siteId($en)->allSites()->count() === 1 && (int)Usage::find()->usesElement($target)->siteId($en)->allSites()->one()->siteId === $en && (int)Usage::find()->usesElement($target)->siteId($de)->allSites()->one()->siteId === $de, 'allSites overrides the siteId the index JS always sends: the element once, shown in the site asked for');
     check(Usage::find()->usesElement($target)->siteId($en)->allSites()->one()->getAttributeHtml(Usage::ATTR_SITE) === 'English, German', 'the Site column names every site it is used in');

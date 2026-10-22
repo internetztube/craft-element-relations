@@ -28,6 +28,12 @@ return function (array $ctx): void {
     $bundle->metaBundleSettings->twitterImageIds = [999999, $asset->id];
     $bundles->updateMetaBundle($bundle, $siteId);
     check((new RelationsModel($asset->id, $asset->siteId))->getIsUsedInSeomaticGlobalSettings(), 'adding it back restores the usage');
+    // an asset index prefetches the settings usages of its page, in its site (SEOmatic's settings are per site)
+    RelationsModel::prefetch([(int)$asset->id], 5, (int)$siteId);
+    $prefetched = (new RelationsModel($asset->id, (int)$siteId))->forTargetSite();
+    $queried = (new RelationsModel($asset->id, (int)$siteId))->forTargetSite();
+    RelationsModel::forgetPrefetched();
+    check($prefetched->getIsUsedInSeomaticGlobalSettings() && count($prefetched->getGlobalUsages()) === count($queried->getGlobalUsages()), 'an index page prefetches the global settings usages of its site');
     // a section's Content SEO settings (a content meta bundle) are a usage too, named after the section
     $pages = Craft::$app->getEntries()->getSectionByHandle('pages');
     $content = $bundles->getMetaBundleBySourceId('section', (int)$pages->id, $siteId) ?? throw new RuntimeException('no content bundle for Pages');

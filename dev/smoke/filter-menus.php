@@ -22,7 +22,7 @@ return function (array $ctx): void {
     $siteCounts = $model->getCountsBySite();
     check(array_sum($counts) === $model->getCountFast([]) && max($siteCounts) <= $model->getCountFast([]) && array_sum($siteCounts) >= $model->getCountFast([]), 'the type counts sum up to countFast([]), elements; a site count is at most that (an element in two sites counts in both) (' . json_encode($siteCounts) . ')');
     foreach ($siteCounts as $siteId => $count) {
-        $listed = Craft::configure(Usage::find(), ['usesElement' => $target->id, 'allSites' => true, 'inSites' => (string)$siteId, 'status' => null, 'drafts' => null])->all();
+        $listed = Usage::find()->allSites()->inSites((string)$siteId)->status(null)->drafts(null)->usesElement($target->id)->all();
         check(count($listed) === $count && !array_filter($listed, fn($element) => (int)$element->siteId !== $siteId), "inSites($siteId) lists only that site's $count usages");
     }
     $all = (int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'allSites' => true, 'inSites' => null, 'status' => null, 'drafts' => null])->count();

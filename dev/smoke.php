@@ -261,7 +261,7 @@ $newest = (int)(new craft\db\Query())
 $bBatched = $batchedPreviews[$b->id] ?? '';
 check(str_contains($bBatched, '12 total') && str_contains($bBatched, '>+4</span>') && ($chipIds($bBatched)[0] ?? null) === $newest, 'batched: the same total and number of usages, the most recently updated one first (' . json_encode(['chips' => $chipIds($bBatched), 'newest' => $newest]) . ')');
 check(str_contains($batchedPreviews[$unused->id] ?? '', Craft::t('element-relations', 'field-value-unused')), 'batched: an unused element still says so');
-check((new RelationsModel((int)$b->id, (int)$b->siteId))->getCountsByType() === $rel->getCountsByType() && $rel->getCountsByType() !== [], 'batched: the counts per element type are the prefetched ones, and the same');
+check((new RelationsModel((int)$b->id, (int)$b->siteId))->forTargetSite()->getCountsByType() === $rel->getCountsByType() && $rel->getCountsByType() !== [], 'batched: the counts per element type are the prefetched ones, and the same');
 internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
 $emptyPage = Entry::find()->id(0);
 $field->modifyElementIndexQuery($emptyPage);
