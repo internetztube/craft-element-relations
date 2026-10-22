@@ -54,6 +54,30 @@ return function (array $ctx): void {
         ->where(['elements.id' => $asset->id, 'elements_sites.siteId' => $asset->siteId])->scalar();
     check((int)$counted > (int)(new RelationsModel($asset->id, $asset->siteId))->forTargetSite()->getCountFast([]), 'the sort count includes the non-element usages');
 
+    // used only by another site's SEOmatic settings: in this site "Used in other sites", never "Unused"
+    $deSiteId = Craft::$app->getSites()->getSiteByHandle('de')?->id;
+    if ($deSiteId) {
+        $deBundle = $bundles->getGlobalMetaBundle($deSiteId);
+        $tmp = tempnam(sys_get_temp_dir(), 'er') . '.png';
+        file_put_contents($tmp, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
+        $onlyDe = new \craft\elements\Asset(['tempFilePath' => $tmp, 'filename' => 'seomatic-de-only.png', 'newFolderId' => Craft::$app->getAssets()->getRootFolderByVolumeId($asset->volumeId)->id, 'volumeId' => $asset->volumeId, 'avoidFilenameConflicts' => true]);
+        $onlyDe->setScenario(\craft\elements\Asset::SCENARIO_CREATE);
+        Craft::$app->getElements()->saveElement($onlyDe) or throw new RuntimeException(json_encode($onlyDe->getErrors()));
+        $deImagesBefore = $deBundle->metaBundleSettings->seoImageIds;
+        $deBundle->metaBundleSettings->seoImageIds = [$onlyDe->id];
+        $bundles->updateMetaBundle($deBundle, $deSiteId);
+        $inPrimary = (new RelationsModel($onlyDe->id, (int)Craft::$app->getSites()->getPrimarySite()->id))->forTargetSite();
+        $field = Craft::$app->getFields()->getFieldByHandle('relations');
+        $previewOnlyDe = withWebRequest(fn() => $field->getPreviewHtml(new RelationsModel($onlyDe->id, (int)$onlyDe->siteId), $onlyDe));
+        check(($inPrimary->getOtherSiteCounts()[$deSiteId] ?? 0) >= 1 && !str_contains($previewOnlyDe, Craft::t('element-relations', 'field-value-unused')) && str_contains($previewOnlyDe, Craft::t('element-relations', 'preview-other-sites')), 'an asset only the German SEOmatic settings use: "Used in other sites" in English, never "Unused"');
+        $onlyDeInDe = \craft\elements\Asset::find()->id($onlyDe->id)->siteId($deSiteId)->one();
+        $inputOnlyDe = withWebRequest(fn() => $field->getInputHtml(new RelationsModel($onlyDe->id, $deSiteId), $onlyDeInDe));
+        check(!str_contains($inputOnlyDe, 'class="element-index') && str_contains($inputOnlyDe, Craft::t('element-relations', 'field-headline-global')) && str_contains($inputOnlyDe, 'class="chip'), 'in German, only plugin settings use it: their chips, no empty list');
+        $deBundle->metaBundleSettings->seoImageIds = $deImagesBefore;
+        $bundles->updateMetaBundle($deBundle, $deSiteId);
+        Craft::$app->getElements()->deleteElement($onlyDe, true);
+    }
+
     replaceRoundTrip($entry, $asset, 'SEOmatic SEO image', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->seoImageIds) === [$t->id]);
     replaceRoundTrip(Entry::find()->title('Page via SEOmatic (social)')->one(), $asset, 'SEOmatic Twitter/OG images', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->ogImageIds) === [$t->id]);
 };

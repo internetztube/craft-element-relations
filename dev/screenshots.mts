@@ -232,7 +232,7 @@ const DELETE_DIALOG_ACT = `
 const SHOTS: Shot[] = [
     {
         name: 'usage-list',
-        points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
+        points: ['Every element type in one list', 'Where it lives, which field holds the link', 'Drafts and disabled elements included'],
         focus: `inPane(document.querySelector('.element-relations'))`,
         highlight: `[[...column('Field')]]`,
         inset: false,
@@ -249,8 +249,8 @@ const SHOTS: Shot[] = [
         // at the README's width
         name: 'readme-hero', viewport: { width: 1120, height: 600 },
         caption: 'Where an element is used',
-        points: ['Every element type in one list', 'Where it lives, which field, which site', 'Replace, undo, roll back'],
-        focus: `inPane(document.querySelector('.element-relations'))`,
+        points: ['Every element type in one list', 'Where it lives, which field holds the link', 'Replace, undo, roll back'],
+        focus: `inPane(document.querySelector('.element-relations').closest('.field'))`,
         highlight: `[[...column('Field')]]`,
         inset: false,
         title: 'See where every element is used',
@@ -348,7 +348,7 @@ const SHOTS: Shot[] = [
         highlight: `[[document.querySelector('.element-relations-heading'), document.querySelector('.element-relations-heading')?.nextElementSibling]]`,
         title: 'Plugin settings count, too',
         text: 'Usages that are not elements, like SEOmatic’s global SEO image, are listed below the field.',
-        path: demo.social.path,
+        path: demo.social.path.replace(/site=[^&]*/, 'site=de'), // the German SEOmatic settings use the German version
         act: `await sleep(800);`,
     },
     {

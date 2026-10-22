@@ -524,7 +524,7 @@ if ($phase === 'schema') {
         $sites->saveSite($de) or fail($de);
     }
 
-    ensureField(ElementRelationsField::class, ['name' => 'Used in', 'handle' => 'usedIn', 'instructions' => 'Everything that links to this, in every site.']);
+    ensureField(ElementRelationsField::class, ['name' => 'Used in', 'handle' => 'usedIn', 'instructions' => 'Everything that links to this in this site. Other sites are listed below.']);
     $images = ensureVolume('images', 'Images');
     ensureVolume('documents', 'Documents');
 
@@ -1192,6 +1192,21 @@ foreach ($sites->getAllSites() as $site) {
     $bundle->metaSiteVars->identity->genericName = 'Transit';
     $bundle->metaSiteVars->identity->genericImageIds = [$logo->id];
     $seomatic->metaBundles->updateMetaBundle($bundle, $site->id);
+}
+
+// German texts link to the German versions: Craft copies a new entry's English body (reference tags with `@<en>`) to
+// its German site, which would make every German text a cross-site link to the English elements
+$primarySiteId = $sites->getPrimarySite()->id;
+foreach (Entry::find()->siteId($deSite->id)->status(null)->all() as $localized) {
+    if (!$localized->getFieldLayout()?->getFieldByHandle('body')) {
+        continue;
+    }
+    $body = (string)$localized->getFieldValue('body')?->getRawContent();
+    $german = preg_replace('/(\{(?:entry|asset):\d+)@' . $primarySiteId . ':/', '$1@' . $deSite->id . ':', $body);
+    if ($german !== $body) {
+        $localized->setFieldValue('body', $german);
+        $elements->saveElement($localized) or fail($localized);
+    }
 }
 
 Craft::$app->getProjectConfig()->saveModifiedConfigData();

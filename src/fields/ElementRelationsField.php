@@ -326,13 +326,15 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
 
         $value = $value->forTargetSite();
         $globalUsages = $value->getGlobalUsages();
-        $otherSites = $this->otherSitesHtml($value, $element, $value->getIsInUseFast([]) || $globalUsages);
-        if (!$value->getIsInUseFast([]) && !$globalUsages) {
+        // elements use it here (a list); plugin settings alone get no empty list, only their chips
+        $hasElements = $value->getCountFast([]) > 0;
+        $otherSites = $this->otherSitesHtml($value, $element, $hasElements || $globalUsages);
+        if (!$hasElements && !$globalUsages) {
             return $otherSites ?: $this->unusedLabelHtml();
         }
 
         $html = '';
-        if ($value->getIsInUseFast([])) {
+        if ($hasElements) {
             self::$toolbarMenus = self::toolbarMenus($value);
             Usage::$listedTypes = $value->getElementTypes(); // the View menu offers these types' columns
             $html .= Cp::elementIndexHtml(Usage::class, [
@@ -477,9 +479,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $items = [];
         $tab = $this->getTabHash($element);
         $viewer = self::restrictedViewer();
-        foreach ($value->getOtherSiteCounts() as $siteId => $count) {
-            $site = Craft::$app->getSites()->getSiteById($siteId, true);
-            if (!$site) {
+        $counts = $value->getOtherSiteCounts();
+        foreach (Craft::$app->getSites()->getAllSites(true) as $site) { // in the sites' own order
+            $count = $counts[$site->id] ?? 0;
+            if (!$count) {
                 continue;
             }
             // Craft's site chip: the site's name (linking to the element in that site) over the number of usages

@@ -14,7 +14,7 @@ Every Craft project asks the same questions. Can I delete this asset? Which page
 
 ## What you get
 
-- **One list for every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms. Each row shows where the element lives, which field holds the link, and which site. An element used in two sites, or through two fields, is one row and counts once.
+- **One list for every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms. The list shows the site you are editing; each row shows where the element lives and which field holds the link. An element used through two fields is one row and counts once. Other sites that use their version are listed below, so nothing used elsewhere looks unused.
 - **Everything that can link.** Anything in Craft's relations table works out of the box. Rich text, link fields and plugins that store links elsewhere are read by their own extractors. 13 plugins today, see [Supported fields and plugins](#supported-fields-and-plugins).
 - **Plugin settings count too.** Usages that are not elements, like SEOmatic's global SEO image, are listed below the field.
 - **Native.** Craft's search, sorting, status and drafts filter, table or card view, the columns of the View menu, and Craft's own filter rules and sort options (Section, Post Date, Author, Filename, Group, …). Plus a dropdown for element type, with counts. The list shows what uses the element in the site you are editing; the other sites whose version is used are listed below it, with a link each. An index column shows the first usages and the total, and you can sort by it.

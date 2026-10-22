@@ -137,10 +137,20 @@ class RelationsModel
             ->andWhere(['not', ['[[elementrelations_cache.targetSiteId]]' => $siteId]])
             ->groupBy(['[[elementrelations_cache.targetElementId]]', '[[elementrelations_cache.targetSiteId]]'])
             ->all();
+        // plugin settings that use another site's version (SEOmatic's German settings) count too, one per setting
+        /** @var list<array{target: int|string, siteId: int|string, count: int|string}> $globalRows */
+        $globalRows = (new Query())
+            ->select(['target' => 'targetElementId', 'siteId' => 'targetSiteId', 'count' => 'COUNT(DISTINCT [[globalKey]])'])
+            ->from('{{%elementrelations_cache}}')
+            ->where(ElementRelations::idIn('targetElementId', $elementIds))
+            ->andWhere(['sourceElementId' => null])
+            ->andWhere(['not', ['targetSiteId' => $siteId]])
+            ->groupBy(['targetElementId', 'targetSiteId'])
+            ->all();
         $order = array_flip(Craft::$app->getSites()->getAllSiteIds());
         $counts = [];
-        foreach ($rows as $row) {
-            $counts[(int)$row['target']][(int)$row['siteId']] = (int)$row['count'];
+        foreach ([...$rows, ...$globalRows] as $row) {
+            $counts[(int)$row['target']][(int)$row['siteId']] = ($counts[(int)$row['target']][(int)$row['siteId']] ?? 0) + (int)$row['count'];
         }
         foreach ($counts as &$bySite) {
             uksort($bySite, fn(int $a, int $b): int => ($order[$a] ?? PHP_INT_MAX) <=> ($order[$b] ?? PHP_INT_MAX));
