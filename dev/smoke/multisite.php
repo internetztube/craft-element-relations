@@ -59,10 +59,10 @@ return function (array $ctx): void {
     $relDe = new RelationsModel($targetDe->id, $en);
     check((int)$relDe->getCount([$en]) === 0 && (int)$relDe->getCount([$de]) === 1 && $relDe->getIsInUse([]) && array_values(array_map(fn($site) => $site->id, $relDe->getSites())) === [$de], 'target used on the German site only: 0 (en), 1 (de), in use, sites = [de]');
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDe->getFieldValue('relations'), $targetDe));
-    check(!str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused') && str_contains($preview, Craft::t('element-relations', 'preview-other-sites') . ': German'), 'index column on en: no usage of the English version, so "Used in other sites: German" (not "Unused")');
+    check(!str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused') && str_contains($preview, Craft::t('element-relations', 'preview-other-sites')) && str_contains($preview, 'status-label') && str_contains($preview, 'German'), 'index column on en: no usage of the English version, so a "Used in other sites" status label and German (not "Unused")');
     $inputDeOnly = withWebRequest(fn() => $field->getInputHtml($targetDe->getFieldValue('relations'), $targetDe));
     check(!str_contains($inputDeOnly, 'class="element-index') && str_contains($inputDeOnly, 'data-element-relations-other-sites') && !str_contains($inputDeOnly, Craft::t('element-relations', 'field-value-unused')), 'the field on en: no list, the German site under "also used in these other sites", not "Unused"');
-    check(str_contains($inputDeOnly, Craft::t('element-relations', 'preview-other-sites')) && !str_contains($inputDeOnly, Craft::t('element-relations', 'field-headline-other-sites')), 'nothing uses it here: the heading says "Used in other sites", not "Also used…"');
+    check(str_contains($inputDeOnly, Craft::t('element-relations', 'preview-other-sites')) && str_contains($inputDeOnly, 'status-label') && !str_contains($inputDeOnly, Craft::t('element-relations', 'field-headline-other-sites')) && str_contains($inputDeOnly, 'class="chip'), 'nothing uses it here: a "Used in other sites" status label (where "Unused" would be), not "Also used…", and the sites as Craft chips');
     // an editor who may not edit the German site: still not "Unused", the site named without a link
     $inputNoDe = withWebRequest(function () use ($field, $targetDe) {
         Craft::$app->getUser()->setIdentity(new craft\elements\User(['username' => 'smoke-en-only', 'admin' => false]));

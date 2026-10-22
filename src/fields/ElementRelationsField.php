@@ -265,11 +265,15 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         if (!$value->getIsInUseFast([])) {
             return match (true) {
                 $element->getIsUnpublishedDraft() => '',
-                // used, only not in this site: never "Unused"; name the sites
-                (bool)$value->getOtherSiteCounts() => Html::tag('div', Html::encode(Craft::t('element-relations', 'preview-other-sites') . ': ' . implode(', ', array_map(
-                    fn(int $siteId): string => Craft::t('site', (string)Craft::$app->getSites()->getSiteById($siteId, true)?->getName()),
-                    array_keys($value->getOtherSiteCounts()),
-                ))), ['class' => 'light smalltext', 'data-element-relations-other-sites' => true]),
+                // used, only not in this site: never "Unused"; a status label like "Unused", and the sites
+                (bool)$value->getOtherSiteCounts() => Html::tag('div',
+                    (string)Cp::statusLabelHtml(['color' => Color::Sky, 'icon' => 'globe', 'label' => Craft::t('element-relations', 'preview-other-sites')])
+                    . Html::tag('div', Html::encode(implode(', ', array_map(
+                        fn(int $siteId): string => Craft::t('site', (string)Craft::$app->getSites()->getSiteById($siteId, true)?->getName()),
+                        array_keys($value->getOtherSiteCounts()),
+                    ))), ['class' => 'light smalltext']),
+                    ['data-element-relations-other-sites' => true],
+                ),
                 default => $this->unusedLabelHtml(),
             };
         }
@@ -478,18 +482,24 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             if (!$site) {
                 continue;
             }
+            // Craft's site chip: the site's name (linking to the element in that site) over the number of usages
             $name = Html::encode(Craft::t('site', $site->getName()));
             if (!$viewer || $viewer->can("editSite:$site->uid")) {
                 $name = Html::a($name, \craft\helpers\UrlHelper::urlWithParams((string)$element->getCpEditUrl(), ['site' => $site->handle]) . ($tab ? "#$tab" : ''));
             }
-            $items[] = Html::tag('li', $name . ' ' . Html::tag('span', Html::encode(Craft::t('element-relations', 'field-other-site-count', ['count' => $count])), ['class' => 'light']));
+            $items[] = Cp::chipHtml($site, ['autoReload' => false, 'labelHtml' => Html::tag('div', Html::tag('div', $name)
+                . Html::tag('div', Html::encode(Craft::t('element-relations', 'field-other-site-count', ['count' => $count])), ['class' => ['smalltext', 'light']]), ['class' => 'chip-label'])]);
         }
         if (!$items) {
             return '';
         }
-        $heading = $usedHere ? 'field-headline-other-sites' : 'preview-other-sites';
-        return Html::tag('h3', Html::encode(Craft::t('element-relations', $heading)), ['class' => 'element-relations-heading', 'style' => $usedHere ? 'margin-top: var(--m);' : 'margin-top: 0;'])
-            . Html::tag('ul', implode('', $items), ['class' => 'element-relations-other-sites', 'data-element-relations-other-sites' => true]);
+        $chips = Html::tag('div', implode('', $items), ['class' => 'flex flex-wrap gap-xs', 'data-element-relations-other-sites' => true]);
+        if (!$usedHere) {
+            // in place of the red "Unused" label: the same kind of label, then the sites
+            return (string)Cp::statusLabelHtml(['color' => Color::Sky, 'icon' => 'globe', 'label' => Craft::t('element-relations', 'preview-other-sites')])
+                . Html::tag('div', $chips, ['style' => 'margin-top: var(--s);']);
+        }
+        return Html::tag('h3', Html::encode(Craft::t('element-relations', 'field-headline-other-sites')), ['class' => 'element-relations-heading', 'style' => 'margin-top: var(--m);']) . $chips;
     }
 
     /** The logged-in non-admin user of a control panel request, whose view permissions apply; null otherwise. */
