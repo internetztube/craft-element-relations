@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## 4.0.1.4 - 2026-10-22
 
 ### Fixed
+- Rebuilding the cache (and refreshing it after saves) is faster: the elements of a batch are loaded together instead of one by one, relation fields read only the ids of their targets, the owner of nested elements is looked up once per batch, and the rows of an element are written in one insert.
 - The cleanup of large caches is as fast on MySQL as on PostgreSQL: the rows to keep are copied out, the table emptied and the rows copied back (the table keeps its indexes and their names).
 
 ## 4.0.1.3 - 2026-10-22

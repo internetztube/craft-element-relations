@@ -76,6 +76,21 @@ return function (array $ctx): void {
     $record->delete();
     check($rowsOfB() === $liveRowsOfB && $count() === $usagesBefore, 'usages are unchanged after the rebuild');
 
+    // a rebuild that fails (here: after the rows to keep are copied out) leaves the table as it was
+    $uids = $insertJunk();
+    $total = (int)(new Query())->from('{{%elementrelations_cache}}')->count();
+    $failed = null;
+    try {
+        PruneService::prune(function (string $line): void {
+            throw new RuntimeException("stop at: $line");
+        }, rebuild: true);
+    } catch (RuntimeException $e) {
+        $failed = $e->getMessage();
+    }
+    check(str_starts_with((string)$failed, 'stop at: keeping') && (int)(new Query())->from('{{%elementrelations_cache}}')->count() === $total && $junkLeft($uids) === 3, 'a failed rebuild leaves the table as it was');
+    PruneService::prune(rebuild: true); // and the next one works (the temporary table from the failed one is replaced)
+    check($junkLeft($uids) === 0 && $rowsOfB() === $liveRowsOfB, 'a rebuild after a failed one works');
+
     // revisions (and the nested elements Craft keeps for them) get no rows
     ExtractorService::refreshRelationsForElement($revision);
     check(!(new Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $revision->id])->exists(), 'refreshing a revision writes no rows');

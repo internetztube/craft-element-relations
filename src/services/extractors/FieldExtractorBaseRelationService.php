@@ -22,25 +22,22 @@ class FieldExtractorBaseRelationService implements InterfaceFieldExtractor, Inte
 
         /** @var ElementQuery<array-key, ElementInterface> $query */
         $query = $element->{$field->handle}->status(null);
+        // ids only: the field's query is for the one site its targets are related in (the element's, or the field's
+        // target site), so nothing needs to be loaded
+        $targetSiteId = is_numeric($query->siteId) ? (int)$query->siteId : (int)$element->siteId;
+        $ids = (clone $query)->drafts(null)->ids(); // targets and their (non-provisional) drafts, one query
 
-        $elements = [
-            ...$query->all(),
-            ...$query->drafts()->all(),
-        ];
-
-        return collect($elements)
-            ->map(function (ElementInterface $element) use ($field, $baseRecord): ElementRelationsCacheRecord {
-                $record = clone $baseRecord;
-                $record->setAttributes([
-                    'type' => ElementRelationsCacheRecord::TYPE_FIELD,
-                    'targetElementId' => $element->id,
-                    'targetSiteId' => $element->siteId,
-                    'customFieldUid' => $field->uid,
-                    'fieldId' => $field->id,
-                ]);
-                return $record;
-            })
-            ->all();
+        return array_map(function (int|string $id) use ($field, $baseRecord, $targetSiteId): ElementRelationsCacheRecord {
+            $record = clone $baseRecord;
+            $record->setAttributes([
+                'type' => ElementRelationsCacheRecord::TYPE_FIELD,
+                'targetElementId' => (int)$id,
+                'targetSiteId' => $targetSiteId,
+                'customFieldUid' => $field->uid,
+                'fieldId' => $field->id,
+            ]);
+            return $record;
+        }, $ids);
     }
 
     public static function replace(Field $field, ElementInterface $element, ElementInterface $from, ElementInterface $to): ?bool

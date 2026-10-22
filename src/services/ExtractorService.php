@@ -114,10 +114,10 @@ class ExtractorService
      */
     public static function refreshRelationsForElement(ElementInterface $element): bool
     {
-        $ownerId = self::getPrimaryOwnerId($element);
+        self::$owners = self::$inBatch ? self::$owners : [];
+        [$ownerId, $ofRevision] = self::primaryOwner($element);
         // revisions are never shown as usages, and neither are the nested elements (Matrix entries, Neo blocks) Craft
         // keeps for them, which reach this through other paths than the save event (owner trees, full rebuilds)
-        $ofRevision = $ownerId !== (int)$element->id && (new Query())->from(\craft\db\Table::ELEMENTS)->where(['id' => $ownerId])->andWhere(['not', ['revisionId' => null]])->exists();
         if ($element->getIsRevision() || $ofRevision) {
             \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
             return ElementRelationsCacheRecord::deleteAll(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId]) > 0;
@@ -156,7 +156,14 @@ class ExtractorService
         }
 
         self::deleteRelationsForElement($element);
-        $records->each(fn(ElementRelationsCacheRecord $record): bool => $record->save());
+        // one INSERT for all of them (Craft adds dateCreated, dateUpdated and uid)
+        if ($records->isNotEmpty()) {
+            Craft::$app->getDb()->createCommand()->batchInsert(
+                ElementRelationsCacheRecord::tableName(),
+                self::ROW_COLUMNS,
+                $records->map(fn(ElementRelationsCacheRecord $record): array => array_values($record->getAttributes(self::ROW_COLUMNS)))->all(),
+            )->execute();
+        }
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
         return true;
@@ -255,24 +262,52 @@ class ExtractorService
     /**
      * The element an editor should see as "where it's used": nested elements (Matrix entries, Neo blocks, content
      * blocks, addresses, variants) resolve to their top-level owner; navigation nodes to their menu, wishlist items to
-     * their list (a node or item is titled like the element it links to, so showing it would say nothing).
+     * their list (a node or item is titled like the element it links to, so showing it would say nothing). With
+     * whether that element is a revision.
+     * @return array{int, bool}
      */
-    private static function getPrimaryOwnerId(ElementInterface $element): int
+    private static function primaryOwner(ElementInterface $element): array
     {
-        while (
-            property_exists($element, 'primaryOwnerId')
-            && $element->primaryOwnerId
-            && $newElement = Craft::$app->getElements()->getElementById((int)$element->primaryOwnerId, null, $element->siteId)
-        ) {
-            $element = $newElement;
+        if (property_exists($element, 'primaryOwnerId') && $element->primaryOwnerId) {
+            // the blocks of one owner share it: load it once per batch (see inBatch())
+            $key = $element->primaryOwnerId . ':' . $element->siteId;
+            if (!array_key_exists($key, self::$owners)) {
+                $owner = Craft::$app->getElements()->getElementById((int)$element->primaryOwnerId, null, $element->siteId);
+                self::$owners[$key] = $owner ? self::primaryOwner($owner) : null;
+            }
+            if (self::$owners[$key] !== null) {
+                return self::$owners[$key];
+            }
         }
         // `instanceof` on a class of a plugin that isn't installed is simply false
         if ($element instanceof \verbb\navigation\elements\Node && class_exists(\verbb\navigation\elements\Menu::class) && $element->menuId) {
-            return (int)$element->menuId;
+            return [(int)$element->menuId, false];
         }
         if ($element instanceof \verbb\wishlist\elements\Item && $element->listId) {
-            return (int)$element->listId;
+            return [(int)$element->listId, false];
         }
-        return (int)$element->id;
+        return [(int)$element->id, $element->getIsRevision()];
+    }
+
+    /** @var array<string, array{int, bool}|null> primaryOwner() by `<primaryOwnerId>:<siteId>`; null: the owner is gone */
+    private static array $owners = [];
+
+    private static bool $inBatch = false;
+
+    /**
+     * Runs a batch of refreshes (ResaveElementRelationsJob) that loads each owner once; outside one every refresh looks
+     * its owner up afresh (an owner can change between two saves of a request).
+     * @template T
+     * @param callable(): T $fn
+     * @return T
+     */
+    public static function inBatch(callable $fn): mixed
+    {
+        [self::$inBatch, self::$owners] = [true, []];
+        try {
+            return $fn();
+        } finally {
+            [self::$inBatch, self::$owners] = [false, []];
+        }
     }
 }

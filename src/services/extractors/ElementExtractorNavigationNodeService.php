@@ -11,7 +11,7 @@ use verbb\navigation\elements\Node;
 
 /**
  * verbb/navigation 3+: a node of an element type (Entry, Asset, Category, Product, ...) links that element.
- * The relation is attributed to the node's menu by ExtractorService::getPrimaryOwnerId() (Navigation 4: node.menuId),
+ * The relation is attributed to the node's menu by ExtractorService::primaryOwner() (Navigation 4: node.menuId),
  * because a node's title defaults to the linked element's title, so "Page C" would be shown as used by "Page C".
  */
 class ElementExtractorNavigationNodeService implements InterfaceElementExtractor, InterfaceElementReplacer
