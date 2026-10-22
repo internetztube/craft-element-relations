@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 4.0.1.4 - 2026-10-22
+
+### Fixed
+- The cleanup of large caches is as fast on MySQL as on PostgreSQL: the rows to keep are copied out, the table emptied and the rows copied back (the table keeps its indexes and their names).
+
 ## 4.0.1.3 - 2026-10-22
 
 ### Added

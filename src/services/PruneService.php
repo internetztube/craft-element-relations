@@ -19,7 +19,7 @@ use yii\db\Expression;
  */
 class PruneService
 {
-    /** Tables larger than this are rebuilt (live rows copied, tables swapped) on PostgreSQL, not deleted from. */
+    /** Tables with more rows than this are rebuilt (rows to keep copied out and back), not deleted from. */
     public const REBUILD_MIN_ROWS = 1_000_000;
 
     private const BATCH = 50_000;
@@ -35,7 +35,7 @@ class PruneService
             return 0;
         }
         $log ??= fn(string $line) => null;
-        $rebuild ??= $db->getIsPgsql() && self::estimatedRows() >= self::REBUILD_MIN_ROWS;
+        $rebuild ??= self::estimatedRows() >= self::REBUILD_MIN_ROWS;
         $removed = $rebuild ? self::rebuild($log) : self::deleteInBatches($log);
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
         \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
@@ -65,6 +65,7 @@ class PruneService
     private static function deleteInBatches(callable $log): int
     {
         $db = Craft::$app->getDb();
+        /** @var array{min: int|string|null, max: int|string|null}|false $range */
         $range = (new Query())->select(['min' => 'MIN([[id]])', 'max' => 'MAX([[id]])'])->from('{{%elementrelations_cache}}')->one();
         if (!$range || $range['max'] === null) {
             return 0;
@@ -78,7 +79,7 @@ class PruneService
                 ->andWhere(['not', self::keepCondition()])
                 ->column();
             if ($ids) {
-                $removed += $db->createCommand()->delete('{{%elementrelations_cache}}', \internetztube\elementRelations\ElementRelations::idIn('id', $ids))->execute();
+                $removed += $db->createCommand()->delete('{{%elementrelations_cache}}', \internetztube\elementRelations\ElementRelations::idIn('id', $ids)->expression)->execute();
             }
         }
         $log("removed $removed rows");
@@ -86,36 +87,24 @@ class PruneService
     }
 
     /**
-     * PostgreSQL, large tables: copies the rows to keep into a new table, builds its indexes and swaps it in. Far
-     * faster than deleting most of a table, and leaves no bloat. Writers wait for the copy (reads go on); PostgreSQL
-     * resolves their table again after the swap.
+     * Large tables: copies the rows to keep into a temporary table, empties the cache table and copies them back. Far
+     * faster than deleting most of a table and leaves no bloat; indexes, their names and the id sequence stay. On
+     * PostgreSQL in one transaction: writers wait from the start, readers only for the copy back. MySQL's TRUNCATE
+     * commits by itself, so there it runs without one (a relation written meanwhile comes back on its next save).
      */
     private static function rebuild(callable $log): int
     {
         $db = Craft::$app->getDb();
-        $table = $db->getSchema()->getRawTableName('{{%elementrelations_cache}}');
-        $new = $table . '_pruned';
-        $quoted = $db->quoteTableName($table);
-        $quotedNew = $db->quoteTableName($new);
+        $pgsql = $db->getIsPgsql();
+        $table = $db->quoteTableName($db->getSchema()->getRawTableName('{{%elementrelations_cache}}'));
+        $keep = $db->quoteTableName($db->getSchema()->getRawTableName('{{%elementrelations_cache}}') . '_keep');
         // an exact count of a huge table would be one more full scan, for a log line
         $before = self::estimatedRows();
-        if ($before < self::REBUILD_MIN_ROWS) {
-            $before = (int)(new Query())->from('{{%elementrelations_cache}}')->count();
-        }
-        $transaction = $db->beginTransaction();
+        $transaction = $pgsql ? $db->beginTransaction() : null;
         try {
-            $db->createCommand("LOCK TABLE $quoted IN EXCLUSIVE MODE")->execute();
-            // room to hash `elements` once per join below, for this transaction only
-            $db->createCommand("SET LOCAL work_mem = '256MB'")->execute();
-            $indexes = (new Query())
-                ->select(['indexname', 'indexdef'])
-                ->from('pg_indexes')
-                ->where(['schemaname' => new Expression('current_schema()'), 'tablename' => $table])
-                ->all();
-            $sequence = $db->createCommand("SELECT pg_get_serial_sequence(:table, 'id')", [':table' => $quoted])->queryScalar();
-            $db->createCommand("DROP TABLE IF EXISTS $quotedNew")->execute();
-            $db->createCommand("CREATE TABLE $quotedNew (LIKE $quoted INCLUDING DEFAULTS)")->execute();
-            // keepCondition() as joins: over the whole table PostgreSQL hashes `elements` once per join, where the
+            // PostgreSQL: writers wait (reads go on until the truncate), and room to hash `elements` once per join
+            array_map(fn(string $sql): int => $db->createCommand($sql)->execute(), $pgsql ? ["LOCK TABLE $table IN EXCLUSIVE MODE", "SET LOCAL work_mem = '256MB'"] : []);
+            // keepCondition() as joins: over the whole table the database hashes `elements` once per join, where the
             // EXISTS form checks every row
             $select = (new Query())
                 ->select(['c.*'])
@@ -128,50 +117,31 @@ class PruneService
                     ['and', ['not', ['t.id' => null]], ['not', ['s.id' => null]], ['not', ['o.id' => null]], ['o.revisionId' => null]],
                 ]);
             [$sql, $params] = $db->getQueryBuilder()->build($select);
-            $kept = $db->createCommand("INSERT INTO $quotedNew $sql", $params)->execute();
-            $log(sprintf('kept %d of %d rows', $kept, $before));
-            // the indexes, built on the small table; named after the old ones once those are gone
-            foreach ($indexes as $index) {
-                // pg_indexes: CREATE [UNIQUE] INDEX name ON [schema.]table USING ...
-                $def = preg_replace('/ ON (?:\S+\.)?"?' . preg_quote($table, '/') . '"? USING /', " ON $quotedNew USING ", (string)$index['indexdef'], 1, $count);
-                if ($count !== 1) {
-                    throw new \RuntimeException("Unexpected index definition: {$index['indexdef']}");
-                }
-                $def = str_replace('INDEX ' . $index['indexname'] . ' ', 'INDEX ' . $index['indexname'] . '_p ', (string)$def);
-                $db->createCommand((string)$def)->execute();
-            }
-            if ($sequence) {
-                $db->createCommand("ALTER SEQUENCE $sequence OWNED BY $quotedNew.[[id]]")->execute();
-            }
-            $db->createCommand("DROP TABLE $quoted")->execute();
-            $db->createCommand("ALTER TABLE $quotedNew RENAME TO " . $db->getSchema()->quoteSimpleTableName($table))->execute();
-            foreach ($indexes as $index) {
-                $db->createCommand('ALTER INDEX ' . $db->getSchema()->quoteSimpleTableName($index['indexname'] . '_p') . ' RENAME TO ' . $db->getSchema()->quoteSimpleTableName((string)$index['indexname']))->execute();
-            }
-            $pk = array_filter($indexes, fn(array $index): bool => str_ends_with((string)$index['indexname'], '_pkey'));
-            if ($pk) {
-                $db->createCommand('ALTER TABLE ' . $quoted . ' ADD CONSTRAINT ' . $db->getSchema()->quoteSimpleTableName((string)reset($pk)['indexname']) . ' PRIMARY KEY USING INDEX ' . $db->getSchema()->quoteSimpleTableName((string)reset($pk)['indexname']))->execute();
-            }
-            $db->createCommand("ANALYZE $quoted")->execute();
-            $transaction->commit();
+            $db->createCommand("DROP TABLE IF EXISTS $keep")->execute();
+            $db->createCommand("CREATE TEMPORARY TABLE $keep AS $sql", $params)->execute();
+            $kept = (int)(new Query())->from($keep)->count();
+            $log(sprintf('keeping %d of about %d rows', $kept, $before));
+            $db->createCommand("TRUNCATE TABLE $table")->execute();
+            $db->createCommand("INSERT INTO $table SELECT * FROM $keep")->execute();
+            $db->createCommand("DROP TABLE $keep")->execute();
+            $db->createCommand(($pgsql ? 'ANALYZE ' : 'ANALYZE TABLE ') . $table)->execute();
+            $transaction?->commit();
         } catch (\Throwable $e) {
-            $transaction->rollBack();
+            $transaction?->rollBack();
             throw $e;
         }
-        $db->getSchema()->refreshTableSchema('{{%elementrelations_cache}}');
-        return $before - $kept;
+        $removed = max(0, $before - $kept);
+        $log("removed about $removed rows");
+        return $removed;
     }
 
-    /** PostgreSQL's estimate of the table's rows (no full count on a huge table), else a count. */
+    /** The database's estimate of the table's rows (no full count of a huge table); a count when it has none. */
     private static function estimatedRows(): int
     {
         $db = Craft::$app->getDb();
-        if ($db->getIsPgsql()) {
-            $estimate = $db->createCommand('SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass(:table)', [':table' => $db->quoteTableName($db->getSchema()->getRawTableName('{{%elementrelations_cache}}'))])->queryScalar();
-            if ($estimate !== false && (int)$estimate > 0) {
-                return (int)$estimate;
-            }
-        }
-        return (int)(new Query())->from('{{%elementrelations_cache}}')->count();
+        $name = $db->getSchema()->getRawTableName('{{%elementrelations_cache}}');
+        $sql = $db->getIsPgsql() ? 'SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass(:table)' : 'SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :table';
+        $estimate = (int)$db->createCommand($sql, [':table' => $db->getIsPgsql() ? $db->quoteTableName($name) : $name])->queryScalar();
+        return $estimate >= self::REBUILD_MIN_ROWS ? $estimate : (int)(new Query())->from('{{%elementrelations_cache}}')->count();
     }
 }

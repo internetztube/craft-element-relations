@@ -16,15 +16,10 @@ class m261026_000000_prune_cache extends Migration
 {
     public function up(bool $throwExceptions = false): bool
     {
-        try {
-            PruneService::prune(fn(string $line) => print("    > element relations cache: $line\n"));
-        } catch (\Throwable $e) {
-            if ($throwExceptions) {
-                throw $e;
-            }
-            echo '    > element relations cache: ' . $e->getMessage() . "\n";
-            return false;
-        }
+        // Craft's migrator runs this with $throwExceptions and reports what is thrown
+        PruneService::prune(function (string $line): void {
+            echo "    > element relations cache: $line\n";
+        });
         return true;
     }
 

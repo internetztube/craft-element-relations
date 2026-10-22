@@ -161,6 +161,12 @@ check($rel->getCount(sections: 'pages') === 12 && $rel->getCount(sections: 'nope
 check($rel->getCount(entryTypes: 'page') === 12 && $rel->getCount(entryTypes: 'nope') === 0, 'entry type filter');
 check($rel->getIsInUse() && $rel->getIsInUseFast(), 'isInUse / isInUseFast');
 check(count($rel->getElements(limit: 10)) === 10 && count($rel->getElements(limit: 10, offset: 10)) === 2, 'limit/offset pagination');
+// across element types (one query each): an offset past the first type's elements skips that query
+$pageC = (new RelationsModel((int)Entry::find()->title('Page C')->one()->id, (int)$b->siteId));
+$allOfC = array_map(fn($e) => $e::class . ':' . $e->id, $pageC->getElements([], null, 0, status: null, drafts: false));
+$firstType = explode(':', $allOfC[0] ?? '')[0];
+$skip = count(array_filter($allOfC, fn(string $key): bool => str_starts_with($key, "$firstType:")));
+check($skip < count($allOfC) && array_map(fn($e) => $e::class . ':' . $e->id, $pageC->getElements([], 2, $skip, status: null, drafts: false)) === array_slice($allOfC, $skip, 2), 'an offset past the first element type continues with the next one');
 check(count($rel->getSourceElementIds()) === 12, 'getSourceElementIds() = 12 ids');
 check(count(iterator_to_array($rel->getElementsIterator([], batchSize: 4), false)) === 12 && count(iterator_to_array($rel->getElementsIterator([], limit: 6, offset: 3, batchSize: 4), false)) === 6, 'the iterator walks every batch (4 at a time), with limit and offset');
 $firstTitle = (string)($rel->getElements([], limit: 1)[0] ?? '');

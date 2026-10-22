@@ -71,6 +71,9 @@ return function (array $ctx): void {
     $flush();
     check($code === ExitCode::OK && $ids($source) === [$old1->id, $old2->id] && str_contains($out, 'Rolled back'), 'rollback restores it (' . trim($out) . ')');
 
+    [$code, $out] = $run('element-relations/prune');
+    check($code === ExitCode::OK && str_contains($out, 'removed'), 'element-relations/prune removes the rows nothing can read and says how many (' . trim($out) . ')');
+
     // a CSV mapping, as after merging duplicates: header, comment, two pairs
     $csv = tempnam(sys_get_temp_dir(), 'er') . '.csv';
     file_put_contents($csv, "from,to\n# merged duplicates\n{$old1->id},{$new1->id}\n{$old2->id},{$new2->id}\n");

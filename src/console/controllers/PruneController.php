@@ -16,7 +16,9 @@ class PruneController extends Controller
 {
     public function actionIndex(): int
     {
-        PruneService::prune(fn(string $line) => $this->stdout($line . PHP_EOL));
+        PruneService::prune(function (string $line): void {
+            $this->stdout($line . PHP_EOL);
+        });
         return ExitCode::OK;
     }
 }

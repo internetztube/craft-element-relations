@@ -52,20 +52,29 @@ return function (array $ctx): void {
     flushQueue();
     check($junkLeft($uids) === 0 && $rowsOfB() === $liveRowsOfB, 'garbage collection removes the rows of the elements it deleted (via a queue job)');
 
-    // PostgreSQL, large tables: copy the live rows into a new table and swap it in
-    if ($db->getIsPgsql()) {
-        $uids = $insertJunk();
-        $indexesBefore = $db->createCommand("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename = :t ORDER BY indexname", [':t' => $db->getSchema()->getRawTableName('{{%elementrelations_cache}}')])->queryAll();
-        $total = (int)(new Query())->from('{{%elementrelations_cache}}')->count();
-        $removed = PruneService::prune(rebuild: true);
-        $indexesAfter = $db->createCommand("SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename = :t ORDER BY indexname", [':t' => $db->getSchema()->getRawTableName('{{%elementrelations_cache}}')])->queryAll();
-        check($junkLeft($uids) === 0 && $removed === 3 && (int)(new Query())->from('{{%elementrelations_cache}}')->count() === $total - 3, 'PostgreSQL: the rebuild keeps exactly the live rows');
-        check($indexesAfter === $indexesBefore, 'PostgreSQL: the rebuilt table has the same indexes, names and primary key');
-        $record = new ElementRelationsCacheRecord(array_intersect_key($live, array_flip(['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'customFieldUid', 'type'])));
-        check($record->save() && $record->id > max(array_map(intval(...), (new Query())->select(['id'])->from('{{%elementrelations_cache}}')->where(['not', ['id' => $record->id]])->column())), 'PostgreSQL: new rows still get ids from the sequence after the rebuild');
-        $record->delete();
-        check($rowsOfB() === $liveRowsOfB && $count() === $usagesBefore, 'PostgreSQL: usages are unchanged after the rebuild');
-    }
+    // large tables: the rows to keep copied out, the table emptied, the rows copied back
+    $indexes = function () use ($db): array {
+        $db->getSchema()->refreshTableSchema('{{%elementrelations_cache}}');
+        $out = [];
+        foreach ($db->getSchema()->getTableIndexes('{{%elementrelations_cache}}', true) as $index) {
+            $out[(string)$index->name] = [$index->columnNames, (bool)$index->isUnique, (bool)$index->isPrimary];
+        }
+        ksort($out);
+        return $out;
+    };
+    $uids = $insertJunk();
+    $indexesBefore = $indexes();
+    $total = (int)(new Query())->from('{{%elementrelations_cache}}')->count();
+    $lines = [];
+    $removed = PruneService::prune(function (string $line) use (&$lines): void {
+        $lines[] = $line;
+    }, rebuild: true);
+    check($junkLeft($uids) === 0 && $removed === 3 && (int)(new Query())->from('{{%elementrelations_cache}}')->count() === $total - 3 && str_contains(implode(' ', $lines), 'keeping ' . ($total - 3)), 'the rebuild keeps exactly the live rows and says so');
+    check($indexes() === $indexesBefore, 'the rebuilt table keeps its indexes, their names and the primary key');
+    $record = new ElementRelationsCacheRecord(array_intersect_key($live, array_flip(['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'fieldId', 'customFieldUid', 'type'])));
+    check($record->save() && $record->id > max(array_map(intval(...), (new Query())->select(['id'])->from('{{%elementrelations_cache}}')->where(['not', ['id' => $record->id]])->column())), 'new rows still get new ids after the rebuild');
+    $record->delete();
+    check($rowsOfB() === $liveRowsOfB && $count() === $usagesBefore, 'usages are unchanged after the rebuild');
 
     // revisions (and the nested elements Craft keeps for them) get no rows
     ExtractorService::refreshRelationsForElement($revision);

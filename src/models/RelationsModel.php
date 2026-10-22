@@ -401,7 +401,9 @@ class RelationsModel
                     $query->drafts(null)->provisionalDrafts(false)->revisions(false);
                 }
                 foreach ($query->all() as $element) {
-                    $loaded[(int)$element->id] = $element;
+                    if ($element instanceof ElementInterface) {
+                        $loaded[(int)$element->id] = $element;
+                    }
                 }
             }
         }
