@@ -314,6 +314,51 @@ $mixed = $cModel->getElements(status: ['live', 'enabled'], drafts: false);
 $has = fn(string $class): bool => array_filter($mixed, fn(ElementInterface $e): bool => is_a($e, $class)) !== [];
 check($has(Entry::class) && $has(craft\elements\Category::class) && $has('craft\commerce\elements\Product') && $has(craft\elements\Tag::class), 'status [“live”, “enabled”]: each type takes the words it knows (entries and the product live, categories enabled, the tag), none is dropped');
 
+echo "Translations\n";
+// every language Craft ships: the English keys, and each string with the same placeholders ({count}, {names}, …)
+$translationsDir = dirname(__DIR__) . '/src/translations';
+$english = require "$translationsDir/en/element-relations.php";
+$placeholdersOf = function (string $s): array {
+    for ($prev = null; $prev !== $s; $s = preg_replace('/(=\d+|zero|one|two|few|many|other)\s*\{[^{}]*\}/', '', $s)) $prev = $s; // plural branches hold words, not placeholders
+    return array_values(array_unique(preg_match_all('/\{([a-zA-Z]+)(?:,|\})/', $s, $m) ? $m[1] : []));
+};
+$translationProblems = [];
+foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
+    $lang = basename(dirname($translationFile));
+    $strings = require $translationFile;
+    if (array_keys($strings) !== array_keys($english)) {
+        $translationProblems[] = "$lang: keys differ";
+    }
+    foreach ($english as $key => $value) {
+        // a plural that only picks words (no #, no plain {x}) may be dropped by a language without that distinction
+        $want = array_values(array_filter($placeholdersOf($value), fn(string $x): bool => str_contains($value, '#') || str_contains($value, '{' . $x . '}') || str_contains($value, '{' . $x . ', number') || !str_contains($value, '{' . $x . ', plural'))); sort($want);
+        $haveAll = $placeholdersOf((string)($strings[$key] ?? ''));
+        $missing = array_diff($want, $haveAll);
+        $unknown = array_diff($haveAll, $placeholdersOf($value));
+        if ($missing || $unknown) {
+            $translationProblems[] = "$lang/$key: " . ($missing ? 'missing ' . json_encode(array_values($missing)) : '') . ($unknown ? ' unknown ' . json_encode(array_values($unknown)) : '');
+        }
+    }
+}
+$craftLanguages = array_map('basename', glob(Craft::getAlias('@craft/translations') . '/*', GLOB_ONLYDIR));
+$pluginLanguages = array_map(fn(string $f) => basename(dirname($f)), glob("$translationsDir/*/element-relations.php"));
+// and every string formats in its own language, for one and for many (Craft formats them with ICU)
+$sampleParams = ['count' => 3, 'numTargets' => 2, 'reverted' => 1, 'names' => 'A, B', 'element' => 'E', 'site' => 'S', 'from' => 'F', 'to' => 'T', 'type' => 'entry', 'types' => 'entries', 'error' => 'x', 'list' => 'L', 'id' => 7, 'sites' => 'S', 'name' => 'N'];
+foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
+    $lang = basename(dirname($translationFile));
+    foreach (require $translationFile as $key => $value) {
+        foreach ([1, 5, 22] as $n) {
+            $formatted = MessageFormatter::formatMessage($lang, $value, ['count' => $n] + $sampleParams);
+            if ($formatted === false || str_contains($formatted, '{')) {
+                $translationProblems[] = "$lang/$key does not format with count $n";
+                break;
+            }
+        }
+    }
+}
+check($translationProblems === [], 'every translation file has the English keys and placeholders: ' . implode('; ', array_slice($translationProblems, 0, 5)));
+check(array_diff($craftLanguages, $pluginLanguages) === [], 'every language Craft ships has a translation file (' . count($pluginLanguages) . '; missing: ' . implode(', ', array_diff($craftLanguages, $pluginLanguages)) . ')');
+
 echo "Editions (behind the `features.editions` flag)\n";
 $plugin = internetztube\elementRelations\ElementRelations::class;
 check($plugin::editionsFor([]) === ['standard'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: one edition, Craft’s “standard” like 3.1 (its licenses stay valid); flag on: Lite and Pro');

@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Integrations: Vizy, FreeLink, SEO (by Ether), LinkMate, Navigation, Wishlist, Formie; SEOmatic Twitter and Open Graph images. Any field that uses Craft's relations table (the Link field too) is picked up by itself.
 - Events to add or remove extractors and usage providers, and around replacements.
 - Own log file: `storage/logs/element-relations-<date>.log`.
+- Translations of the control panel texts in every language Craft ships (33 languages).
 - Settings can be set in `config/element-relations.php` (copy `src/config.php`).
 - **Unused:** a “Used anywhere” filter on every element index, and the `unused()` query param.
 - **Replace:** swap an element for another in the ticked usages, in the filtered list, or everywhere. Also from the command line (`element-relations/replace`, `replace/map <file.csv>`) and in PHP (`ReplaceService::replace()`).
