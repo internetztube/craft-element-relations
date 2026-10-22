@@ -55,9 +55,9 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to set
 | `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole cache is rebuilt. |
 | `protectInUse` | `true` | Elements that live content uses can't be deleted or taken offline (see [Protection](#protect-what-is-in-use)). |
 
-Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Elements per page.
+Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Elements per page, Elements in index columns (default 5).
 
-You can rebuild the cache any time under Utilities → Element Relations, or with `php craft element-relations/resave-relations`.
+You can rebuild the cache any time under Utilities → Element Relations, or with `php craft element-relations/resave-relations`. `php craft element-relations/prune` removes rows of elements that no longer exist; garbage collection does that by itself.
 
 ## Supported fields and plugins
 

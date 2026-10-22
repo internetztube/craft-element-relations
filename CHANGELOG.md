@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 4.0.1.3 - 2026-10-22
+
+### Added
+- `php craft element-relations/prune` removes cache rows nothing can read. Garbage collection does the same after every run.
+
+### Changed
+- An element index column of the field loads its data for the whole page at once: a handful of queries instead of several per row (from 9 s to 0.2 s for 100 rows on a large site). Its first usages are the most recently updated ones.
+
+### Fixed
+- The cache kept the rows of elements Craft's garbage collection deleted, and of revisions; on large sites they were almost the whole table and slowed down every list, count and sort. The update removes them once (on PostgreSQL, a large table is rebuilt instead; writes to the cache wait until that is done).
+
 ## 4.0.1.2 - 2026-10-22
 
 ### Added

@@ -114,12 +114,21 @@ class ExtractorService
      */
     public static function refreshRelationsForElement(ElementInterface $element): bool
     {
+        $ownerId = self::getPrimaryOwnerId($element);
+        // revisions are never shown as usages, and neither are the nested elements (Matrix entries, Neo blocks) Craft
+        // keeps for them, which reach this through other paths than the save event (owner trees, full rebuilds)
+        $ofRevision = $ownerId !== (int)$element->id && (new Query())->from(\craft\db\Table::ELEMENTS)->where(['id' => $ownerId])->andWhere(['not', ['revisionId' => null]])->exists();
+        if ($element->getIsRevision() || $ofRevision) {
+            \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
+            return ElementRelationsCacheRecord::deleteAll(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId]) > 0;
+        }
+
         $fields = $element->getFieldLayout()?->getCustomFields() ?? [];
 
         $baseRecord = new ElementRelationsCacheRecord([
             'sourceElementId' => $element->id,
             'sourceSiteId' => $element->siteId,
-            'sourcePrimaryOwnerId' => self::getPrimaryOwnerId($element),
+            'sourcePrimaryOwnerId' => $ownerId,
         ]);
 
         $records = collect($fields)
@@ -149,6 +158,7 @@ class ExtractorService
         self::deleteRelationsForElement($element);
         $records->each(fn(ElementRelationsCacheRecord $record): bool => $record->save());
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
         return true;
     }
 
@@ -206,6 +216,7 @@ class ExtractorService
     public static function forgetElement(ElementInterface $element, ?int $siteId = null): void
     {
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
         ElementRelationsCacheRecord::deleteAll(['and',
             ['or', ['sourceElementId' => $element->id], ['sourcePrimaryOwnerId' => $element->id]],
             $siteId === null ? [] : ['sourceSiteId' => $siteId],
@@ -215,6 +226,7 @@ class ExtractorService
     public static function deleteRelationsForElement(ElementInterface $element): void
     {
         \internetztube\elementRelations\elements\db\UsageQuery::resetPermissionCache();
+        \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
         ElementRelationsCacheRecord::deleteAll([
             'sourceElementId' => $element->id,
             'sourceSiteId' => $element->siteId,

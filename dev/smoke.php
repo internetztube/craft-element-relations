@@ -208,6 +208,55 @@ $field->previewLimit = 2;
 check(str_contains($field->getPreviewHtml($rel, $b), '>+1</span>'), 'the field setting "Elements in index columns" sets how many usages the preview loads');
 $field->previewLimit = 5;
 check(!(new internetztube\elementRelations\fields\ElementRelationsField(['previewLimit' => 0]))->validate(['previewLimit']), 'the preview limit is at least 1');
+
+// as a column of an element index, the field loads the column's data for the whole page at once
+$queriesDuring = function (callable $fn): int {
+    $db = Craft::$app->getDb();
+    $logger = Yii::getLogger();
+    [$profiling, $flush] = [$db->enableProfiling, $logger->flushInterval];
+    $db->enableProfiling = true;
+    $logger->flushInterval = PHP_INT_MAX;
+    $before = count($logger->getProfiling(['yii\db\Command::query']));
+    $fn();
+    $count = count($logger->getProfiling(['yii\db\Command::query'])) - $before;
+    [$db->enableProfiling, $logger->flushInterval] = [$profiling, $flush];
+    return $count;
+};
+$listed = Entry::find()->section('pages')->status(null)->orderBy(['elements.id' => SORT_ASC])->all();
+$perRow = $queriesDuring(function () use ($field, $listed): void {
+    foreach ($listed as $entry) {
+        $field->getPreviewHtml($entry->getFieldValue('relations'), $entry);
+    }
+});
+$batchedPreviews = [];
+$batchedFor = function (?int $limit) use ($queriesDuring, $field, &$batchedPreviews): int {
+    return $queriesDuring(function () use ($field, $limit, &$batchedPreviews): void {
+        $indexQuery = Entry::find()->section('pages')->status(null)->orderBy(['elements.id' => SORT_ASC])->limit($limit);
+        $field->modifyElementIndexQuery($indexQuery);
+        foreach ($indexQuery->all() as $entry) {
+            $batchedPreviews[$entry->id] = $field->getPreviewHtml($entry->getFieldValue('relations'), $entry);
+        }
+    });
+};
+$batchedFor(10); // Craft's one-off lookups (schema, field layouts)
+$batchedTen = $batchedFor(10);
+$batched = $batchedFor(null);
+check(count($listed) > 10 && $batched <= $batchedTen + 2 && $batched * 4 < $perRow, "an element index column loads its data for the whole page in a few queries, however many rows ($batchedTen for 10 rows, $batched for " . count($listed) . ", $perRow one row at a time)");
+$chipIds = fn(string $html): array => preg_match_all('/data-id="(\d+)"/', $html, $m) ? array_map(intval(...), $m[1]) : [];
+$newest = (int)(new craft\db\Query())
+    ->select(['e.id'])
+    ->from(['c' => '{{%elementrelations_cache}}'])
+    ->innerJoin(['e' => craft\db\Table::ELEMENTS], '[[e.id]] = [[c.sourcePrimaryOwnerId]]')
+    ->leftJoin(['d' => craft\db\Table::DRAFTS], '[[d.id]] = [[e.draftId]]')
+    ->where(['c.targetElementId' => $b->id, 'e.revisionId' => null, 'e.dateDeleted' => null])
+    ->andWhere(['or', ['d.id' => null], ['d.provisional' => false]])
+    ->orderBy(['e.dateUpdated' => SORT_DESC, 'e.id' => SORT_DESC])
+    ->scalar();
+$bBatched = $batchedPreviews[$b->id] ?? '';
+check(str_contains($bBatched, '12 total') && str_contains($bBatched, '>+4</span>') && ($chipIds($bBatched)[0] ?? null) === $newest, 'batched: the same total and number of usages, the most recently updated one first (' . json_encode(['chips' => $chipIds($bBatched), 'newest' => $newest]) . ')');
+check(str_contains($batchedPreviews[$unused->id] ?? '', Craft::t('element-relations', 'field-value-unused')), 'batched: an unused element still says so');
+internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
+
 [$input, $unusedInput] = withWebRequest(fn() => [
     $field->getInputHtml($rel, $b),
     $field->getInputHtml($unused->getFieldValue('relations'), $unused),

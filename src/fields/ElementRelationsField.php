@@ -218,6 +218,30 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     }
 
     /**
+     * The field is a column of this element index: once Craft has loaded the page's elements, load the column's data
+     * for all of them (RelationsModel::prefetch()), not several queries per row in getPreviewHtml(). Users with limited
+     * permissions get their per-row lists (see getPreviewHtml()).
+     */
+    public function modifyElementIndexQuery(\craft\elements\db\ElementQueryInterface $query): void
+    {
+        parent::modifyElementIndexQuery($query);
+        if (!$query instanceof \craft\elements\db\ElementQuery || self::restrictedViewer()) {
+            return;
+        }
+        $query->on(\craft\elements\db\ElementQuery::EVENT_AFTER_POPULATE_ELEMENTS, function (\craft\events\PopulateElementsEvent $event): void {
+            $siteId = null;
+            $ids = [];
+            foreach ($event->elements as $element) {
+                if ($element instanceof ElementInterface && $element->id) {
+                    $ids[] = (int)($element->getCanonicalId() ?? $element->id);
+                    $siteId ??= (int)$element->siteId;
+                }
+            }
+            RelationsModel::prefetch($ids, $this->previewLimit ?? 5, $siteId ?? (int)Craft::$app->getSites()->getPrimarySite()->id);
+        });
+    }
+
+    /**
      * Element index column: the relating elements of the element's site as Craft chips (with Craft's "+N" popover).
      * @param RelationsModel|null $value
      */
@@ -239,7 +263,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             $total = (int)$visibleQuery->count();
             $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer);
         } else {
-            $elements = $value->getElements([], $this->previewLimit ?? 5);
+            $elements = $value->getPreviewElements($this->previewLimit ?? 5);
             $total = $value->getCountFast([]);
             $hidden = 0;
         }

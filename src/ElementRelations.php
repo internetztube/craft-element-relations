@@ -52,7 +52,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.13";
+    public string $schemaVersion = "1.0.14";
 
     /** The one edition while the `editions` flag is off: Craft's default, what 3.1 and its Plugin Store licenses use. */
     public const EDITION_STANDARD = 'standard';
@@ -409,7 +409,7 @@ class ElementRelations extends Plugin
             /** @var Element $element */
             $element = $event->sender;
             // A trashed element can be restored, so its usages stay (lists and counts skip trashed elements, the list's
-            // "Trashed" status shows them; rows of elements Craft's garbage collection removes later are never joined).
+            // "Trashed" status shows them; garbage collection removes their rows with the elements, below).
             // Not for nested elements: Craft trashes a Matrix block's entry when it is removed from its owner, whose
             // usage it would otherwise still be; restoring the owner refreshes them (below).
             $nested = $element instanceof \craft\base\NestedElementInterface && $element->getPrimaryOwnerId() !== null;
@@ -417,6 +417,10 @@ class ElementRelations extends Plugin
                 ExtractorService::forgetElement($element); // every site: a deleted element is gone in all of them
             }
         });
+        // Craft's garbage collection hard-deletes trashed elements (nested ones by cascade) in SQL, without element
+        // events; its 'run' event fires once those deletions are done, so their rows go then (in the queue: garbage
+        // collection may run at the end of any web request)
+        Event::on(\craft\services\Gc::class, \craft\services\Gc::EVENT_RUN, fn() => Craft::$app->getQueue()->push(new \internetztube\elementRelations\jobs\PruneJob()));
         // deleted for one site: that site's rows go, the other sites keep theirs
         Event::on(\craft\services\Elements::class, \craft\services\Elements::EVENT_AFTER_DELETE_FOR_SITE, function (\craft\events\ElementEvent $event): void {
             ExtractorService::forgetElement($event->element, (int)$event->element->siteId);
