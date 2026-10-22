@@ -29,7 +29,7 @@ Every Craft project asks the same questions. Can I delete this asset? Which page
 
 ## Tested
 
-Three test suites run on every push, on PHP 8.2 and 8.3, on MySQL 8 and PostgreSQL 14: a console test, the control panel over HTTP, and the control panel in headless Chrome. 1,457 checks. Every supported plugin is seeded and round-tripped (read, replace, roll back). 100 % line coverage of `src/`. [`dev/TESTS.md`](dev/TESTS.md) lists every check in one sentence.
+Three test suites run on every push, on PHP 8.2 and 8.3, on MySQL 8 and PostgreSQL 14: a console test, the control panel over HTTP, and the control panel in headless Chrome. Over 1,400 checks. Every supported plugin is seeded and round-tripped (read, replace, roll back). 100 % line coverage of `src/`. [`dev/TESTS.md`](dev/TESTS.md) lists every check in one sentence.
 
 ## Requirements
 
