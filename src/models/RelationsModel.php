@@ -340,9 +340,6 @@ class RelationsModel
     public static function prefetch(array $elementIds, int $limit, int $preferredSiteId): void
     {
         $elementIds = array_values(array_unique(array_map(intval(...), $elementIds)));
-        if (!$elementIds) {
-            return;
-        }
         $data = array_fill_keys($elementIds, ['owners' => 0, 'types' => [], 'globalRows' => [], 'preview' => [], 'limit' => $limit]);
         $target = '[[elementrelations_cache.targetElementId]]';
         $owner = '[[elementrelations_cache.sourcePrimaryOwnerId]]';

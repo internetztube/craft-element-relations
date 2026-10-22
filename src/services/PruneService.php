@@ -65,13 +65,10 @@ class PruneService
     private static function deleteInBatches(callable $log): int
     {
         $db = Craft::$app->getDb();
-        /** @var array{min: int|string|null, max: int|string|null}|false $range */
+        /** @var array{min: int|string|null, max: int|string|null} $range an aggregate always has its row (nulls when empty) */
         $range = (new Query())->select(['min' => 'MIN([[id]])', 'max' => 'MAX([[id]])'])->from('{{%elementrelations_cache}}')->one();
-        if (!$range || $range['max'] === null) {
-            return 0;
-        }
         $removed = 0;
-        for ($from = (int)$range['min']; $from <= (int)$range['max']; $from += self::BATCH) {
+        for ($from = (int)($range['min'] ?? 0); $from <= (int)($range['max'] ?? -1); $from += self::BATCH) {
             $ids = (new Query())
                 ->select(['c.id'])
                 ->from(['c' => '{{%elementrelations_cache}}'])
