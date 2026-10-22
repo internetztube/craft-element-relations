@@ -2,7 +2,7 @@
     "name": "internetztube/craft-element-relations",
     "description": "See where every element is used: one native list across all element types, sites and supported plugins, with Twig, GraphQL and element query support. Pro: unused filter, replace with undo.",
     "type": "craft-plugin",
-    "version": "4.0.1",
+    "version": "4.0.1.1",
     "keywords": [
         "craft",
         "cms",

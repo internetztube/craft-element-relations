@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 4.0.1.1 - 2026-10-22
+
+### Fixed
+- Sorting an element index by the field could take forever on large sites (hundreds of millions of cached relations), and so could the “Used anywhere” filter: PostgreSQL scanned every element once per listed element.
+
 ## 4.0.1 - 2026-10-22
 
 ### Fixed

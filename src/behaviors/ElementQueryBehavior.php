@@ -71,11 +71,16 @@ class ElementQueryBehavior extends Behavior
             $subQuery->andWhere(['not exists', (new Query())
                 ->select(['elementrelations_cache.id'])
                 ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-                // usages by trashed elements don't count, like everywhere else (they come back when restored);
-                // plugin settings (no source element) do
-                ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
                 ->where(['elementrelations_cache.targetElementId' => new Expression('[[elements.id]]')])
-                ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null], ['sources.type' => Craft::$app->getElements()->getAllElementTypes()]]]),
+                // usages by trashed elements don't count, like everywhere else (they come back when restored);
+                // plugin settings (no source element) do. A correlated EXISTS rather than a join, see
+                // ElementRelationsField::getSortOption().
+                ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['exists', (new Query())
+                    ->select(new Expression('1'))
+                    ->from(['sources' => Table::ELEMENTS])
+                    ->where(['sources.id' => new Expression('[[elementrelations_cache.sourcePrimaryOwnerId]]')])
+                    ->andWhere(['sources.dateDeleted' => null, 'sources.type' => Craft::$app->getElements()->getAllElementTypes()]),
+                ]]),
             ]);
         }
         if ($this->usesElement === null) {

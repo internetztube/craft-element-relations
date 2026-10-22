@@ -60,6 +60,47 @@ return function (array $ctx): void {
     $category = Category::find()->title('Test Category')->one(); // relates to Page C, nothing relates to it
     check($category && in_array($category->id, Category::find()->unused()->status(null)->ids(), true), 'unused() works for categories (Test Category is a source, not a target)');
 
+    // The sort and unused() check every listed element's usages. On a large, skewed cache table PostgreSQL expects
+    // thousands of usages per element and, if the SQL lets it, hashes all of `elements` once per listed element: a
+    // request that never finishes. With nested loops off it takes that plan whenever it can; the source element must
+    // still be looked up per usage (by primary key; on the seed's tiny tables a filtered seq scan is cheaper), or in a
+    // hashed subplan, which PostgreSQL builds once per query; never as the input of a join inside the per-element
+    // subquery.
+    if (Craft::$app->getDb()->getIsPgsql()) {
+        $db = Craft::$app->getDb();
+        $elementsTable = $db->getSchema()->getRawTableName(craft\db\Table::ELEMENTS);
+        $sourceLookups = function (string $sql) use ($db, $elementsTable): array {
+            $db->createCommand('SET enable_nestloop = off')->execute();
+            try {
+                $plan = json_decode((string)$db->createCommand('EXPLAIN (FORMAT JSON) ' . $sql)->queryScalar(), true);
+            } finally {
+                $db->createCommand('RESET enable_nestloop')->execute();
+            }
+            $scans = [];
+            // JSON plans name a hashed subplan plainly ("SubPlan 2"); only the condition using it says "hashed SubPlan 2"
+            preg_match_all('/hashed (SubPlan \d+)/', (string)json_encode($plan), $matches);
+            $hashedNames = $matches[1];
+            $walk = function (array $node, bool $hashed = false) use (&$walk, &$scans, $elementsTable, $hashedNames): void {
+                $hashed = $hashed || in_array($node['Subplan Name'] ?? null, $hashedNames, true);
+                if (($node['Relation Name'] ?? null) === $elementsTable && ($node['Alias'] ?? null) === 'sources') {
+                    $scans[] = ($hashed ? 'hashed: ' : '') . trim($node['Node Type'] . ' ' . implode(' ', array_filter([$node['Index Cond'] ?? null, $node['Recheck Cond'] ?? null, $node['Filter'] ?? null])));
+                }
+                foreach ($node['Plans'] ?? [] as $child) {
+                    $walk($child, $hashed);
+                }
+            };
+            $walk($plan[0]['Plan']);
+            return $scans;
+        };
+        $byPrimaryKey = fn(array $scans): bool => $scans && !array_filter($scans, fn(string $scan): bool => !str_starts_with($scan, 'hashed: ') && !str_contains($scan, 'sourcePrimaryOwnerId'));
+        $sortScans = $sourceLookups(Asset::find()->status(null)->orderBy([$sort['orderBy'] => SORT_DESC])->limit(100)->createCommand()->getRawSql());
+        $ok = $byPrimaryKey($sortScans);
+        check($ok, 'PostgreSQL: sorting by the field looks up each usage\'s source on its own, never scans all elements per listed element' . ($ok ? '' : ': ' . json_encode($sortScans)));
+        $unusedScans = $sourceLookups(Asset::find()->unused()->status(null)->createCommand()->getRawSql());
+        $ok = $byPrimaryKey($unusedScans);
+        check($ok, 'PostgreSQL: unused() looks up each usage\'s source on its own, never scans all elements per listed element' . ($ok ? '' : ': ' . json_encode($unusedScans)));
+    }
+
     // replace: own "from" entry (Page C is used by every integration seed; replacing it would rewrite them all)
     $b = Entry::find()->title('Page B')->one();
     $section = Craft::$app->getEntries()->getSectionByHandle('pages');

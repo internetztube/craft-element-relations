@@ -179,17 +179,22 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     public function getSortOption(): array
     {
         // elements as the list counts them: a relating element once (whatever its sites and however many fields point
-        // at the target), no trashed elements, revisions or provisional drafts; plugin settings count as one each
+        // at the target), no trashed elements, revisions or provisional drafts; plugin settings count as one each.
+        // The source check is a correlated EXISTS (one primary key lookup per cache row), not a join: this runs once
+        // per element of the index, and with a join PostgreSQL may hash all of `elements` each time when it expects
+        // many usages per target (a large, skewed cache table), which never finishes.
+        $liveSource = (new \craft\db\Query())
+            ->select(new \yii\db\Expression('1'))
+            ->from(['sources' => \craft\db\Table::ELEMENTS])
+            ->leftJoin(['drafts' => \craft\db\Table::DRAFTS], '[[drafts.id]] = [[sources.draftId]]')
+            ->where(['sources.id' => new \yii\db\Expression('[[elementrelations_cache.sourcePrimaryOwnerId]]')])
+            ->andWhere(['sources.dateDeleted' => null, 'sources.revisionId' => null])
+            ->andWhere(['or', ['drafts.id' => null], ['<>', 'drafts.provisional', true]]);
         $usages = (new \craft\db\Query())
             ->select(['elementrelations_cache.sourcePrimaryOwnerId', 'elementrelations_cache.globalKey'])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-            ->leftJoin(['sources' => \craft\db\Table::ELEMENTS], '[[sources.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
-            ->leftJoin(['drafts' => \craft\db\Table::DRAFTS], '[[drafts.id]] = [[sources.draftId]]')
             ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')])
-            ->andWhere(['or',
-                ['elementrelations_cache.sourceElementId' => null],
-                ['and', ['not', ['sources.id' => null]], ['sources.dateDeleted' => null], ['sources.revisionId' => null], ['or', ['drafts.id' => null], ['<>', 'drafts.provisional', true]]],
-            ])
+            ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['exists', $liveSource]])
             ->groupBy(['elementrelations_cache.sourcePrimaryOwnerId', 'elementrelations_cache.globalKey']);
         $count = (new \craft\db\Query())->select(['COUNT(*)'])->from(['usages' => $usages]);
         return [
