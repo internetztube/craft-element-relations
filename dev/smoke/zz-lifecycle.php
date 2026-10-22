@@ -110,6 +110,16 @@ return function (array $ctx): void {
         check($migrate($name), "upgrade: $name runs");
         if ($name === 'm241004_144031_optimize_index_elementrelations_table') {
             $twoX = $schema(); // what a 2.x install has
+            // `craft up` from 3.x: Craft's own migrations run first, and one that saves sections makes SEOmatic save
+            // its bundles, before the plugin's migrations added the column for those rows
+            $bundle = class_exists(\nystudio107\seomatic\records\MetaBundle::class) ? \nystudio107\seomatic\records\MetaBundle::find()->one() : null;
+            $saved = null;
+            try {
+                $saved = $bundle?->save(false) ?? true;
+            } catch (Throwable $e) {
+                $saved = $e->getMessage();
+            }
+            check($saved === true, 'upgrade from 3.x: SEOmatic saving its settings before the plugin\'s migrations ran does not fail (' . substr((string)json_encode($saved), 0, 160) . ')');
         }
         if ($name === 'm261020_000000_replacements') {
             // as the first 3.2 development builds left it: no revisions, plan or state columns, shorter text columns,

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 4.0.1 - 2026-10-22
+
+### Fixed
+- Updating from 3.x with `craft up` could fail with “column globalKey does not exist”: a Craft migration that saves sections made SEOmatic save its settings before the plugin's own migrations ran.
+
 ## 4.0.0 - 2026-10-22
 
 ### Breaking changes

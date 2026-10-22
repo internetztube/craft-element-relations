@@ -30,6 +30,11 @@ class GlobalUsageSeomaticService implements InterfaceGlobalUsage
     {
         $table = ElementRelationsCacheRecord::tableName();
         $db = Craft::$app->getDb();
+        // Not before the plugin's own migrations: `craft up` runs Craft's first, and one that saves sections makes
+        // SEOmatic save its bundles. m261019_120000_global_usages adds the column and writes these rows.
+        if (!$db->columnExists($table, 'globalKey')) {
+            return;
+        }
         $rows = [];
         if (Craft::$app->getPlugins()->isPluginEnabled('seomatic')) {
             $primarySiteId = Craft::$app->getSites()->getPrimarySite()->id;
