@@ -16,7 +16,7 @@
         "replace"
     ],
     "support": {
-        "docs": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
+        "docs": "https://github.com/internetztube/craft-element-relations/blob/4.x/README.md",
         "issues": "https://github.com/internetztube/craft-element-relations/issues",
         "source": "https://github.com/internetztube/craft-element-relations"
     },
@@ -41,8 +41,8 @@
         "handle": "element-relations",
         "developer": "Frederic Koeberl",
         "developerUrl": "https://frederickoeberl.com/",
-        "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/master/README.md",
-        "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/master/CHANGELOG.md",
+        "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/4.x/README.md",
+        "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/4.x/CHANGELOG.md",
         "class": "internetztube\\elementRelations\\ElementRelations"
     },
     "minimum-stability": "dev",
