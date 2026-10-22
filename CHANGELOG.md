@@ -4,46 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+## 4.0.2 - 2026-10-22
+
+### Added
+- Field setting “Elements in index columns”: how many usages an element index column loads before the link to the total. Default 5 (was 10).
+- `php craft element-relations/prune` removes cache rows nothing can read. Garbage collection does the same after every run.
 
 ### Changed
 - The field lists what uses the element in the site you are editing (its version there), wherever the relating elements are; the site dropdown is gone. Below the list, “Also used in these other sites” shows the other sites whose version is used as Craft site chips, with how many and a link to the element there (as in 3.x). The index column, its counts and its sort follow the index's site.
 - An element used only in other sites is never shown as unused. The field and the index column show a “Used in other sites” label where “Unused” would be, and the sites: in the field as Craft site chips with the number of usages, also for editors who may not edit those sites (without a link). Sorting by the field puts it between unused and used in this site. Plugin settings of another site (SEOmatic's German settings) count as such a use.
 - The Site column is no longer shown by default (the View menu offers it).
 - When only plugin settings use the element, the field shows their chips without an empty list above them.
-
-### Fixed
-- The “Used anywhere” filter turned on listed every element, unused ones too. It lists only what is used now; `unused(false)` does the same in queries.
-
-## 4.0.1.4 - 2026-10-22
-
-### Fixed
-- Rebuilding the cache (and refreshing it after saves) is faster: the elements of a batch are loaded together instead of one by one, relation fields read only the ids of their targets, the owner of nested elements is looked up once per batch, and the rows of an element are written in one insert.
-- The cleanup of large caches is as fast on MySQL as on PostgreSQL: the rows to keep are copied out, the table emptied and the rows copied back (the table keeps its indexes and their names).
-
-## 4.0.1.3 - 2026-10-22
-
-### Added
-- `php craft element-relations/prune` removes cache rows nothing can read. Garbage collection does the same after every run.
-
-### Changed
 - An element index column of the field loads its data for the whole page at once: a handful of queries instead of several per row (from 9 s to 0.2 s for 100 rows on a large site). Its first usages are the most recently updated ones.
 
 ### Fixed
-- The cache kept the rows of elements Craft's garbage collection deleted, and of revisions; on large sites they were almost the whole table and slowed down every list, count and sort. The update removes them once (on PostgreSQL, a large table is rebuilt instead; writes to the cache wait until that is done).
-
-## 4.0.1.2 - 2026-10-22
-
-### Added
-- Field setting “Elements in index columns”: how many usages an element index column loads before the link to the total. Default 5 (was 10).
-
-### Fixed
-- Element index columns of the field load about twice as fast: fewer queries per row (no count before loading the usages, no drafts query when no draft uses the element, the total counted once).
-
-## 4.0.1.1 - 2026-10-22
-
-### Fixed
+- The “Used anywhere” filter turned on listed every element, unused ones too. It lists only what is used now; `unused(false)` does the same in queries.
 - Sorting an element index by the field could take forever on large sites (hundreds of millions of cached relations), and so could the “Used anywhere” filter: PostgreSQL scanned every element once per listed element.
+- Element index columns of the field load about twice as fast: fewer queries per row (no count before loading the usages, no drafts query when no draft uses the element, the total counted once).
+- The cache kept the rows of elements Craft's garbage collection deleted, and of revisions; on large sites they were almost the whole table and slowed down every list, count and sort. The update removes them once (on PostgreSQL, a large table is rebuilt instead; writes to the cache wait until that is done).
+- Rebuilding the cache (and refreshing it after saves) is faster: the elements of a batch are loaded together instead of one by one, relation fields read only the ids of their targets, the owner of nested elements is looked up once per batch, and the rows of an element are written in one insert.
+- The cleanup of large caches is as fast on MySQL as on PostgreSQL: the rows to keep are copied out, the table emptied and the rows copied back (the table keeps its indexes and their names).
 
 ## 4.0.1 - 2026-10-22
 
