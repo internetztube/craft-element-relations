@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Concepten kunnen niet in relaties worden gebruikt',
     'field-hint-not-saved' => 'Element nog niet opgeslagen',
     'field-headline-global' => 'Ook gebruikt in',
+    'field-headline-other-sites' => 'Ook gebruikt op deze andere sites',
+    'field-other-site-count' => '{count, plural, =1{1 gebruik} other{# keer gebruikt}}',
     'field-column-type' => 'Type',
     'field-all-types' => 'Alle types',
     'field-column-where' => 'Waar',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Inhoud van een inzending',
 
     'preview-total' => '{count} in totaal',
+    'preview-other-sites' => 'Gebruikt op andere sites',
     'field-value-seomatic-global' => 'Gebruikt in de globale instellingen van SEOmatic',
 
     'seomatic-global' => 'Globale instellingen van SEOmatic',

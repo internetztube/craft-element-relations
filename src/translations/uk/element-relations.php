@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Чернетки не можна використовувати у зв’язках',
     'field-hint-not-saved' => 'Елемент ще не збережено',
     'field-headline-global' => 'Також використовується в',
+    'field-headline-other-sites' => 'Також використовується на цих сайтах',
+    'field-other-site-count' => '{count, plural, =1{1 використання} other{# використань}}',
     'field-column-type' => 'Тип',
     'field-all-types' => 'Усі типи',
     'field-column-where' => 'Де',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Вміст надсилання',
 
     'preview-total' => 'Усього: {count}',
+    'preview-other-sites' => 'Використовується на інших сайтах',
     'field-value-seomatic-global' => 'Використовується в глобальних налаштуваннях SEOmatic',
 
     'seomatic-global' => 'Глобальні налаштування SEOmatic',

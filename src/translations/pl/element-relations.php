@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Szkice nie mogą być używane w relacjach',
     'field-hint-not-saved' => 'Element nie został jeszcze zapisany',
     'field-headline-global' => 'Używany także w',
+    'field-headline-other-sites' => 'Używane także na tych innych stronach',
+    'field-other-site-count' => '{count, plural, =1{1 użycie} other{# użyć}}',
     'field-column-type' => 'Typ',
     'field-all-types' => 'Wszystkie typy',
     'field-column-where' => 'Gdzie',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Treść zgłoszenia',
 
     'preview-total' => 'Łącznie: {count}',
+    'preview-other-sites' => 'Używane na innych stronach',
     'field-value-seomatic-global' => 'Używany w ustawieniach globalnych SEOmatic',
 
     'seomatic-global' => 'Ustawienia globalne SEOmatic',

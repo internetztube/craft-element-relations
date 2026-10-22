@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Le bozze non possono essere usate nelle relazioni',
     'field-hint-not-saved' => 'Elemento non ancora salvato',
     'field-headline-global' => 'Utilizzato anche in',
+    'field-headline-other-sites' => 'Usato anche in questi altri siti',
+    'field-other-site-count' => '{count, plural, =1{1 utilizzo} other{# utilizzi}}',
     'field-column-type' => 'Tipo',
     'field-all-types' => 'Tutti i tipi',
     'field-column-where' => 'Dove',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Contenuto dell’invio',
 
     'preview-total' => '{count} in totale',
+    'preview-other-sites' => 'Usato in altri siti',
     'field-value-seomatic-global' => 'Utilizzato nelle impostazioni globali di SEOmatic',
 
     'seomatic-global' => 'Impostazioni globali di SEOmatic',

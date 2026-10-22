@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Los borradores no se pueden usar en relaciones',
     'field-hint-not-saved' => 'El elemento aún no se ha guardado',
     'field-headline-global' => 'También usado en',
+    'field-headline-other-sites' => 'También se usa en estos otros sitios',
+    'field-other-site-count' => '{count, plural, =1{1 uso} other{# usos}}',
     'field-column-type' => 'Tipo',
     'field-all-types' => 'Todos los tipos',
     'field-column-where' => 'Dónde',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Contenido del envío',
 
     'preview-total' => '{count} en total',
+    'preview-other-sites' => 'Se usa en otros sitios',
     'field-value-seomatic-global' => 'Usado en las opciones globales de SEOmatic',
 
     'seomatic-global' => 'Opciones globales de SEOmatic',

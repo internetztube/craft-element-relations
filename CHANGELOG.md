@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Changed
+- The field lists what uses the element in the site you are editing (its version there), wherever the relating elements are; the site dropdown is gone. Below the list, “Also used in these other sites” names the other sites whose version is used, with how many and a link to the element there (as in 3.x). The index column, its counts and its sort follow the index's site, and say “Used in other sites” instead of “Unused” when only other versions are used.
+- The Site column is no longer shown by default (the View menu offers it).
+
 ## 4.0.1.4 - 2026-10-22
 
 ### Fixed

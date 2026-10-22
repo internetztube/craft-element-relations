@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => '드래프트는 관계에 사용할 수 없습니다',
     'field-hint-not-saved' => '요소가 아직 저장되지 않았습니다',
     'field-headline-global' => '다른 사용처',
+    'field-headline-other-sites' => '다음 다른 사이트에서도 사용 중',
+    'field-other-site-count' => '{count, plural, other{#건 사용}}',
     'field-column-type' => '타입',
     'field-all-types' => '모든 타입',
     'field-column-where' => '위치',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => '제출 내용',
 
     'preview-total' => '총 {count}개',
+    'preview-other-sites' => '다른 사이트에서 사용 중',
     'field-value-seomatic-global' => 'SEOmatic 전역 설정에서 사용 중',
 
     'seomatic-global' => 'SEOmatic 전역 설정',

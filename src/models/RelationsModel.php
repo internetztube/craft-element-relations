@@ -69,6 +69,9 @@ class RelationsModel
 
     private ?int $_sourceOwnerCount = null;
 
+    /** forTargetSite(): only usages of the element in this site (its version there), wherever they are */
+    private ?int $targetSiteId = null;
+
     /** @var array<class-string<ElementInterface>, array{count: int, drafts: int}>|null relating elements (and drafts among them) per element type, most used first */
     private ?array $_typeCounts = null;
 
@@ -96,6 +99,59 @@ class RelationsModel
         $model = clone $this;
         $model->queryFactory = \Closure::fromCallable($factory);
         return $model;
+    }
+
+    /**
+     * A copy for the element in its own site: counts, lists and plugin settings usages only of that version of it,
+     * whichever site the relating elements are in. The control panel's field shows these; Twig and GraphQL keep
+     * counting the element in every site (their `siteIds` arguments name the relating elements' sites).
+     */
+    public function forTargetSite(): static
+    {
+        $model = clone $this;
+        $model->targetSiteId = $this->siteId;
+        [$model->_globalUsages, $model->_fastCountQueryResult, $model->_sourceOwnerCount, $model->_typeCounts] = [null, null, null, null];
+        return $model;
+    }
+
+    /**
+     * The sites in which the element's other versions are used, with how many relating elements each (forTargetSite():
+     * the sites besides this one), in the sites' order.
+     * @return array<int, int> site id => count
+     */
+    public function getOtherSiteCounts(): array
+    {
+        $siteId = $this->targetSiteId ?? $this->siteId;
+        return $this->prefetched()['otherSites'] ?? self::otherSiteCountsFor([$this->elementId], $siteId)[$this->elementId] ?? [];
+    }
+
+    /**
+     * @param list<int> $elementIds
+     * @return array<int, array<int, int>> element id => site id => relating elements, without $siteId
+     */
+    private static function otherSiteCountsFor(array $elementIds, int $siteId): array
+    {
+        /** @var list<array{target: int|string, siteId: int|string, count: int|string}> $rows */
+        $rows = self::fastSubQueryFor($elementIds)
+            ->select(['target' => '[[elementrelations_cache.targetElementId]]', 'siteId' => '[[elementrelations_cache.targetSiteId]]', 'count' => 'COUNT(DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]])'])
+            ->andWhere(['not', ['[[elementrelations_cache.targetSiteId]]' => $siteId]])
+            ->groupBy(['[[elementrelations_cache.targetElementId]]', '[[elementrelations_cache.targetSiteId]]'])
+            ->all();
+        $order = array_flip(Craft::$app->getSites()->getAllSiteIds());
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[(int)$row['target']][(int)$row['siteId']] = (int)$row['count'];
+        }
+        foreach ($counts as &$bySite) {
+            uksort($bySite, fn(int $a, int $b): int => ($order[$a] ?? PHP_INT_MAX) <=> ($order[$b] ?? PHP_INT_MAX));
+        }
+        return $counts;
+    }
+
+    /** forTargetSite()'s site (the element's); null: the usages of the element in every site. */
+    public function getTargetSiteId(): ?int
+    {
+        return $this->targetSiteId;
     }
 
     /** The site of the element (the default of the `siteIds` arguments). */
@@ -190,10 +246,11 @@ class RelationsModel
     {
         if ($this->_globalUsages === null) {
             /** @var list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}> $rows */
-            $rows = self::$prefetched[$this->elementId]['globalRows'] ?? (new Query())
+            $rows = $this->prefetched()['globalRows'] ?? (new Query())
                 ->select(['targetElementId', 'targetSiteId', 'type', 'globalKey'])
                 ->from('{{%elementrelations_cache}}')
                 ->where(['targetElementId' => $this->elementId, 'sourceElementId' => null])
+                ->andFilterWhere(['targetSiteId' => $this->targetSiteId])
                 ->all();
             $rowsByType = [];
             foreach ($rows as $row) {
@@ -242,8 +299,8 @@ class RelationsModel
      */
     private function typeCounts(): array
     {
-        if ($this->_typeCounts === null && isset(self::$prefetched[$this->elementId])) {
-            $this->_typeCounts = self::$prefetched[$this->elementId]['types'];
+        if ($this->_typeCounts === null && $this->prefetched() !== null) {
+            $this->_typeCounts = $this->prefetched()['types'];
         }
         if ($this->_typeCounts === null) {
             /** @var list<array{type: string, count: int|string, drafts: int|string}> $rows */
@@ -301,7 +358,7 @@ class RelationsModel
     /** How many (primary owner) elements relate to this element, in any site. One COUNT query. */
     public function getSourceOwnerCount(): int
     {
-        return $this->_sourceOwnerCount ??= self::$prefetched[$this->elementId]['owners']
+        return $this->_sourceOwnerCount ??= $this->prefetched()['owners']
             ?? (int)$this->fastSubQuery()->count('DISTINCT [[elementrelations_cache.sourcePrimaryOwnerId]]');
     }
 
@@ -312,7 +369,7 @@ class RelationsModel
      */
     public function getPreviewElements(int $limit): array
     {
-        $prefetched = self::$prefetched[$this->elementId] ?? null;
+        $prefetched = $this->prefetched();
         if ($prefetched !== null && $prefetched['limit'] >= $limit) {
             return array_slice($prefetched['preview'], 0, $limit);
         }
@@ -320,10 +377,20 @@ class RelationsModel
     }
 
     /**
-     * prefetch()'s results per element: relating elements in total and per type, plugin settings rows, the first ones.
-     * @var array<int, array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int}>
+     * prefetch()'s results per element and site (`<elementId>:<siteId>`): relating elements in total and per type,
+     * plugin settings rows, the first ones, and the other sites' counts.
+     * @var array<string, array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int, otherSites: array<int, int>}>
      */
     private static array $prefetched = [];
+
+    /**
+     * What prefetch() loaded for this element in this site (forTargetSite() copies only); null when it did not.
+     * @return array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int, otherSites: array<int, int>}|null
+     */
+    private function prefetched(): ?array
+    {
+        return $this->targetSiteId === null ? null : self::$prefetched[$this->elementId . ':' . $this->targetSiteId] ?? null;
+    }
 
     /** Drops what prefetch() loaded; whenever the cache changes (ExtractorService, PruneService). */
     public static function forgetPrefetched(): void
@@ -335,17 +402,19 @@ class RelationsModel
      * Loads what an element index column shows for every listed element at once (ElementRelationsField::
      * modifyElementIndexQuery()): five queries or so instead of several per row. The first usages are the most
      * recently updated ones, each in the index's site if it uses the element there, else in its first site that does.
+     * Like forTargetSite(): the usages of the elements in the index's site.
      * @param list<int> $elementIds canonical element ids
      */
-    public static function prefetch(array $elementIds, int $limit, int $preferredSiteId): void
+    public static function prefetch(array $elementIds, int $limit, int $siteId): void
     {
+        $preferredSiteId = $siteId;
         $elementIds = array_values(array_unique(array_map(intval(...), $elementIds)));
-        $data = array_fill_keys($elementIds, ['owners' => 0, 'types' => [], 'globalRows' => [], 'preview' => [], 'limit' => $limit]);
+        $data = array_fill_keys($elementIds, ['owners' => 0, 'types' => [], 'globalRows' => [], 'preview' => [], 'limit' => $limit, 'otherSites' => []]);
         $target = '[[elementrelations_cache.targetElementId]]';
         $owner = '[[elementrelations_cache.sourcePrimaryOwnerId]]';
 
         /** @var list<array{target: int|string, type: string, count: int|string, drafts: int|string}> $typeRows */
-        $typeRows = self::fastSubQueryFor($elementIds)
+        $typeRows = self::fastSubQueryFor($elementIds, $siteId)
             ->select(['target' => $target, 'type' => '[[elements.type]]', 'count' => "COUNT(DISTINCT $owner)", 'drafts' => "COUNT(DISTINCT CASE WHEN [[elements.draftId]] IS NOT NULL THEN $owner END)"])
             ->groupBy([$target, '[[elements.type]]'])
             ->all();
@@ -366,14 +435,14 @@ class RelationsModel
             ->select(['targetElementId', 'targetSiteId', 'type', 'globalKey'])
             ->from('{{%elementrelations_cache}}')
             ->where(ElementRelations::idIn('targetElementId', $elementIds))
-            ->andWhere(['sourceElementId' => null])
+            ->andWhere(['sourceElementId' => null, 'targetSiteId' => $siteId])
             ->all();
         foreach ($globalRows as $row) {
             $data[(int)$row['targetElementId']]['globalRows'][] = $row;
         }
 
         // the first relating elements of each listed element (window function: PostgreSQL, MySQL 8)
-        $ranked = self::fastSubQueryFor($elementIds)
+        $ranked = self::fastSubQueryFor($elementIds, $siteId)
             ->select([
                 'target' => $target,
                 'owner' => $owner,
@@ -409,7 +478,12 @@ class RelationsModel
                 $data[(int)$row['target']]['preview'][] = $loaded[(int)$row['owner']];
             }
         }
-        self::$prefetched = $data + self::$prefetched;
+        foreach (self::otherSiteCountsFor($elementIds, $siteId) as $id => $counts) {
+            $data[$id]['otherSites'] = $counts;
+        }
+        foreach ($data as $id => $element) {
+            self::$prefetched["$id:$siteId"] = $element;
+        }
     }
 
     /** A site (front-end) web request, where templates render for visitors. */
@@ -472,7 +546,7 @@ class RelationsModel
             if (!$query instanceof ElementQuery) {
                 continue;
             }
-            Craft::configure($query, ['usesElement' => $this->elementId]); // behavior param, see ElementQueryBehavior
+            Craft::configure($query, ['usesElement' => $this->elementId, 'usesElementSite' => $this->targetSiteId]); // behavior params, see ElementQueryBehavior
             $query
                 ->revisions(false)
                 ->provisionalDrafts(false);
@@ -586,21 +660,22 @@ class RelationsModel
      */
     private function fastSubQuery(): Query
     {
-        return self::fastSubQueryFor($this->elementId);
+        return self::fastSubQueryFor($this->elementId, $this->targetSiteId);
     }
 
     /**
-     * fastSubQuery() for one or several elements.
+     * fastSubQuery() for one or several elements (and only their versions in one site).
      * @param int|list<int> $elementIds
      * @return Query<array-key, mixed>
      */
-    private static function fastSubQueryFor(int|array $elementIds): Query
+    private static function fastSubQueryFor(int|array $elementIds, ?int $targetSiteId = null): Query
     {
         return (new Query())
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
             ->innerJoin(['elements' => Table::ELEMENTS], '[[elements.id]] = [[elementrelations_cache.sourcePrimaryOwnerId]]')
             ->leftJoin(['drafts' => Table::DRAFTS], '[[drafts.id]] = [[elements.draftId]]')
             ->where(is_int($elementIds) ? ['[[elementrelations_cache.targetElementId]]' => $elementIds] : ElementRelations::idIn('elementrelations_cache.targetElementId', $elementIds))
+            ->andFilterWhere(['[[elementrelations_cache.targetSiteId]]' => $targetSiteId])
             ->andWhere(['[[elements.dateDeleted]]' => null])
             // elements of a type Craft no longer knows (a plugin removed or disabled) are listed nowhere, so not counted
             ->andWhere(['[[elements.type]]' => Craft::$app->getElements()->getAllElementTypes()])

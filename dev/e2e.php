@@ -141,7 +141,7 @@ $http->csrf = $info['csrfTokenValue'] ?? $http->csrf;
 echo "Edit page\n";
 [$status, $html] = $http->page('/admin/content/entries/pages/' . $from->id);
 check($status === 200, "edit page renders (HTTP $status)");
-check(str_contains($html, 'Craft.createElementIndex') && str_contains($html, '"usesElement":' . $from->id) && str_contains($html, '"allSites":true'), 'field embeds the Usage index filtered by this element across all sites');
+check(str_contains($html, 'Craft.createElementIndex') && str_contains($html, '"usesElement":' . $from->id) && str_contains($html, '"usesElementSite":' . $from->siteId) && str_contains($html, '"allSites":true'), 'field embeds the Usage index filtered by this element in its site, its relating elements from every site');
 check(str_contains($html, 'data-element-relations-from="' . $from->id . '"'), 'the field tells its index which element "Replace…" replaces');
 
 // --- the demo front end (dev/templates): every page that shows the plugin's data renders with it

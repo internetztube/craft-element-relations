@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Долбоорлорду байланыштарда колдонууга болбойт',
     'field-hint-not-saved' => 'Элемент али сакталган жок',
     'field-headline-global' => 'Мында да колдонулат',
+    'field-headline-other-sites' => 'Бул башка сайттарда да колдонулат',
+    'field-other-site-count' => '{count, plural, =1{1 колдонуу} other{# колдонуу}}',
     'field-column-type' => 'Түрү',
     'field-all-types' => 'Бардык түрлөр',
     'field-column-where' => 'Кайда',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Жөнөтүүнүн мазмуну',
 
     'preview-total' => 'Жалпы {count}',
+    'preview-other-sites' => 'Башка сайттарда колдонулат',
     'field-value-seomatic-global' => 'SEOmatic глобалдык жөндөөлөрүндө колдонулат',
 
     'seomatic-global' => 'SEOmatic глобалдык жөндөөлөрү',

@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Rascunhos não podem ser usados em relações',
     'field-hint-not-saved' => 'Elemento ainda não guardado',
     'field-headline-global' => 'Também utilizado em',
+    'field-headline-other-sites' => 'Também usado nestes outros sites',
+    'field-other-site-count' => '{count, plural, =1{1 uso} other{# usos}}',
     'field-column-type' => 'Tipo',
     'field-all-types' => 'Todos os tipos',
     'field-column-where' => 'Onde',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Conteúdo da submissão',
 
     'preview-total' => '{count} no total',
+    'preview-other-sites' => 'Usado em outros sites',
     'field-value-seomatic-global' => 'Utilizado nas configurações globais do SEOmatic',
 
     'seomatic-global' => 'Configurações globais do SEOmatic',

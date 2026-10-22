@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Черновики нельзя использовать в связях',
     'field-hint-not-saved' => 'Элемент ещё не сохранён',
     'field-headline-global' => 'Также используется в',
+    'field-headline-other-sites' => 'Также используется на этих сайтах',
+    'field-other-site-count' => '{count, plural, =1{1 использование} other{# использований}}',
     'field-column-type' => 'Тип',
     'field-all-types' => 'Все типы',
     'field-column-where' => 'Где',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Содержимое отправки',
 
     'preview-total' => 'Всего: {count}',
+    'preview-other-sites' => 'Используется на других сайтах',
     'field-value-seomatic-global' => 'Используется в глобальных настройках SEOmatic',
 
     'seomatic-global' => 'Глобальные настройки SEOmatic',

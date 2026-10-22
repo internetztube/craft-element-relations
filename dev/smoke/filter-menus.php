@@ -1,5 +1,5 @@
 <?php
-/** The `elementTypes` and `inSites` params of the Usage query and the type and site dropdowns of the field's index. */
+/** The `elementTypes` and `inSites` params of the Usage query, and the field's type dropdown (it has no site dropdown). */
 
 use craft\elements\Entry;
 use internetztube\elementRelations\elements\Usage;
@@ -31,13 +31,14 @@ return function (array $ctx): void {
     $field = Craft::$app->getFields()->getFieldByHandle('relations');
     $html = withWebRequest(fn() => $field->getInputHtml($model, $target));
     $menu = fn(string $param): bool => str_contains($html, 'data-param="' . $param . '"');
-    if (count($counts) > 1) {
+    $inSite = $model->forTargetSite()->getCountsByType(); // what the field lists: the target in its own site
+    if (count($inSite) > 1) {
         check($menu('elementTypes') && str_contains($html, 'data-value="' . Entry::class . '"'), 'type dropdown lists the element types');
-        check(str_contains($html, 'Entries <span class="badge">' . $counts[Entry::class] . '</span>'), 'type dropdown shows counts as Craft badges');
+        check(str_contains($html, 'Entries <span class="badge">' . $inSite[Entry::class] . '</span>'), 'type dropdown shows counts as Craft badges');
     } else {
         check(!$menu('elementTypes'), 'no type dropdown with a single element type');
     }
-    check($menu('inSites') === (count($siteCounts) > 1), 'site dropdown exactly when the usages are in more than one site');
+    check(!$menu('inSites'), 'no site dropdown: the field lists the element in the site it is edited in');
     $b = Entry::find()->title('Page B')->one();
     check(!str_contains(withWebRequest(fn() => $field->getInputHtml($b->getFieldValue('relations'), $b)), 'data-param="elementTypes"'), 'Page B (entries only): no type dropdown');
 };

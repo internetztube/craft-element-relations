@@ -6,7 +6,7 @@ Every feature, shown in the demo site “Transit”, a made-up travel journal (t
 
 ## See where every element is used
 
-The **Element Relations** field lists everything that links to the element it sits on: entries, Matrix and other nested content, products, Navigation menus, Formie forms, global sets, users, in every site. Each row says where it lives, through which field, and in which site.
+The **Element Relations** field lists everything that links to the element it sits on: entries, Matrix and other nested content, products, Navigation menus, Formie forms, global sets, users, in every site. It lists what uses the element in the site you are editing (its version there); below the list, the other sites whose version is used, each with a link. Each row says where it lives and through which field.
 
 ![See where every element is used](screenshots/usage-list.jpg)
 
@@ -48,7 +48,7 @@ A “Used anywhere” rule in Craft's filter. It works on any source, with Craft
 
 ## Replace it where you choose
 
-Tick the usages in the field's list, like in any element index, and choose **Replace…** in its action bar. Narrow the list first with search, the type and site dropdowns or the filter. Craft ticks within one page; the wizard then offers all usages in the list, on every page. **Replace everywhere…** on an element index takes all usages of an element.
+Tick the usages in the field's list, like in any element index, and choose **Replace…** in its action bar. Narrow the list first with search, the type dropdown or the filter. Craft ticks within one page; the wizard then offers all usages in the list, on every page. **Replace everywhere…** on an element index takes all usages of an element.
 
 ![Replace it where you choose](screenshots/replace.jpg)
 

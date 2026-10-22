@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'پیش‌نویس‌ها را نمی‌توان در روابط استفاده کرد',
     'field-hint-not-saved' => 'مؤلفه هنوز ذخیره نشده است',
     'field-headline-global' => 'همچنین استفاده شده در',
+    'field-headline-other-sites' => 'در این سایت‌های دیگر هم استفاده شده',
+    'field-other-site-count' => '{count, plural, =1{۱ استفاده} other{# استفاده}}',
     'field-column-type' => 'نوع',
     'field-all-types' => 'همه نوع‌ها',
     'field-column-where' => 'کجا',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'محتوای ارسال',
 
     'preview-total' => '{count} در مجموع',
+    'preview-other-sites' => 'در سایت‌های دیگر استفاده شده',
     'field-value-seomatic-global' => 'استفاده شده در تنظیمات سراسری SEOmatic',
 
     'seomatic-global' => 'تنظیمات سراسری SEOmatic',

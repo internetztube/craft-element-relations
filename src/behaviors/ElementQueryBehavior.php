@@ -20,6 +20,7 @@ use yii\db\Expression;
  * {% set pages = craft.entries().usesElement(asset).all() %}
  * ```
  * Also usable as element index criteria (`{usesElement: 123}`), which is how the field renders its native indexes.
+ * `usesElementSite` narrows it to the target in that site (or sites): the element × site whose usages the field lists.
  * `unused()` is the inverse for a single element type: `craft.assets().unused()` lists assets nothing relates to.
  *
  * @property ElementQuery<array-key, ElementInterface> $owner
@@ -28,6 +29,9 @@ class ElementQueryBehavior extends Behavior
 {
     /** @var int|string|ElementInterface|array<int|string|ElementInterface>|null ids arrive as strings from element index criteria */
     public mixed $usesElement = null;
+
+    /** @var int|string|array<int|string>|null with `usesElement`: only relations to the target in this site (or these sites) */
+    public mixed $usesElementSite = null;
 
     /** Only elements nothing relates to: no cache row, which includes non-element usages such as SEOmatic settings. */
     public ?bool $unused = null;
@@ -39,6 +43,16 @@ class ElementQueryBehavior extends Behavior
     public function usesElement(mixed $value): ElementQuery
     {
         $this->usesElement = $value;
+        return $this->owner;
+    }
+
+    /**
+     * @param int|string|array<int|string>|null $value site id(s) of the target
+     * @return ElementQuery<array-key, ElementInterface>
+     */
+    public function usesElementSite(mixed $value): ElementQuery
+    {
+        $this->usesElementSite = $value;
         return $this->owner;
     }
 
@@ -91,6 +105,7 @@ class ElementQueryBehavior extends Behavior
         foreach (is_array($this->usesElement) ? $this->usesElement : [$this->usesElement] as $target) {
             $targetIds[] = $target instanceof ElementInterface ? (int)$target->id : (int)$target;
         }
+        $targetSiteIds = self::targetSiteIds($this->usesElementSite);
 
         $subQuery->andWhere(['exists', (new Query())
             ->select(['elementrelations_cache.id'])
@@ -99,7 +114,8 @@ class ElementQueryBehavior extends Behavior
                 'elementrelations_cache.sourcePrimaryOwnerId' => new Expression('[[elements.id]]'),
                 'elementrelations_cache.sourceSiteId' => new Expression('[[elements_sites.siteId]]'),
                 'elementrelations_cache.targetElementId' => $targetIds,
-            ]),
+            ])
+            ->andFilterWhere(['elementrelations_cache.targetSiteId' => $targetSiteIds]),
         ]);
         // a list spanning every site shows each element once, in the site the index asked for when it uses the
         // target there, else its first site that does (the Site column names all of them)
@@ -109,12 +125,23 @@ class ElementQueryBehavior extends Behavior
             $only = array_map(intval(...), array_filter((array)$owner->inSites, is_numeric(...)));
             $preferred = (int)($owner->preferredSiteId ?? 0);
             $subQuery->andWhere(new Expression(sprintf(
-                '[[elements_sites.siteId]] = (SELECT [[c.sourceSiteId]] FROM %s [[c]] WHERE [[c.targetElementId]] IN (%s) AND [[c.sourcePrimaryOwnerId]] = [[elements.id]]%s ORDER BY CASE WHEN [[c.sourceSiteId]] = %d THEN 0 ELSE 1 END, [[c.sourceSiteId]] LIMIT 1)',
+                '[[elements_sites.siteId]] = (SELECT [[c.sourceSiteId]] FROM %s [[c]] WHERE [[c.targetElementId]] IN (%s) AND [[c.sourcePrimaryOwnerId]] = [[elements.id]]%s%s ORDER BY CASE WHEN [[c.sourceSiteId]] = %d THEN 0 ELSE 1 END, [[c.sourceSiteId]] LIMIT 1)',
                 Craft::$app->getDb()->quoteTableName('{{%elementrelations_cache}}'),
                 $ids ?: '0',
                 $only ? ' AND [[c.sourceSiteId]] IN (' . implode(',', $only) . ')' : '',
+                $targetSiteIds ? ' AND [[c.targetSiteId]] IN (' . implode(',', $targetSiteIds) . ')' : '',
                 $preferred,
             )));
         }
+    }
+
+    /**
+     * `usesElementSite` as site ids (they arrive as strings from element index criteria); null when not given.
+     * @return list<int>|null
+     */
+    public static function targetSiteIds(mixed $value): ?array
+    {
+        $ids = array_values(array_map(intval(...), array_filter((array)$value, is_numeric(...))));
+        return $ids ?: null;
     }
 }

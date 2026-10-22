@@ -88,9 +88,9 @@ try {
     // ---------------------------------------------------------------------------------------------------------------
     await as('mara');
 
-    await scenario('field list: rows, dropdown badges and the site filter agree', async () => {
+    await scenario('field list: rows, the type dropdown and the other sites agree', async () => {
         await visit(demo.taipei.path);
-        const facts: { before: { rows: number, count: string, types: number[], sites: number[] }, after: { rows: number, count: string, siteCells: string[] } } = await run(`
+        const facts: { rows: number, count: string, types: number[], siteMenu: boolean, otherSites: string[] } = await run(`
             clickTab('Used in');
             await indexReady(fieldIndex(), 'the usage list');
             const index = fieldIndex();
@@ -102,25 +102,15 @@ try {
                 return button ? [...button.menu.$container[0].querySelectorAll('.badge')].map((b) => Number(b.textContent.replace(/\\D/g, ''))) : [];
             };
             // Craft fetches the "1–20 of 32" text after the rows, in a request of its own
-            const counted = () => until(() => /of \\d+/.test(countText()), 'the element count');
-            await counted();
-            const before = { rows: rows(), count: countText(), types: badges('elementTypes'), sites: badges('inSites') };
-            // the site dropdown: English only
-            const menu = $('[data-element-relations-menu][data-param="inSites"] .menubtn').data('menubtn');
-            const option = [...menu.menu.$container[0].querySelectorAll('a')].find((a) => a.textContent.includes('English'));
-            menu.menu.selectOption(option);
-            await indexReady(index, 'the English rows');
-            await counted();
-            const siteCells = column('Site').slice(1).map((td) => td.textContent.trim());
-            return { before, after: { rows: rows(), count: countText(), siteCells } };
+            await until(() => /of \\d+/.test(countText()), 'the element count');
+            const otherSites = [...document.querySelectorAll('[data-element-relations-other-sites] a')].map((a) => a.textContent.trim() + ' ' + a.getAttribute('href'));
+            return { rows: rows(), count: countText(), types: badges('elementTypes'), siteMenu: $('[data-element-relations-menu][data-param="inSites"]').length > 0, otherSites };
         `);
-        const total = Number(/of (\d+)/.exec(facts.before.count)?.[1] ?? 0);
-        check(facts.before.rows === 20 && total === 32 && /elements/.test(facts.before.count), `a page shows 20 of 32 elements (one row per element, whatever its sites): "${facts.before.count}"`);
-        check(facts.before.sites.length > 0 && facts.before.sites[0] === total && (facts.before.types.length === 0 || facts.before.types[0] === total), `the "All" badges of the site (${facts.before.sites[0]}) and type (${facts.before.types[0] ?? 'no dropdown'}) dropdowns equal the list's total`);
-        check(facts.before.types.length === 0 || facts.before.types.slice(1).reduce((a, b) => a + b, 0) === total, `the type badges add up to the total (${facts.before.types.slice(1).join(' + ') || 'no dropdown'})`);
-        check(facts.before.sites.slice(1).every((n) => n <= total) && facts.before.sites.slice(1).reduce((a, b) => a + b, 0) >= total, `a site badge is at most the total, an element in two sites counts in both (${facts.before.sites.slice(1).join(', ')})`);
-        const after = Number(/of (\d+)/.exec(facts.after.count)?.[1] ?? 0);
-        check(after === 32 && facts.after.siteCells.every((site) => site.split(', ').includes('English')), `filtered to English: the 32 elements used there, each naming English among its sites ("${facts.after.count}", ${[...new Set(facts.after.siteCells)].join(' / ')})`);
+        const total = Number(/of (\d+)/.exec(facts.count)?.[1] ?? 0);
+        check(facts.rows === 20 && total === 32 && /elements/.test(facts.count), `a page shows 20 of the 32 elements that use the English Taipei: "${facts.count}"`);
+        check(facts.types.length === 0 || (facts.types[0] === total && facts.types.slice(1).reduce((a, b) => a + b, 0) === total), `the type dropdown's "All" badge is the total and its types add up to it (${facts.types.join(', ') || 'no dropdown'})`);
+        check(!facts.siteMenu, 'no site dropdown: the list is the usages of Taipei in this site');
+        check(facts.otherSites.length > 0 && facts.otherSites.every((link) => link.includes('site=')), `below the list, the other sites whose Taipei is used, each linking to it there (${facts.otherSites.join(' / ')})`);
     });
 
     await scenario('field list: columns and sorting of the types in the list', async () => {

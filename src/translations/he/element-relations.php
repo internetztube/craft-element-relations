@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'לא ניתן להשתמש בטיוטות בקשרים',
     'field-hint-not-saved' => 'הרכיב עדיין לא נשמר',
     'field-headline-global' => 'בשימוש גם ב',
+    'field-headline-other-sites' => 'בשימוש גם באתרים האחרים האלה',
+    'field-other-site-count' => '{count, plural, =1{שימוש אחד} other{# שימושים}}',
     'field-column-type' => 'סוג',
     'field-all-types' => 'כל הסוגים',
     'field-column-where' => 'איפה',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'תוכן הגשה',
 
     'preview-total' => '{count} בסך הכל',
+    'preview-other-sites' => 'בשימוש באתרים אחרים',
     'field-value-seomatic-global' => 'בשימוש בהגדרות הגלובליות של SEOmatic',
 
     'seomatic-global' => 'הגדרות גלובליות של SEOmatic',

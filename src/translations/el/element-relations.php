@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Τα πρόχειρα δεν μπορούν να χρησιμοποιηθούν σε συσχετίσεις',
     'field-hint-not-saved' => 'Το στοιχείο δεν έχει αποθηκευτεί ακόμα',
     'field-headline-global' => 'Χρησιμοποιείται επίσης σε',
+    'field-headline-other-sites' => 'Χρησιμοποιείται επίσης σε αυτούς τους άλλους ιστότοπους',
+    'field-other-site-count' => '{count, plural, =1{1 χρήση} other{# χρήσεις}}',
     'field-column-type' => 'Τύπος',
     'field-all-types' => 'Όλοι οι τύποι',
     'field-column-where' => 'Πού',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Περιεχόμενο υποβολής',
 
     'preview-total' => '{count} συνολικά',
+    'preview-other-sites' => 'Χρησιμοποιείται σε άλλους ιστότοπους',
     'field-value-seomatic-global' => 'Χρησιμοποιείται στις γενικές ρυθμίσεις του SEOmatic',
 
     'seomatic-global' => 'Γενικές ρυθμίσεις SEOmatic',

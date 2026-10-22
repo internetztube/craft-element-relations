@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Ekki er hægt að nota drög í tengslum',
     'field-hint-not-saved' => 'Frumefni ekki vistað enn',
     'field-headline-global' => 'Einnig notað í',
+    'field-headline-other-sites' => 'Einnig notað á þessum öðrum vefjum',
+    'field-other-site-count' => '{count, plural, =1{1 notkun} other{# notkanir}}',
     'field-column-type' => 'Tegund',
     'field-all-types' => 'Allar tegundir',
     'field-column-where' => 'Hvar',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Efni innsendingar',
 
     'preview-total' => '{count} alls',
+    'preview-other-sites' => 'Notað á öðrum vefjum',
     'field-value-seomatic-global' => 'Notað í altækum stillingum SEOmatic',
 
     'seomatic-global' => 'Altækar stillingar SEOmatic',

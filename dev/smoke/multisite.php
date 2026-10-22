@@ -36,7 +36,13 @@ return function (array $ctx): void {
     $viaDe = Usage::find()->usesElement($target)->siteId($de)->one()->getAttributeHtml(Usage::ATTR_FIELD);
     check($viaEn === 'Related Entries' && str_contains($viaDe, 'Related Entries (per site)') && str_contains($viaDe, 'Related Entries,'), 'Field column lists the fields of that site');
     check(Usage::find()->usesElement($target)->siteId($de)->one()->getAttributeHtml(Usage::ATTR_SITE) === 'German', 'Site column names the site');
-    check(in_array(Usage::ATTR_SITE, Usage::defaultTableAttributes('*'), true), 'Site column is shown by default on multi-site installs');
+    check(!in_array(Usage::ATTR_SITE, Usage::defaultTableAttributes('*'), true) && isset(Usage::tableAttributes()[Usage::ATTR_SITE]), 'no Site column by default (the list is the element in its own site); the View menu offers it');
+
+    // the field lists the usages of the element in the site it is edited in (its version there)
+    $inEn = $rel->forTargetSite();
+    $inDe = (new RelationsModel($target->id, $de))->forTargetSite();
+    check($inEn->getCountFast([]) === 1 && $inDe->getCountFast([]) === 1 && $inEn->getOtherSiteCounts() === [$de => 1] && $inDe->getOtherSiteCounts() === [$en => 1], 'per site of the target: 1 usage of the English version, 1 of the German one; each names the other site');
+    check((int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'usesElementSite' => $de, 'allSites' => true])->count() === 1 && (int)Craft::configure(Usage::find(), ['usesElement' => $target->id, 'usesElementSite' => '0', 'allSites' => true])->count() === 0, 'usesElementSite narrows the Usage query to the target in that site');
 
     check((int)Usage::find()->usesElement($target)->siteId($en)->allSites()->count() === 1 && (int)Usage::find()->usesElement($target)->siteId($en)->allSites()->one()->siteId === $en && (int)Usage::find()->usesElement($target)->siteId($de)->allSites()->one()->siteId === $de, 'allSites overrides the siteId the index JS always sends: the element once, shown in the site asked for');
     check(Usage::find()->usesElement($target)->siteId($en)->allSites()->one()->getAttributeHtml(Usage::ATTR_SITE) === 'English, German', 'the Site column names every site it is used in');
@@ -44,14 +50,18 @@ return function (array $ctx): void {
     Craft::$app->getView()->clear();
     $input = withWebRequest(fn() => $field->getInputHtml($target->getFieldValue('relations'), $target));
     $js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
-    check(!str_contains($input, 'sitemenubtn') && str_contains($js, '"allSites":true'), 'the field lists all sites at once (no site menu, allSites criteria)');
+    check(!str_contains($input, 'sitemenubtn') && str_contains($js, '"allSites":true') && str_contains($js, '"usesElementSite":' . $en), 'the field lists the English version\'s usages, from every site (no site menu, allSites and usesElementSite criteria)');
+    check(str_contains($js, '"siteId":' . $en) && !str_contains($input, 'data-param="inSites"'), 'the list\'s base condition names the site; no site dropdown');
+    check(str_contains($input, 'data-element-relations-other-sites') && str_contains($input, 'German') && str_contains($input, '1 usage') && str_contains(html_entity_decode($input), 'site=de'), 'below the list: the other sites whose version is used, linking to the element there');
     check(str_contains(html_entity_decode($input), '"attr":"elementRelationsSite"'), 'the index can sort by site');
 
     // used on the other site only
     $relDe = new RelationsModel($targetDe->id, $en);
     check((int)$relDe->getCount([$en]) === 0 && (int)$relDe->getCount([$de]) === 1 && $relDe->getIsInUse([]) && array_values(array_map(fn($site) => $site->id, $relDe->getSites())) === [$de], 'target used on the German site only: 0 (en), 1 (de), in use, sites = [de]');
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDe->getFieldValue('relations'), $targetDe));
-    check(str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused'), 'index column on en lists the German usage: the column shows every site, like the field');
+    check(!str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused') && str_contains($preview, Craft::t('element-relations', 'preview-other-sites')), 'index column on en: no usage of the English version, so "used in other sites" (not "Unused")');
+    $inputDeOnly = withWebRequest(fn() => $field->getInputHtml($targetDe->getFieldValue('relations'), $targetDe));
+    check(!str_contains($inputDeOnly, 'class="element-index') && str_contains($inputDeOnly, 'data-element-relations-other-sites') && !str_contains($inputDeOnly, Craft::t('element-relations', 'field-value-unused')), 'the field on en: no list, the German site under "also used in these other sites", not "Unused"');
     $targetDeOnDe = Entry::find()->id($targetDe->id)->siteId($de)->one();
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDeOnDe->getFieldValue('relations'), $targetDeOnDe));
     check(str_contains($preview, 'Multi Source'), 'index column on de lists the source');

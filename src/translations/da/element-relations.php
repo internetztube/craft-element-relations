@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Kladder kan ikke bruges i relationer',
     'field-hint-not-saved' => 'Elementet er ikke gemt endnu',
     'field-headline-global' => 'Også brugt i',
+    'field-headline-other-sites' => 'Bruges også på disse andre websteder',
+    'field-other-site-count' => '{count, plural, =1{1 brug} other{# brug}}',
     'field-column-type' => 'Type',
     'field-all-types' => 'Alle typer',
     'field-column-where' => 'Hvor',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Indhold i en indsendelse',
 
     'preview-total' => '{count} i alt',
+    'preview-other-sites' => 'Bruges på andre websteder',
     'field-value-seomatic-global' => 'Brugt i SEOmatics globale indstillinger',
 
     'seomatic-global' => 'SEOmatics globale indstillinger',

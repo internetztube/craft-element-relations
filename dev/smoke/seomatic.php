@@ -42,8 +42,11 @@ return function (array $ctx): void {
     $relationsField = Craft::$app->getFields()->getFieldByHandle('relations');
     check(str_contains($relationsField->getPreviewHtml(new RelationsModel($asset->id, $asset->siteId), $asset), Craft::t('element-relations', 'field-value-seomatic-global')), 'the index column notes the use in the global settings');
     $sort = Craft::$app->getFields()->getFieldByHandle('relations')->getSortOption();
-    $counted = (new craft\db\Query())->select($sort['orderBy'])->from(['elements' => craft\db\Table::ELEMENTS])->where(['elements.id' => $asset->id])->scalar();
-    check((int)$counted > (int)(new RelationsModel($asset->id, $asset->siteId))->getCountFast([]), 'the sort count includes the non-element usages');
+    // the sort counts in the index's site, which element index queries join as `elements_sites`
+    $counted = (new craft\db\Query())->select($sort['orderBy'])->from(['elements' => craft\db\Table::ELEMENTS])
+        ->innerJoin(['elements_sites' => craft\db\Table::ELEMENTS_SITES], '[[elements_sites.elementId]] = [[elements.id]]')
+        ->where(['elements.id' => $asset->id, 'elements_sites.siteId' => $asset->siteId])->scalar();
+    check((int)$counted > (int)(new RelationsModel($asset->id, $asset->siteId))->forTargetSite()->getCountFast([]), 'the sort count includes the non-element usages');
 
     replaceRoundTrip($entry, $asset, 'SEOmatic SEO image', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->seoImageIds) === [$t->id]);
     replaceRoundTrip(Entry::find()->title('Page via SEOmatic (social)')->one(), $asset, 'SEOmatic Twitter/OG images', fn($e, $t) => array_map('intval', (array)$e->getFieldValue('seo')->metaBundleSettings->ogImageIds) === [$t->id]);

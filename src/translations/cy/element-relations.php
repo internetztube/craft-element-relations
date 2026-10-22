@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Ni ellir defnyddio drafftiau mewn perthnasoedd',
     'field-hint-not-saved' => 'Elfen heb ei chadw eto',
     'field-headline-global' => 'Defnyddir hefyd yn',
+    'field-headline-other-sites' => 'Hefyd yn cael ei ddefnyddio ar y safleoedd eraill hyn',
+    'field-other-site-count' => '{count, plural, =1{1 defnydd} other{# defnydd}}',
     'field-column-type' => 'Math',
     'field-all-types' => 'Pob math',
     'field-column-where' => 'Ble',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Cynnwys cyflwyniad',
 
     'preview-total' => '{count} i gyd',
+    'preview-other-sites' => 'Yn cael ei ddefnyddio ar safleoedd eraill',
     'field-value-seomatic-global' => 'Defnyddir yng Ngosodiadau Byd-eang SEOmatic',
 
     'seomatic-global' => 'Gosodiadau byd-eang SEOmatic',

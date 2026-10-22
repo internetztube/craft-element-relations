@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'لا يمكن استخدام المسودات في العلاقات',
     'field-hint-not-saved' => 'لم يُحفظ العنصر بعد',
     'field-headline-global' => 'مستخدم أيضًا في',
+    'field-headline-other-sites' => 'مستخدم أيضًا في هذه المواقع الأخرى',
+    'field-other-site-count' => '{count, plural, =1{استخدام واحد} other{# استخدامات}}',
     'field-column-type' => 'النوع',
     'field-all-types' => 'كل الأنواع',
     'field-column-where' => 'أين',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'محتوى الإرسال',
 
     'preview-total' => 'الإجمالي: {count}',
+    'preview-other-sites' => 'مستخدم في مواقع أخرى',
     'field-value-seomatic-global' => 'مستخدم في الإعدادات العامة لـ SEOmatic',
 
     'seomatic-global' => 'الإعدادات العامة لـ SEOmatic',

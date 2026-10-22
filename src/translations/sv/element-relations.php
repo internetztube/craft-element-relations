@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Utkast kan inte användas i relationer',
     'field-hint-not-saved' => 'Elementet är inte sparat ännu',
     'field-headline-global' => 'Används även i',
+    'field-headline-other-sites' => 'Används också på dessa andra webbplatser',
+    'field-other-site-count' => '{count, plural, =1{1 användning} other{# användningar}}',
     'field-column-type' => 'Typ',
     'field-all-types' => 'Alla typer',
     'field-column-where' => 'Var',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Innehåll i ett formulärsvar',
 
     'preview-total' => '{count} totalt',
+    'preview-other-sites' => 'Används på andra webbplatser',
     'field-value-seomatic-global' => 'Används i SEOmatics globala inställningar',
 
     'seomatic-global' => 'SEOmatics globala inställningar',

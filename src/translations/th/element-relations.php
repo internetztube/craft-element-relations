@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'แบบร่างไม่สามารถใช้ในความสัมพันธ์ได้',
     'field-hint-not-saved' => 'ยังไม่ได้บันทึกองค์ประกอบ',
     'field-headline-global' => 'ยังใช้ใน',
+    'field-headline-other-sites' => 'ใช้ในเว็บไซต์อื่นเหล่านี้ด้วย',
+    'field-other-site-count' => '{count, plural, other{ใช้ # ครั้ง}}',
     'field-column-type' => 'ประเภท',
     'field-all-types' => 'ทุกประเภท',
     'field-column-where' => 'ตำแหน่ง',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'เนื้อหาที่ส่ง',
 
     'preview-total' => 'ทั้งหมด {count}',
+    'preview-other-sites' => 'ใช้ในเว็บไซต์อื่น',
     'field-value-seomatic-global' => 'ใช้ในการตั้งค่าส่วนกลางของ SEOmatic',
 
     'seomatic-global' => 'การตั้งค่าส่วนกลางของ SEOmatic',

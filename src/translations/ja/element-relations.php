@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'ドラフトはリレーションに使用できません',
     'field-hint-not-saved' => 'エレメントはまだ保存されていません',
     'field-headline-global' => 'その他の使用箇所',
+    'field-headline-other-sites' => '次の他のサイトでも使用されています',
+    'field-other-site-count' => '{count, plural, other{# 件の使用}}',
     'field-column-type' => 'タイプ',
     'field-all-types' => 'すべてのタイプ',
     'field-column-where' => '場所',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => '送信内容',
 
     'preview-total' => '合計 {count} 件',
+    'preview-other-sites' => '他のサイトで使用されています',
     'field-value-seomatic-global' => 'SEOmatic のグローバル設定で使用中',
 
     'seomatic-global' => 'SEOmatic グローバル設定',

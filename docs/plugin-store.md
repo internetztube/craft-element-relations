@@ -15,7 +15,7 @@ Every Craft project asks the same questions. Can I delete this asset? Which page
 
 - **One list for every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms.
 - **Every row says where.** The page it lives on, the field that holds the link, and the sites. An element used in two sites, or through two fields, is one row and counts once.
-- **Native.** Craft’s search, sorting, filters, status menu, table and card view, plus dropdowns for element type and site, with counts.
+- **Native.** Craft’s search, sorting, filters, status menu, table and card view, plus a dropdown for element type, with counts. Per site, with the other sites listed below.
 - **In the element index.** A column with the first usages and the total. Sort by it to find the most used assets.
 - **Plugin settings count too.** Usages that are not elements, like SEOmatic’s global SEO image, are listed below the field.
 - **Follows permissions.** Editors only see usages they may view. A line says how many are hidden, so nobody takes an element for unused.

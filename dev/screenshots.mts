@@ -234,7 +234,7 @@ const SHOTS: Shot[] = [
         name: 'usage-list',
         points: ['Every element type in one list', 'Where it lives, which field, which site', 'Drafts and disabled elements included'],
         focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[...column('Field'), ...column('Site')]]`,
+        highlight: `[[...column('Field')]]`,
         inset: false,
         // the asset's page: title, preview and the "Used in" field, so it reads as an element's usages, not any index
         cover: `[document.querySelector('#header') ?? document.querySelector('h1'), document.querySelector('.element-relations').closest('.field'), document.querySelector('#details')]`,
@@ -251,7 +251,7 @@ const SHOTS: Shot[] = [
         caption: 'Where an element is used',
         points: ['Every element type in one list', 'Where it lives, which field, which site', 'Replace, undo, roll back'],
         focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[...column('Field'), ...column('Site')]]`,
+        highlight: `[[...column('Field')]]`,
         inset: false,
         title: 'See where every element is used',
         text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',

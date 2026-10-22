@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Taslaklar ilişkilerde kullanılamaz',
     'field-hint-not-saved' => 'Öge henüz kaydedilmedi',
     'field-headline-global' => 'Ayrıca şurada kullanılıyor',
+    'field-headline-other-sites' => 'Bu diğer sitelerde de kullanılıyor',
+    'field-other-site-count' => '{count, plural, =1{1 kullanım} other{# kullanım}}',
     'field-column-type' => 'Tip',
     'field-all-types' => 'Tüm tipler',
     'field-column-where' => 'Nerede',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Gönderim içeriği',
 
     'preview-total' => 'Toplam {count}',
+    'preview-other-sites' => 'Diğer sitelerde kullanılıyor',
     'field-value-seomatic-global' => 'SEOmatic genel ayarlarında kullanılıyor',
 
     'seomatic-global' => 'SEOmatic genel ayarları',

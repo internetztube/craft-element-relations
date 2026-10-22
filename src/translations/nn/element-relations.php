@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Utkast kan ikkje brukast i relasjonar',
     'field-hint-not-saved' => 'Elementet er ikkje lagra enno',
     'field-headline-global' => 'Også brukt i',
+    'field-headline-other-sites' => 'Blir òg brukt på desse andre nettstadene',
+    'field-other-site-count' => '{count, plural, =1{1 bruk} other{# bruk}}',
     'field-column-type' => 'Type',
     'field-all-types' => 'Alle typar',
     'field-column-where' => 'Kvar',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Innhald i ei innsending',
 
     'preview-total' => '{count} totalt',
+    'preview-other-sites' => 'Blir brukt på andre nettstader',
     'field-value-seomatic-global' => 'Brukt i dei globale innstillingane til SEOmatic',
 
     'seomatic-global' => 'Globale innstillingar i SEOmatic',

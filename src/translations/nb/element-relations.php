@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Utkast kan ikke brukes i relasjoner',
     'field-hint-not-saved' => 'Elementet er ikke lagret ennå',
     'field-headline-global' => 'Også brukt i',
+    'field-headline-other-sites' => 'Brukes også på disse andre nettstedene',
+    'field-other-site-count' => '{count, plural, =1{1 bruk} other{# bruk}}',
     'field-column-type' => 'Type',
     'field-all-types' => 'Alle typer',
     'field-column-where' => 'Hvor',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Innhold i en innsending',
 
     'preview-total' => '{count} totalt',
+    'preview-other-sites' => 'Brukes på andre nettsteder',
     'field-value-seomatic-global' => 'Brukt i de globale innstillingene til SEOmatic',
 
     'seomatic-global' => 'Globale innstillinger i SEOmatic',

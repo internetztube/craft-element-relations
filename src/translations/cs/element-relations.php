@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Koncepty nelze používat v relacích',
     'field-hint-not-saved' => 'Prvek ještě není uložen',
     'field-headline-global' => 'Použito také v',
+    'field-headline-other-sites' => 'Používáno také na těchto webech',
+    'field-other-site-count' => '{count, plural, =1{1 použití} other{# použití}}',
     'field-column-type' => 'Typ',
     'field-all-types' => 'Všechny typy',
     'field-column-where' => 'Kde',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Obsah odeslání',
 
     'preview-total' => 'Celkem: {count}',
+    'preview-other-sites' => 'Používáno na jiných webech',
     'field-value-seomatic-global' => 'Použito v globálním nastavení SEOmatic',
 
     'seomatic-global' => 'Globální nastavení SEOmatic',

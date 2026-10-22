@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => '草稿不能用于关联',
     'field-hint-not-saved' => '元素尚未保存',
     'field-headline-global' => '其他使用位置',
+    'field-headline-other-sites' => '也在以下其他站点中使用',
+    'field-other-site-count' => '{count, plural, other{使用 # 次}}',
     'field-column-type' => '类型',
     'field-all-types' => '所有类型',
     'field-column-where' => '位置',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => '提交内容',
 
     'preview-total' => '共 {count} 个',
+    'preview-other-sites' => '在其他站点中使用',
     'field-value-seomatic-global' => '在 SEOmatic 全局设置中使用',
 
     'seomatic-global' => 'SEOmatic 全局设置',

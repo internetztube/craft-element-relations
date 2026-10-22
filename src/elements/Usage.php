@@ -211,12 +211,9 @@ abstract class Usage extends Element
     /** @return list<string> */
     protected static function defineDefaultTableAttributes(string $source): array
     {
-        $attributes = [self::ATTR_TYPE, self::ATTR_WHERE, self::ATTR_FIELD];
-        if (Craft::$app->getIsMultiSite()) {
-            $attributes[] = self::ATTR_SITE;
-        }
-        $attributes[] = 'dateUpdated';
-        return $attributes;
+        // no Site column by default: the field lists the element's usages in its own site, which the relating
+        // elements are in too, unless a relation crosses sites (the View menu offers the column)
+        return [self::ATTR_TYPE, self::ATTR_WHERE, self::ATTR_FIELD, 'dateUpdated'];
     }
 
     /** Columns of the joined tables a stock sort option may name unqualified (unambiguous across them). */

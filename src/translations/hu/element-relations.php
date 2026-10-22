@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Vázlatok nem használhatók kapcsolatokban',
     'field-hint-not-saved' => 'Az elem még nincs mentve',
     'field-headline-global' => 'Itt is használt',
+    'field-headline-other-sites' => 'Ezeken a többi oldalon is használatban',
+    'field-other-site-count' => '{count, plural, =1{1 használat} other{# használat}}',
     'field-column-type' => 'Típus',
     'field-all-types' => 'Minden típus',
     'field-column-where' => 'Hol',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Beküldés tartalma',
 
     'preview-total' => 'Összesen: {count}',
+    'preview-other-sites' => 'Más oldalakon használatban',
     'field-value-seomatic-global' => 'A SEOmatic globális beállításaiban használt',
 
     'seomatic-global' => 'SEOmatic globális beállítások',

@@ -137,16 +137,17 @@ class UsageQuery extends ElementQuery
      * How many usages of the targets (relating element × site, drafts included; or only those with `$status`, e.g.
      * the live ones the delete dialog lists) the user may not view.
      * @param int[] $targetIds
+     * @param int|null $targetSiteId only usages of the targets in this site (the field's list); null: every site
      */
-    public static function hiddenCount(array $targetIds, User $viewer, ?string $status = null): int
+    public static function hiddenCount(array $targetIds, User $viewer, ?string $status = null, ?int $targetSiteId = null): int
     {
         if ($viewer->admin || !$targetIds) {
             return 0;
         }
         // the very query the list runs, once without and once with the restriction, so the numbers always add up
-        $count = function (User|false $as) use ($targetIds, $status): int {
+        $count = function (User|false $as) use ($targetIds, $status, $targetSiteId): int {
             $query = Usage::find()->allSites()->status($status)->drafts($status === null ? null : false)->viewableBy($as);
-            Craft::configure($query, ['usesElement' => $targetIds]);
+            Craft::configure($query, ['usesElement' => $targetIds, 'usesElementSite' => $targetSiteId]);
             return (int)$query->count();
         };
         return max(0, $count(false) - $count($viewer));
@@ -348,6 +349,13 @@ class UsageQuery extends ElementQuery
             Entry::STATUS_PENDING => ['and', $enabled, ['or', ...$perTable(fn(string $t): array => ['>', "$t.postDate", $nowDb])]],
             Entry::STATUS_EXPIRED => ['and', $enabled, ['or', ...$perTable(fn(string $t): array => ['<=', "$t.expiryDate", $nowDb])]],
         };
+    }
+
+    /** @return list<int>|null the `usesElementSite` sites of the targets (ElementQueryBehavior); null: every site */
+    private function targetSiteIds(): ?array
+    {
+        $behavior = $this->getBehavior('elementRelations');
+        return ElementQueryBehavior::targetSiteIds($behavior instanceof ElementQueryBehavior ? $behavior->usesElementSite : null);
     }
 
     /** @return list<int> the `usesElement` targets (ElementQueryBehavior) */
@@ -580,6 +588,7 @@ class UsageQuery extends ElementQuery
                 ->leftJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
                 ->leftJoin(['sources_sites' => Table::ELEMENTS_SITES], '[[sources_sites.elementId]] = [[cache.sourceElementId]] AND [[sources_sites.siteId]] = [[cache.sourceSiteId]]')
                 ->where(['cache.targetElementId' => $targetIds, 'cache.sourcePrimaryOwnerId' => array_column($rows, 'id')])
+                ->andFilterWhere(['cache.targetSiteId' => $this->targetSiteIds()])
                 // a list spanning every site names the fields and sites of all of them; one site's list, that site's
                 ->andFilterWhere(['cache.sourceSiteId' => $this->allSites ? null : array_values(array_unique(array_map(intval(...), array_column($rows, 'siteId'))))])
                 ->all();

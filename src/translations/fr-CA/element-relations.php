@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Les brouillons ne peuvent pas être utilisés dans des relations',
     'field-hint-not-saved' => 'Élément pas encore enregistré',
     'field-headline-global' => 'Aussi utilisé dans',
+    'field-headline-other-sites' => 'Également utilisé sur ces autres sites',
+    'field-other-site-count' => '{count, plural, =1{1 utilisation} other{# utilisations}}',
     'field-column-type' => 'Type',
     'field-all-types' => 'Tous les types',
     'field-column-where' => 'Où',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Contenu de la soumission',
 
     'preview-total' => '{count} au total',
+    'preview-other-sites' => 'Utilisé sur d’autres sites',
     'field-value-seomatic-global' => 'Utilisé dans les paramètres globaux de SEOmatic',
 
     'seomatic-global' => 'Paramètres globaux de SEOmatic',

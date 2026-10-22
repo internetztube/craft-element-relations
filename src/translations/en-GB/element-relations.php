@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Drafts cannot be used in relations',
     'field-hint-not-saved' => 'Element not saved yet',
     'field-headline-global' => 'Also used in',
+    'field-headline-other-sites' => 'Also used in these other sites',
+    'field-other-site-count' => '{count, plural, =1{1 usage} other{# usages}}',
     'field-column-type' => 'Type',
     'field-all-types' => 'All types',
     'field-column-where' => 'Where',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Submission content',
 
     'preview-total' => '{count} total',
+    'preview-other-sites' => 'Used in other sites',
     'field-value-seomatic-global' => 'Used in SEOmatic Global Settings',
 
     'seomatic-global' => 'SEOmatic global settings',

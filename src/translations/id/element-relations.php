@@ -7,6 +7,8 @@ return [
     'field-hint-draft' => 'Draf tidak dapat digunakan dalam relasi',
     'field-hint-not-saved' => 'Elemen belum disimpan',
     'field-headline-global' => 'Juga digunakan di',
+    'field-headline-other-sites' => 'Juga digunakan di situs-situs lain ini',
+    'field-other-site-count' => '{count, plural, =1{1 penggunaan} other{# penggunaan}}',
     'field-column-type' => 'Tipe',
     'field-all-types' => 'Semua tipe',
     'field-column-where' => 'Di mana',
@@ -20,6 +22,7 @@ return [
     'field-via-submission' => 'Isi kiriman',
 
     'preview-total' => '{count} total',
+    'preview-other-sites' => 'Digunakan di situs lain',
     'field-value-seomatic-global' => 'Digunakan di Pengaturan Global SEOmatic',
 
     'seomatic-global' => 'Pengaturan global SEOmatic',
