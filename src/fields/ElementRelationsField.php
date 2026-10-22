@@ -257,7 +257,11 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         if (!$value->getIsInUseFast([])) {
             return match (true) {
                 $element->getIsUnpublishedDraft() => '',
-                (bool)$value->getOtherSiteCounts() => Html::tag('div', Html::encode(Craft::t('element-relations', 'preview-other-sites')), ['class' => 'light smalltext']),
+                // used, only not in this site: never "Unused"; name the sites
+                (bool)$value->getOtherSiteCounts() => Html::tag('div', Html::encode(Craft::t('element-relations', 'preview-other-sites') . ': ' . implode(', ', array_map(
+                    fn(int $siteId): string => Craft::t('site', (string)Craft::$app->getSites()->getSiteById($siteId, true)?->getName()),
+                    array_keys($value->getOtherSiteCounts()),
+                ))), ['class' => 'light smalltext', 'data-element-relations-other-sites' => true]),
                 default => $this->unusedLabelHtml(),
             };
         }
@@ -310,7 +314,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
 
         $value = $value->forTargetSite();
         $globalUsages = $value->getGlobalUsages();
-        $otherSites = $this->otherSitesHtml($value, $element);
+        $otherSites = $this->otherSitesHtml($value, $element, $value->getIsInUseFast([]) || $globalUsages);
         if (!$value->getIsInUseFast([]) && !$globalUsages) {
             return $otherSites ?: $this->unusedLabelHtml();
         }
@@ -451,26 +455,32 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     }
 
     /**
-     * "Used in these other sites": the sites whose versions of the element are used, with how many relating elements,
-     * each linking to the element's edit page there (the field's tab); empty when there are none. Users with limited
-     * permissions see the sites they may edit.
+     * The sites whose versions of the element are used, with how many relating elements, each linking to the element's
+     * edit page there (the field's tab); empty when there are none. "Also used in these other sites" under a list,
+     * "Used in other sites" when nothing uses it here: an element used in another site is never shown as unused. A site
+     * the user may not edit is named without a link.
      */
-    private function otherSitesHtml(RelationsModel $value, ElementInterface $element): string
+    private function otherSitesHtml(RelationsModel $value, ElementInterface $element, bool $usedHere): string
     {
         $items = [];
         $tab = $this->getTabHash($element);
         $viewer = self::restrictedViewer();
         foreach ($value->getOtherSiteCounts() as $siteId => $count) {
             $site = Craft::$app->getSites()->getSiteById($siteId, true);
-            if ($site && (!$viewer || $viewer->can("editSite:$site->uid"))) {
-                $url = \craft\helpers\UrlHelper::urlWithParams((string)$element->getCpEditUrl(), ['site' => $site->handle]) . ($tab ? "#$tab" : '');
-                $items[] = Html::tag('li', Html::a(Html::encode(Craft::t('site', $site->getName())), $url) . ' ' . Html::tag('span', Html::encode(Craft::t('element-relations', 'field-other-site-count', ['count' => $count])), ['class' => 'light']));
+            if (!$site) {
+                continue;
             }
+            $name = Html::encode(Craft::t('site', $site->getName()));
+            if (!$viewer || $viewer->can("editSite:$site->uid")) {
+                $name = Html::a($name, \craft\helpers\UrlHelper::urlWithParams((string)$element->getCpEditUrl(), ['site' => $site->handle]) . ($tab ? "#$tab" : ''));
+            }
+            $items[] = Html::tag('li', $name . ' ' . Html::tag('span', Html::encode(Craft::t('element-relations', 'field-other-site-count', ['count' => $count])), ['class' => 'light']));
         }
         if (!$items) {
             return '';
         }
-        return Html::tag('h3', Html::encode(Craft::t('element-relations', 'field-headline-other-sites')), ['class' => 'element-relations-heading', 'style' => 'margin-top: var(--m);'])
+        $heading = $usedHere ? 'field-headline-other-sites' : 'preview-other-sites';
+        return Html::tag('h3', Html::encode(Craft::t('element-relations', $heading)), ['class' => 'element-relations-heading', 'style' => $usedHere ? 'margin-top: var(--m);' : 'margin-top: 0;'])
             . Html::tag('ul', implode('', $items), ['class' => 'element-relations-other-sites', 'data-element-relations-other-sites' => true]);
     }
 

@@ -59,9 +59,16 @@ return function (array $ctx): void {
     $relDe = new RelationsModel($targetDe->id, $en);
     check((int)$relDe->getCount([$en]) === 0 && (int)$relDe->getCount([$de]) === 1 && $relDe->getIsInUse([]) && array_values(array_map(fn($site) => $site->id, $relDe->getSites())) === [$de], 'target used on the German site only: 0 (en), 1 (de), in use, sites = [de]');
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDe->getFieldValue('relations'), $targetDe));
-    check(!str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused') && str_contains($preview, Craft::t('element-relations', 'preview-other-sites')), 'index column on en: no usage of the English version, so "used in other sites" (not "Unused")');
+    check(!str_contains($preview, 'Multi Source') && !str_contains($preview, 'Unused') && str_contains($preview, Craft::t('element-relations', 'preview-other-sites') . ': German'), 'index column on en: no usage of the English version, so "Used in other sites: German" (not "Unused")');
     $inputDeOnly = withWebRequest(fn() => $field->getInputHtml($targetDe->getFieldValue('relations'), $targetDe));
     check(!str_contains($inputDeOnly, 'class="element-index') && str_contains($inputDeOnly, 'data-element-relations-other-sites') && !str_contains($inputDeOnly, Craft::t('element-relations', 'field-value-unused')), 'the field on en: no list, the German site under "also used in these other sites", not "Unused"');
+    check(str_contains($inputDeOnly, Craft::t('element-relations', 'preview-other-sites')) && !str_contains($inputDeOnly, Craft::t('element-relations', 'field-headline-other-sites')), 'nothing uses it here: the heading says "Used in other sites", not "Also used…"');
+    // an editor who may not edit the German site: still not "Unused", the site named without a link
+    $inputNoDe = withWebRequest(function () use ($field, $targetDe) {
+        Craft::$app->getUser()->setIdentity(new craft\elements\User(['username' => 'smoke-en-only', 'admin' => false]));
+        return $field->getInputHtml($targetDe->getFieldValue('relations'), $targetDe);
+    });
+    check(str_contains($inputNoDe, 'German') && !str_contains(html_entity_decode($inputNoDe), 'site=de') && !str_contains($inputNoDe, Craft::t('element-relations', 'field-value-unused')), 'an editor without the German site: "Used in other sites: German" without a link, never "Unused"');
     $targetDeOnDe = Entry::find()->id($targetDe->id)->siteId($de)->one();
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDeOnDe->getFieldValue('relations'), $targetDeOnDe));
     check(str_contains($preview, 'Multi Source'), 'index column on de lists the source');
