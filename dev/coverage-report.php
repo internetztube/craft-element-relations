@@ -38,9 +38,15 @@ foreach ($report as $node) { // Directory's iterator walks every node below it
 usort($files, fn(array $a, array $b): int => $a[0] <=> $b[0]);
 $total = $report->percentageOfExecutedLines()->asFloat();
 printf("Coverage of src/: %.1f%% of lines (%d of %d), %d files; bar: %.0f%%\n", $total, $report->numberOfExecutedLines(), $report->numberOfExecutableLines(), count($files), $min);
+// the lines no test ran, by file (CI logs show them without the HTML report)
+$missing = [];
+foreach ($merged->getData()->lineCoverage() as $file => $lines) {
+    $missing[$file] = array_keys(array_filter($lines, fn($tests): bool => $tests === []));
+}
 foreach ($files as [$pct, $done, $all, $path]) {
     if ($pct < $min) {
-        printf("  %5.1f%%  %4d/%-4d  %s\n", $pct, $done, $all, $path);
+        $lines = current(array_filter($missing, fn(string $file): bool => str_ends_with($file, '/' . $path), ARRAY_FILTER_USE_KEY)) ?: [];
+        printf("  %5.1f%%  %4d/%-4d  %s%s\n", $pct, $done, $all, $path, $lines ? '  lines ' . implode(', ', $lines) : '');
     }
 }
 (new HtmlReport())->process($merged, $dir . '/html');

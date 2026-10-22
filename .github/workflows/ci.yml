@@ -80,5 +80,5 @@ jobs:
         if: always()
         with:
           name: coverage-${{ matrix.db }}-php${{ matrix.php }}
-          path: craft/storage/coverage/html
+          path: app/storage/coverage/html
           if-no-files-found: ignore
