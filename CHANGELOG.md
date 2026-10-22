@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ### Changed
 - The field lists what uses the element in the site you are editing (its version there), wherever the relating elements are; the site dropdown is gone. Below the list, “Also used in these other sites” names the other sites whose version is used, with how many and a link to the element there (as in 3.x). The index column, its counts and its sort follow the index's site.
-- An element used only in other sites is never shown as unused. The field says “Used in other sites” and lists them, also for editors who may not edit those sites (named without a link). The index column says “Used in other sites: German”.
+- An element used only in other sites is never shown as unused. The field says “Used in other sites” and lists them, also for editors who may not edit those sites (named without a link). The index column says “Used in other sites: German”. Sorting by the field puts it between unused and used in this site.
 - The Site column is no longer shown by default (the View menu offers it).
 
 ## 4.0.1.4 - 2026-10-22

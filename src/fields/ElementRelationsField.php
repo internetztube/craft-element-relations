@@ -184,8 +184,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     }
 
     /**
-     * Sort option for element indexes: number of relating elements (all sites). Craft only takes a string here (it
-     * appends the direction), so the subquery is built with the query builder and passed as its SQL.
+     * Sort option for element indexes: number of relating elements in the index's site, plus a half when the element
+     * is used in another site, so "used in other sites" (0.5) ranks above unused (0) and below used here (1 and more).
+     * Craft only takes a string here (it appends the direction), so the subqueries are built with the query builder
+     * and passed as their SQL.
      * @return array{label: string, orderBy: string, attribute: string, defaultDir: string}
      */
     public function getSortOption(): array
@@ -211,9 +213,15 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['exists', $liveSource]])
             ->groupBy(['elementrelations_cache.sourcePrimaryOwnerId', 'elementrelations_cache.globalKey']);
         $count = (new \craft\db\Query())->select(['COUNT(*)'])->from(['usages' => $usages]);
+        $elsewhere = (new \craft\db\Query())
+            ->select(new \yii\db\Expression('1'))
+            ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
+            ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')])
+            ->andWhere(['<>', 'elementrelations_cache.targetSiteId', new \yii\db\Expression('[[elements_sites.siteId]]')])
+            ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['exists', $liveSource]]);
         return [
             'label' => Craft::t('site', (string)$this->name),
-            'orderBy' => '(' . $count->createCommand()->getRawSql() . ')',
+            'orderBy' => '((' . $count->createCommand()->getRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->createCommand()->getRawSql() . ') THEN 0.5 ELSE 0 END)',
             'attribute' => "field:$this->uid",
             'defaultDir' => 'desc',
         ];
