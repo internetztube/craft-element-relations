@@ -391,7 +391,7 @@ class ReplaceService
      */
     public static function refreshOwnerTree(int $ownerId): void
     {
-        $ids = [$ownerId, ...DB::table(Table::ELEMENTS_OWNERS)->where('ownerId', $ownerId)->pluck('elementId')->map(intval(...))->all()];
+        $ids = [$ownerId, ...DB::table(Table::ELEMENTS_OWNERS)->where('ownerId', $ownerId)->pluck('elementId')->map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0)->all()];
         self::refreshEverySite($ids, self::types($ids));
     }
 
@@ -517,7 +517,7 @@ class ReplaceService
             'toId' => (int)$to->id,
             'siteId' => (int)$from->siteId,
             'userId' => $userId,
-            'sourceIds' => $onlySourceIds !== null ? json_encode(array_values($onlySourceIds)) : null,
+            'sourceIds' => $onlySourceIds !== null ? json_encode($onlySourceIds) : null,
             'status' => $status,
         ]);
         $operation->save();

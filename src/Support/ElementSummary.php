@@ -9,7 +9,7 @@ use CraftCms\Cms\Cp\Html\ElementHtml;
 use CraftCms\Cms\Element\Contracts\ElementInterface;
 use CraftCms\Cms\Entry\Elements\Entry;
 use CraftCms\Cms\Support\Facades\Fields;
-use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Site\Sites;
 use CraftCms\Cms\Support\Html;
 use Internetztube\ElementRelations\Elements\Usage;
 use Internetztube\ElementRelations\Models\CacheRecord;
@@ -44,7 +44,7 @@ class ElementSummary
             return Html::encode(t((string)$element->getSite()->name, category: 'site'));
         }
         $names = [];
-        foreach (Sites::getAllSites() as $site) { // in the sites' own order
+        foreach (app(Sites::class)->getAllSites() as $site) { // in the sites' own order
             if (in_array((int)$site->id, $siteIds, true)) {
                 $names[] = Html::encode(t((string)$site->name, category: 'site'));
             }
@@ -71,13 +71,14 @@ class ElementSummary
         foreach ($vias as $via) {
             $field = $via['fieldId'] ? Fields::getFieldById($via['fieldId']) : null;
             if ($field) {
+                $fieldId = (int)$field->id;
                 $html = Html::encode(t((string)$field->name, category: 'site'));
-                if (isset($disabled[$field->id])) {
-                    $html .= ' ' . Html::tag('span', Html::encode(t(isset($live[$field->id]) ? 'field-via-also-disabled' : 'field-via-disabled', [
-                        'count' => count($disabled[$field->id]),
+                if (isset($disabled[$fieldId])) {
+                    $html .= ' ' . Html::tag('span', Html::encode(t(isset($live[$fieldId]) ? 'field-via-also-disabled' : 'field-via-disabled', [
+                        'count' => count($disabled[$fieldId]),
                     ], 'element-relations')), ['class' => 'light', 'data-element-relations-disabled' => true]);
                 }
-                $parts[$field->id] = $html;
+                $parts[$fieldId] = $html;
             } elseif ($via['type'] === CacheRecord::TYPE_ELEMENT_USER_PHOTO) {
                 $label = t('field-via-user-photo', category: 'element-relations');
                 $parts[$label] = Html::tag('span', Html::encode($label), ['class' => 'light']);

@@ -32,15 +32,15 @@ class HtmlControl extends Control
     #[Override]
     public static function renderHtml(ControlPayload $control, mixed $value, array $attributes, FormHtmlRenderer $renderer): string
     {
-        $fragment = $control->props['fragment'] ?? [];
-        $fragment = is_array($fragment) ? $fragment : [];
-        if (($fragment['headHtml'] ?? '') !== '') {
-            HtmlStack::html((string)$fragment['headHtml'], Position::Head);
+        $fragment = $control->props['fragment'] ?? null;
+        /** @var array{html: string, headHtml: string, bodyHtml: string} $fragment props() always gives all three */
+        if ($fragment['headHtml'] !== '') {
+            HtmlStack::html($fragment['headHtml'], Position::Head);
         }
-        if (($fragment['bodyHtml'] ?? '') !== '') {
-            HtmlStack::html((string)$fragment['bodyHtml'], Position::BodyEnd);
+        if ($fragment['bodyHtml'] !== '') {
+            HtmlStack::html($fragment['bodyHtml'], Position::BodyEnd);
         }
-        return (string)($fragment['html'] ?? '');
+        return $fragment['html'];
     }
 
     #[Override]
@@ -53,13 +53,9 @@ class HtmlControl extends Control
     #[Override]
     public function props(mixed $value = null): array
     {
-        $fragment = $this->fragment?->toArray() ?? [];
+        $fragment = $this->fragment ?? new HtmlFragment();
         return [
-            'fragment' => [
-                'html' => (string)($fragment['html'] ?? ''),
-                'headHtml' => (string)($fragment['headHtml'] ?? ''),
-                'bodyHtml' => (string)($fragment['bodyHtml'] ?? ''),
-            ],
+            'fragment' => ['html' => $fragment->html, 'headHtml' => $fragment->headHtml, 'bodyHtml' => $fragment->bodyHtml],
             'namespace' => null,
             'expandValues' => false,
         ];

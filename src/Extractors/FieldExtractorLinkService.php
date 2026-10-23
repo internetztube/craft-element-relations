@@ -28,7 +28,7 @@ class FieldExtractorLinkService implements InterfaceFieldExtractor, InterfaceFie
         return [(clone $baseRecord)->fill([
             'type' => CacheRecord::TYPE_FIELD,
             'targetElementId' => (int)$match[1],
-            'targetSiteId' => isset($match[2]) && $match[2] !== '' ? (int)$match[2] : (int)$element->siteId,
+            'targetSiteId' => isset($match[2]) ? (int)$match[2] : (int)$element->siteId,
             'customFieldUid' => $field->uid,
             'fieldId' => (int)$field->id,
         ])];

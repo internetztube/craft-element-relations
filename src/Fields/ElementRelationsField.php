@@ -30,7 +30,7 @@ use CraftCms\Cms\Gql\Data\GqlSchema;
 use CraftCms\Cms\Shared\Enums\Color;
 use CraftCms\Cms\Support\Facades\HtmlStack;
 use CraftCms\Cms\Support\Facades\I18N;
-use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Site\Sites;
 use CraftCms\Cms\Support\Html;
 use CraftCms\Cms\Support\Str;
 use CraftCms\Cms\Support\Url;
@@ -49,6 +49,7 @@ use Internetztube\ElementRelations\Models\CacheRecord;
 use Internetztube\ElementRelations\Models\RelationsModel;
 use Internetztube\ElementRelations\Services\ReplaceService;
 use Internetztube\ElementRelations\Support\ElementSummary;
+use Internetztube\ElementRelations\Support\Sql;
 use Override;
 
 use function CraftCms\Cms\t;
@@ -216,7 +217,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ->where(fn(Builder $live) => $live->whereNull("$cache.sourceElementId")->orWhereExists($liveSource));
         return [
             'label' => t((string)$this->name, category: 'site'),
-            'orderBy' => DB::raw('((' . $count->toRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->toRawSql() . ') THEN 0.5 ELSE 0 END)'),
+            'orderBy' => Sql::raw('((' . $count->toRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->toRawSql() . ') THEN 0.5 ELSE 0 END)'),
             'attribute' => isset($this->layoutElement->handle) ? "fieldInstance:{$this->layoutElement->uid}" : "field:$this->uid",
             'defaultDir' => 'desc',
         ];
@@ -241,12 +242,12 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             $siteId = null;
             $ids = [];
             foreach ($result as $element) {
-                if ($element instanceof ElementInterface && $element->id) {
+                if ($element->id) {
                     $ids[] = (int)($element->getCanonicalId() ?? $element->id);
                     $siteId ??= (int)$element->siteId;
                 }
             }
-            RelationsModel::prefetch($ids, $this->previewLimit ?? 5, $siteId ?? (int)Sites::getPrimarySite()->id);
+            RelationsModel::prefetch($ids, $this->previewLimit ?? 5, $siteId ?? (int)app(Sites::class)->getPrimarySite()->id);
             return $result;
         });
     }
@@ -277,7 +278,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                 (bool)$value->getOtherSiteCounts() => Html::tag('div',
                     self::otherSitesLabel()
                     . Html::tag('div', Html::encode(implode(', ', array_map(
-                        fn(int $siteId): string => t((string)Sites::getSiteById($siteId, true)?->getName(), category: 'site'),
+                        fn(int $siteId): string => t((string)app(Sites::class)->getSiteById($siteId, true)?->getName(), category: 'site'),
                         array_keys($value->getOtherSiteCounts()),
                     ))), ['class' => 'light smalltext']),
                     ['data-element-relations-other-sites' => true],
@@ -425,7 +426,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     {
         $value = new RelationsModel((int)$element->id, (int)$element->siteId);
         if ($onlyOwnerIds === null && ($viewer = ElementRelations::restrictedViewer())) {
-            $onlyOwnerIds = array_map(intval(...), self::usageQuery($value, $viewer)->ids()); // what this user may replace in
+            $onlyOwnerIds = array_values(array_map(intval(...), self::usageQuery($value, $viewer)->ids())); // what this user may replace in
         }
         $coverage = ReplaceService::revisionCoverage($value->getElementId(), $onlyOwnerIds);
         $without = $coverage['unsupported'] + $coverage['versioningOff'];
@@ -489,8 +490,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $tab = $this->getTabHash($element);
         $viewer = ElementRelations::restrictedViewer();
         $counts = $value->getOtherSiteCounts();
-        foreach (Sites::getAllSites(true) as $site) { // in the sites' own order
-            $count = $counts[$site->id] ?? 0;
+        foreach (app(Sites::class)->getAllSites(true) as $site) { // in the sites' own order
+            $count = $counts[(int)$site->id] ?? 0;
             if (!$count) {
                 continue;
             }

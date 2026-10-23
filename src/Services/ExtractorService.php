@@ -6,7 +6,6 @@ namespace Internetztube\ElementRelations\Services;
 
 use CraftCms\Cms\Element\Contracts\ElementInterface;
 use CraftCms\Cms\Element\Contracts\NestedElementInterface;
-use CraftCms\Cms\Field\Contracts\FieldInterface;
 use CraftCms\Cms\Field\Field;
 use CraftCms\Cms\Support\Facades\Elements;
 use Illuminate\Support\Facades\DB;
@@ -97,13 +96,13 @@ class ExtractorService
             'sourcePrimaryOwnerId' => $ownerId,
         ]);
 
-        $records = collect($fields)
-            ->map(fn(FieldInterface $field): array => $field instanceof Field ? self::fieldRelations($field, $element, $baseRecord) : [])
-            ->flatten()
-            ->merge(collect(self::elementExtractors())
-                ->map(fn(string $extractor): mixed => self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($element, clone $baseRecord)))
-                ->flatten())
-            ->filter(fn(mixed $record): bool => $record instanceof CacheRecord);
+        $records = [];
+        foreach ($fields as $field) {
+            if ($field instanceof Field) {
+                array_push($records, ...self::fieldRelations($field, $element, $baseRecord));
+            }
+        }
+        array_push($records, ...self::elementRelations($element, $baseRecord));
 
         // Write only when the relations actually changed: keeps row ids/dates stable and skips the delete+insert
         // churn for the common case (an element saved without touching its relations).
@@ -118,20 +117,20 @@ class ExtractorService
             ->where('sourceSiteId', $element->siteId)
             ->get()
             ->map(fn(object $row): array => (array)$row);
-        $rows = $records->map(fn(CacheRecord $record): array => $record->row())->values();
+        $rows = array_map(fn(CacheRecord $record): array => $record->row(), $records);
         if ($normalize($existing) === $normalize($rows)) {
             return false;
         }
 
         self::deleteRelationsForElement($element);
         // one INSERT for all of them
-        if ($rows->isNotEmpty()) {
+        if ($rows) {
             $now = now();
-            DB::table(CacheRecord::TABLE)->insert($rows->map(fn(array $row): array => $row + [
+            DB::table(CacheRecord::TABLE)->insert(array_map(fn(array $row): array => $row + [
                 'dateCreated' => $now,
                 'dateUpdated' => $now,
                 'uid' => \CraftCms\Cms\Support\Str::uuid()->toString(),
-            ])->all());
+            ], $rows));
         }
         UsageQuery::resetPermissionCache();
         RelationsModel::forgetPrefetched();
@@ -146,13 +145,7 @@ class ExtractorService
     public static function targetIds(ElementInterface $element, ?Field $field): array
     {
         $base = new CacheRecord(['sourceElementId' => (int)$element->id, 'sourceSiteId' => (int)$element->siteId]);
-        $records = $field
-            ? self::fieldRelations($field, $element, $base)
-            : collect(self::elementExtractors())
-                ->map(fn(string $extractor): mixed => self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($element, clone $base)))
-                ->flatten()
-                ->filter(fn(mixed $record): bool => $record instanceof CacheRecord)
-                ->all();
+        $records = $field ? self::fieldRelations($field, $element, $base) : self::elementRelations($element, $base);
         return array_values(array_unique(array_map(fn(CacheRecord $record): int => (int)$record->targetElementId, $records)));
     }
 
@@ -179,10 +172,28 @@ class ExtractorService
         foreach (self::fieldExtractors() as $extractor) {
             $records = self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($field, $element, clone $baseRecord));
             if (is_array($records) && $records) {
-                return array_values($records);
+                return array_values(array_filter($records, fn(mixed $record): bool => $record instanceof CacheRecord));
             }
         }
         return [];
+    }
+
+    /**
+     * What the element-level extractors read from the element (all of them run).
+     * @return list<CacheRecord>
+     */
+    private static function elementRelations(ElementInterface $element, CacheRecord $baseRecord): array
+    {
+        $records = [];
+        foreach (self::elementExtractors() as $extractor) {
+            $result = self::safely($extractor, $element, fn(): mixed => $extractor::getRelations($element, clone $baseRecord));
+            foreach (is_array($result) ? $result : [$result] as $record) {
+                if ($record instanceof CacheRecord) {
+                    $records[] = $record;
+                }
+            }
+        }
+        return $records;
     }
 
     /**

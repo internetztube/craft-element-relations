@@ -35,9 +35,9 @@ class GenerateResaveAllElementRelationsJobsJob extends Job
         $index = 0;
         $query->chunkById($batchSize, function ($rows) use (&$index, $totalBatches): void {
             $index++;
-            $items = $rows->map(fn(object $row): array => ['elementId' => (int)$row->elementId, 'siteId' => (int)$row->siteId])->values()->all();
+            $items = array_values($rows->map(fn(object $row): array => ['elementId' => (int)$row->elementId, 'siteId' => (int)$row->siteId])->all());
             dispatch(new ResaveElementRelationsJob($items, "Resave Element Relations ($index/$totalBatches)"));
-            $this->setProgress((int)floor($index / max(1, $totalBatches) * 100), "$index/$totalBatches");
+            $this->setProgress(max(0, min(100, intdiv($index * 100, max(1, $totalBatches)))), "$index/$totalBatches");
         }, 'elements_sites.id', 'id');
     }
 

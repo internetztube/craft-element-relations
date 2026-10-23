@@ -37,7 +37,7 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
     {
         parent::__construct($elements, $hardDelete, $config);
         foreach ($elements as $element) {
-            if (!$element instanceof ElementInterface || !InUseGuard::counts($element)) {
+            if (!InUseGuard::counts($element)) {
                 continue;
             }
             $usages = InUseGuard::liveUsages($element);

@@ -10,10 +10,11 @@ use CraftCms\Cms\Element\Queries\ElementQuery;
 use CraftCms\Cms\Element\Queries\EntryQuery;
 use CraftCms\Cms\Entry\Elements\Entry;
 use CraftCms\Cms\Site\Data\Site;
-use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Site\Sites;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Internetztube\ElementRelations\ElementRelations;
+use Internetztube\ElementRelations\Elements\Queries\UsesElement;
 use Internetztube\ElementRelations\Events\GlobalUsageProvidersResolving;
 use Internetztube\ElementRelations\Extractors\InterfaceGlobalUsage;
 use Internetztube\ElementRelations\Support\Sql;
@@ -131,20 +132,20 @@ class RelationsModel
         $cache = CacheRecord::TABLE;
         $rows = self::fastSubQueryFor($elementIds)
             ->select(["$cache.targetElementId as target", "$cache.targetSiteId as siteId"])
-            ->selectRaw('COUNT(DISTINCT ' . Sql::col("$cache.sourcePrimaryOwnerId") . ') as ' . Sql::col('count'))
+            ->addSelect(Sql::raw('COUNT(DISTINCT ' . Sql::col("$cache.sourcePrimaryOwnerId") . ') as ' . Sql::col('count')))
             ->where("$cache.targetSiteId", '<>', $siteId)
             ->groupBy(["$cache.targetElementId", "$cache.targetSiteId"])
             ->get();
         // plugin settings that use another site's version (SEOmatic's German settings) count too, one per setting
         $globalRows = DB::table($cache)
             ->select(['targetElementId as target', 'targetSiteId as siteId'])
-            ->selectRaw('COUNT(DISTINCT ' . Sql::col('globalKey') . ') as ' . Sql::col('count'))
+            ->addSelect(Sql::raw('COUNT(DISTINCT ' . Sql::col('globalKey') . ') as ' . Sql::col('count')))
             ->whereIntegerInRaw('targetElementId', $elementIds)
             ->whereNull('sourceElementId')
             ->where('targetSiteId', '<>', $siteId)
             ->groupBy(['targetElementId', 'targetSiteId'])
             ->get();
-        $order = array_flip(Sites::getAllSiteIds()->all());
+        $order = array_flip(app(Sites::class)->getAllSiteIds()->all());
         $counts = [];
         foreach ([...$rows, ...$globalRows] as $row) {
             /** @var object{target: int|string, siteId: int|string, count: int|string} $row */
@@ -205,7 +206,7 @@ class RelationsModel
     /** @return array<int, Site> */
     public function getSites(): array
     {
-        return Sites::getAllSites()
+        return app(Sites::class)->getAllSites()
             ->filter(fn(Site $site): bool => $this->getCount((int)$site->id) > 0)
             ->all();
     }
@@ -214,7 +215,7 @@ class RelationsModel
     public function getSitesFast(): array
     {
         $siteIds = array_column($this->getFastCountQueryResult(), 'siteId');
-        return Sites::getAllSites()
+        return app(Sites::class)->getAllSites()
             ->filter(fn(Site $site): bool => in_array($site->id, $siteIds, true))
             ->all();
     }
@@ -314,8 +315,8 @@ class RelationsModel
             $owner = Sql::col(CacheRecord::TABLE . '.sourcePrimaryOwnerId');
             $rows = $this->fastSubQuery()
                 ->select(['elements.type as type'])
-                ->selectRaw("COUNT(DISTINCT $owner) as " . Sql::col('count'))
-                ->selectRaw('COUNT(DISTINCT CASE WHEN ' . Sql::col('elements.draftId') . " IS NOT NULL THEN $owner END) as " . Sql::col('drafts'))
+                ->addSelect(Sql::raw("COUNT(DISTINCT $owner) as " . Sql::col('count')))
+                ->addSelect(Sql::raw('COUNT(DISTINCT CASE WHEN ' . Sql::col('elements.draftId') . " IS NOT NULL THEN $owner END) as " . Sql::col('drafts')))
                 ->groupBy('elements.type')
                 ->get();
             $counts = [];
@@ -338,7 +339,7 @@ class RelationsModel
      */
     public function getCountsBySite(): array
     {
-        $counts = array_fill_keys(Sites::getAllSiteIds()->all(), 0);
+        $counts = array_fill_keys(app(Sites::class)->getAllSiteIds()->all(), 0);
         foreach ($this->getFastCountQueryResult() as $row) {
             if (isset($counts[$row['siteId']])) {
                 $counts[$row['siteId']] += $row['count'];
@@ -356,13 +357,14 @@ class RelationsModel
     {
         $siteIds = $this->normalizeSiteIds($siteIds);
         $cache = CacheRecord::TABLE;
-        return $this->fastSubQuery()
+        $ids = $this->fastSubQuery()
             ->distinct()
             ->when($siteIds, fn(Builder $query) => $query->whereIn("$cache.sourceSiteId", $siteIds))
             ->pluck("$cache.sourcePrimaryOwnerId")
-            ->map(intval(...))
+            ->map(fn(mixed $id): int => is_numeric($id) ? (int)$id : 0)
             ->values()
             ->all();
+        return array_values($ids);
     }
 
     /** How many (primary owner) elements relate to this element, in any site. One COUNT query. */
@@ -419,29 +421,36 @@ class RelationsModel
     {
         $preferredSiteId = $siteId;
         $elementIds = array_values(array_unique(array_map(intval(...), $elementIds)));
-        $data = array_fill_keys($elementIds, ['owners' => 0, 'types' => [], 'globalRows' => [], 'preview' => [], 'limit' => $limit, 'otherSites' => []]);
+        /** @var array<int, int> $owners */
+        $owners = [];
+        /** @var array<int, array<class-string<ElementInterface>, array{count: int, drafts: int}>> $types */
+        $types = [];
+        /** @var array<int, list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>> $globals */
+        $globals = [];
+        /** @var array<int, list<ElementInterface>> $preview */
+        $preview = [];
         $cache = CacheRecord::TABLE;
         $target = Sql::col("$cache.targetElementId");
         $owner = Sql::col("$cache.sourcePrimaryOwnerId");
 
         $typeRows = self::fastSubQueryFor($elementIds, $siteId)
             ->select(["$cache.targetElementId as target", 'elements.type as type'])
-            ->selectRaw("COUNT(DISTINCT $owner) as " . Sql::col('count'))
-            ->selectRaw('COUNT(DISTINCT CASE WHEN ' . Sql::col('elements.draftId') . " IS NOT NULL THEN $owner END) as " . Sql::col('drafts'))
+            ->addSelect(Sql::raw("COUNT(DISTINCT $owner) as " . Sql::col('count')))
+            ->addSelect(Sql::raw('COUNT(DISTINCT CASE WHEN ' . Sql::col('elements.draftId') . " IS NOT NULL THEN $owner END) as " . Sql::col('drafts')))
             ->groupBy(["$cache.targetElementId", 'elements.type'])
             ->get();
         foreach ($typeRows as $row) {
             /** @var object{target: int|string, type: string, count: int|string, drafts: int|string} $row */
             // an element has one type, so the counts per type add up to the relating elements
-            $data[(int)$row->target]['owners'] += (int)$row->count;
+            $owners[(int)$row->target] = ($owners[(int)$row->target] ?? 0) + (int)$row->count;
             if (is_subclass_of($row->type, ElementInterface::class)) {
-                $data[(int)$row->target]['types'][$row->type] = ['count' => (int)$row->count, 'drafts' => (int)$row->drafts];
+                $types[(int)$row->target][$row->type] = ['count' => (int)$row->count, 'drafts' => (int)$row->drafts];
             }
         }
-        foreach ($data as &$element) {
-            uasort($element['types'], fn(array $a, array $b): int => $b['count'] <=> $a['count']);
+        foreach ($types as &$counts) {
+            uasort($counts, fn(array $a, array $b): int => $b['count'] <=> $a['count']);
         }
-        unset($element);
+        unset($counts);
 
         $globalRows = DB::table($cache)
             ->select(['targetElementId', 'targetSiteId', 'type', 'globalKey'])
@@ -451,15 +460,15 @@ class RelationsModel
             ->get();
         foreach ($globalRows as $row) {
             /** @var object{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null} $row */
-            $data[(int)$row->targetElementId]['globalRows'][] = (array)$row;
+            $globals[(int)$row->targetElementId][] = ['targetElementId' => $row->targetElementId, 'targetSiteId' => $row->targetSiteId, 'type' => $row->type, 'globalKey' => $row->globalKey];
         }
 
         // the first relating elements of each listed element (window function: PostgreSQL, MySQL 8)
         $sourceSite = Sql::col("$cache.sourceSiteId");
         $ranked = self::fastSubQueryFor($elementIds, $siteId)
             ->select(["$cache.targetElementId as target", "$cache.sourcePrimaryOwnerId as owner", 'elements.type as type'])
-            ->selectRaw("MIN(CASE WHEN $sourceSite = $preferredSiteId THEN 0 ELSE $sourceSite END) as " . Sql::col('siteId'))
-            ->selectRaw("ROW_NUMBER() OVER (PARTITION BY $target ORDER BY MAX(" . Sql::col('elements.dateUpdated') . ") DESC, $owner DESC) as " . Sql::col('pos'))
+            ->addSelect(Sql::raw("MIN(CASE WHEN $sourceSite = $preferredSiteId THEN 0 ELSE $sourceSite END) as " . Sql::col('siteId')))
+            ->addSelect(Sql::raw("ROW_NUMBER() OVER (PARTITION BY $target ORDER BY MAX(" . Sql::col('elements.dateUpdated') . ") DESC, $owner DESC) as " . Sql::col('pos')))
             ->groupBy(["$cache.targetElementId", "$cache.sourcePrimaryOwnerId", 'elements.type']);
         $first = DB::query()->fromSub($ranked, 'ranked')->where('pos', '<=', $limit)->orderBy('target')->orderBy('pos')->get();
         $idsByTypeAndSite = [];
@@ -483,14 +492,19 @@ class RelationsModel
         }
         foreach ($first as $row) {
             if (isset($loaded[(int)$row->owner])) {
-                $data[(int)$row->target]['preview'][] = $loaded[(int)$row->owner];
+                $preview[(int)$row->target][] = $loaded[(int)$row->owner];
             }
         }
-        foreach (self::otherSiteCountsFor($elementIds, $siteId) as $id => $counts) {
-            $data[$id]['otherSites'] = $counts;
-        }
-        foreach ($data as $id => $element) {
-            self::$prefetched["$id:$siteId"] = $element;
+        $otherSites = self::otherSiteCountsFor($elementIds, $siteId);
+        foreach ($elementIds as $id) {
+            self::$prefetched["$id:$siteId"] = [
+                'owners' => $owners[$id] ?? 0,
+                'types' => $types[$id] ?? [],
+                'globalRows' => $globals[$id] ?? [],
+                'preview' => $preview[$id] ?? [],
+                'limit' => $limit,
+                'otherSites' => $otherSites[$id] ?? [],
+            ];
         }
     }
 
@@ -548,7 +562,7 @@ class RelationsModel
                 continue;
             }
             /** @var ElementQuery<ElementInterface> $query */
-            $query->usesElement($this->elementId)->usesElementSite($this->targetSiteId); // see Elements\Queries\UsesElement
+            UsesElement::set(UsesElement::set($query, 'usesElement', $this->elementId), 'usesElementSite', $this->targetSiteId);
             $query
                 ->revisions(false)
                 ->provisionalDrafts(false);
@@ -696,15 +710,15 @@ class RelationsModel
             $rows = DB::query()
                 ->fromSub($subQuery, 'sub')
                 ->select(['siteId', 'type'])
-                ->selectRaw('COUNT(*) as ' . Sql::col('count'))
+                ->addSelect(Sql::raw('COUNT(*) as ' . Sql::col('count')))
                 ->groupBy(['siteId', 'type'])
                 ->get();
             // MySQL returns numbers as strings, PostgreSQL as ints
-            $this->_fastCountQueryResult = $rows->map(fn(object $row): array => [
+            $this->_fastCountQueryResult = array_values($rows->map(fn(object $row): array => [
                 'siteId' => (int)$row->siteId,
                 'type' => (string)$row->type,
                 'count' => (int)$row->count,
-            ])->values()->all();
+            ])->all());
         }
         return $this->_fastCountQueryResult;
     }

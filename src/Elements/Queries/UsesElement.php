@@ -136,13 +136,13 @@ final class UsesElement
     /**
      * Only the elements (in the sites) that use the targets.
      * @param ElementQueryInterface $query the element query (UsageQuery: its `allSites` options)
-     * @param int|string|ElementInterface|array<int|string|ElementInterface> $usesElement
+     * @param mixed $usesElement an element, an id, or a list of them
      */
     public static function applyUsesElement(Builder $builder, ElementQueryInterface $query, mixed $usesElement, mixed $usesElementSite): void
     {
         $targetIds = [];
         foreach (is_array($usesElement) ? $usesElement : [$usesElement] as $target) {
-            $targetIds[] = $target instanceof ElementInterface ? (int)$target->id : (int)$target;
+            $targetIds[] = $target instanceof ElementInterface ? (int)$target->id : (is_numeric($target) ? (int)$target : 0);
         }
         $targetSiteIds = self::targetSiteIds($usesElementSite);
 

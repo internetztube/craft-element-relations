@@ -100,13 +100,13 @@ class ElementRelations extends Plugin
     /** Control panel actions that edit, delete or change the status of an element. */
     private const IN_USE_GUARDED_CONTROLLERS = ['elements', 'element-indexes', 'delete-elements', 'assets', 'users'];
 
-    /** @var array<class-string, mixed> */
+    /** @var array<class-string<\CraftCms\Cms\Field\Contracts\FieldInterface>> */
     protected array $fieldTypes = [ElementRelationsField::class];
 
-    /** @var list<class-string> */
+    /** @var array<class-string<\CraftCms\Cms\Utility\Utility>> */
     protected array $utilities = [ElementRelationsUtility::class];
 
-    /** @var list<class-string> */
+    /** @var list<class-string<\Illuminate\Console\Command>> */
     protected array $commands = [
         Console\Commands\ResaveRelationsCommand::class,
         Console\Commands\PruneCommand::class,
@@ -440,7 +440,7 @@ class ElementRelations extends Plugin
             }
         });
         Event::listen(function (ConditionRulesResolving $event): void {
-            if ($event->condition instanceof ElementCondition && !$event->condition instanceof Elements\Conditions\UsageCondition && self::isPro()) {
+            if ($event->condition instanceof ElementCondition && !$event->condition instanceof \Internetztube\ElementRelations\Elements\Conditions\UsageCondition && self::isPro()) {
                 $event->conditionRules[] = UsedConditionRule::class;
             }
         });

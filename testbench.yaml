@@ -1,0 +1,6 @@
+# Larastan boots this app to know Laravel's and Craft's facades, macros and models (vendor/bin/phpstan)
+providers:
+  - Inertia\ServiceProvider
+  - CraftCms\Aliases\AliasesServiceProvider
+  - CraftCms\DependencyAwareCache\CacheServiceProvider
+  - CraftCms\Cms\Providers\CraftServiceProvider

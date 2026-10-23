@@ -62,7 +62,7 @@ class FieldExtractorRichTextService implements InterfaceFieldExtractor, Interfac
     private static function referenceTags(string $text): array
     {
         preg_match_all('/\{[a-z][\w\\\\]*:(?<id>\d+)(?:@(?<site>[\w-]+))?(?::[^}|]*)?(?:\|\|[^}]*)?\}/i', $text, $matches, PREG_SET_ORDER);
-        return array_values(array_map(fn(array $match): array => ['id' => (int)$match['id'], 'site' => $match['site'] ?? ''], $matches));
+        return array_map(fn(array $match): array => ['id' => (int)$match['id'], 'site' => $match['site'] ?? ''], $matches);
     }
 
     /** The site of a reference tag: the element's own one, a site id, or a site handle (null when it does not exist). */

@@ -20,7 +20,7 @@ use Override;
  * @property int|null $userId
  * @property string|null $sourceIds JSON list of the owner ids the operation was limited to (null = everywhere)
  * @property string $status
- * @property string|null $changes JSON list of {elementId, siteId, ownerId, fieldId, preHadTo, before, after} (3.x/4.0 operations)
+ * @property string|null $changes JSON list (read with getAttribute(): Eloquent has a `$changes` property of its own) of {elementId, siteId, ownerId, fieldId, preHadTo, before, after} (3.x/4.0 operations)
  * @property string|null $revisions JSON list of the changed owners {ownerId, siteId, support, revisionBeforeId, revisionAfterId}
  * @property string|null $result JSON {replaced, skipped, restored}
  * @property string|null $plan JSON list of the owner groups a batched run works through, see ReplaceRun / RollbackRun
@@ -69,11 +69,12 @@ class Replacement extends BaseModel
      * before that table keep theirs as JSON in `changes`).
      * @return list<Change>
      */
-    public function getChanges(): array
+    public function changeList(): array
     {
-        if ($this->changes !== null) {
+        $legacyJson = $this->getAttribute('changes');
+        if (is_string($legacyJson)) {
             /** @var list<Change> $legacy */
-            $legacy = self::decode($this->changes);
+            $legacy = self::decode($legacyJson);
             return $legacy;
         }
         $changes = [];
@@ -95,8 +96,8 @@ class Replacement extends BaseModel
     /** How many elements the operation changed (an entry in two sites, or with two fields pointing at the target, is one). */
     public function getChangedElementCount(): int
     {
-        if ($this->changes !== null) {
-            return count(array_unique(array_map(fn(array $change): int => (int)($change['ownerId'] ?? $change['elementId']), $this->getChanges())));
+        if (is_string($this->getAttribute('changes'))) {
+            return count(array_unique(array_map(fn(array $change): int => (int)($change['ownerId'] ?? $change['elementId']), $this->changeList())));
         }
         return (int)DB::table(self::CHANGES_TABLE)->where('operationId', $this->id)->distinct()->count('ownerId');
     }

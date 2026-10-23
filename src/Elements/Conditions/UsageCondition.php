@@ -50,7 +50,7 @@ class UsageCondition extends ElementCondition
         ],
     ];
 
-    /** @return list<string|array<string, mixed>> */
+    /** @return array<array{class: string}|string> */
     #[Override]
     protected function selectableConditionRules(): array
     {

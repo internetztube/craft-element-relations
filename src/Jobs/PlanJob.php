@@ -18,6 +18,8 @@ abstract class PlanJob extends Job
     /** Owner groups done so far (in earlier batches). */
     public int $itemOffset = 0;
 
+    abstract public function handle(): void;
+
     /** @return list<mixed> the plan */
     abstract protected function items(): array;
 
@@ -40,7 +42,7 @@ abstract class PlanJob extends Job
             $this->processItem($items[$this->itemOffset]);
             $this->itemOffset++;
             $done++;
-            $this->setProgress((int)floor($this->itemOffset / $total * 100), "$this->itemOffset/$total");
+            $this->setProgress(max(0, min(100, intdiv($this->itemOffset * 100, $total))), "$this->itemOffset/$total");
             $memory = memory_get_usage();
             $running = microtime(true) - $start;
             // stop with room for two more of the slowest kind

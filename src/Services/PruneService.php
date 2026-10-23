@@ -67,8 +67,9 @@ class PruneService
     private static function deleteInBatches(callable $log): int
     {
         $cache = CacheRecord::TABLE;
-        $min = (int)DB::table($cache)->min('id');
-        $max = (int)(DB::table($cache)->max('id') ?? -1);
+        $min = DB::table($cache)->min('id');
+        $max = DB::table($cache)->max('id');
+        [$min, $max] = [self::int($min), $max === null ? -1 : self::int($max)];
         $removed = 0;
         for ($from = $min; $from <= $max; $from += self::BATCH) {
             $ids = DB::table($cache)
@@ -117,7 +118,7 @@ class PruneService
                     ->orWhere(fn(Builder $live) => $live->whereNotNull('t.id')->whereNotNull('s.id')->whereNotNull('o.id')->whereNull('o.revisionId')));
             DB::statement("DROP TABLE IF EXISTS $keep");
             DB::statement("CREATE TEMPORARY TABLE $keep AS " . $select->toSql(), $select->getBindings());
-            $kept = (int)DB::scalar("SELECT COUNT(*) FROM $keep");
+            $kept = self::int(DB::scalar("SELECT COUNT(*) FROM $keep"));
             $log(sprintf('keeping %d of about %d rows', $kept, $before));
             DB::statement("TRUNCATE TABLE $table");
             DB::statement("INSERT INTO $table SELECT * FROM $keep");
@@ -136,8 +137,14 @@ class PruneService
     {
         $name = DB::getTablePrefix() . CacheRecord::TABLE;
         $estimate = DB::isPgsql()
-            ? (int)DB::scalar('SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass(?)', [DB::connection()->getQueryGrammar()->wrapTable(CacheRecord::TABLE)])
-            : (int)DB::scalar('SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$name]);
+            ? self::int(DB::scalar('SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass(?)', [DB::connection()->getQueryGrammar()->wrapTable(CacheRecord::TABLE)]))
+            : self::int(DB::scalar('SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$name]));
         return $estimate >= self::REBUILD_MIN_ROWS ? $estimate : DB::table(CacheRecord::TABLE)->count();
+    }
+
+    /** A number the database returns (MySQL: as a string). */
+    private static function int(mixed $value): int
+    {
+        return is_numeric($value) ? (int)$value : 0;
     }
 }

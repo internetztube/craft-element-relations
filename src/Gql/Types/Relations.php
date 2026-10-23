@@ -50,13 +50,12 @@ class Relations extends ObjectType implements SingularTypeInterface
             throw new UserError('The `status` argument requires the “Query for non-enabled elements” schema scope.');
         }
         $model = $source->withQueryFactory(function (string $elementType): mixed {
-            [$resolver, $canQuery] = self::RESOLVERS[$elementType] ?? [null, null];
-            if ($resolver === null || !class_exists($resolver) || !is_callable($canQuery)) {
-                return null; // e.g. Commerce is not installed
+            $entry = self::RESOLVERS[$elementType] ?? null;
+            if ($entry === null || !($entry[1])()) {
+                return null; // a type GraphQL can't query (fail closed), or the schema may not read it
             }
-            /** @var callable(): bool $canQuery */
-            $query = $canQuery() ? $resolver::prepareQuery(null, []) : null;
             // a schema that may read nothing of the type gets an empty collection instead of a query
+            $query = $entry[0]::prepareQuery(null, []);
             return $query instanceof \CraftCms\Cms\Element\Queries\ElementQuery ? $query : null;
         });
         $allowed = array_map(fn(Site $site): int => (int)$site->id, GqlHelper::getAllowedSites());
@@ -114,6 +113,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     ],
                 ],
                 'resolve' => function (RelationsModel $source, array $arguments): int {
+                    /** @var Arguments $arguments GraphQL checked them against the field's arguments */
                     [$model, $args] = self::scoped($source, $arguments);
                     return $model->getCount(...$args);
                 },
@@ -141,6 +141,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     ],
                 ],
                 'resolve' => function (RelationsModel $source, array $arguments): bool {
+                    /** @var Arguments $arguments GraphQL checked them against the field's arguments */
                     // only what the schema may read, consistent with `count` and `elements`; plugin settings
                     // (SEOmatic) are not mixed in here, see `isUsedInSeomaticGlobalSettings`
                     [$model, $args] = self::scoped($source, $arguments);
@@ -183,6 +184,7 @@ class Relations extends ObjectType implements SingularTypeInterface
                     ],
                 ],
                 'resolve' => function (RelationsModel $source, array $arguments): array {
+                    /** @var Arguments $arguments GraphQL checked them against the field's arguments */
                     [$model, $args] = self::scoped($source, $arguments);
                     // never more than Craft's maxGraphqlResults, like Craft's own queries
                     $max = Cms::config()->maxGraphqlResults;

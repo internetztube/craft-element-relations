@@ -52,5 +52,10 @@
         "allow-plugins": {
             "craftcms/plugin-installer": true
         }
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "phpstan/phpstan": "^2.1",
+        "orchestra/testbench": "^11.0"
     }
 }

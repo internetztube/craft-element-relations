@@ -39,7 +39,7 @@ class ResaveElementRelationsJob extends Job
                         ExtractorService::refreshRelationsForElement($element);
                     }
                     $done++;
-                    $this->setProgress((int)floor($done / max(1, $total) * 100), "$done/$total");
+                    $this->setProgress(max(0, min(100, intdiv($done * 100, max(1, $total)))), "$done/$total");
                 }
             }
         });

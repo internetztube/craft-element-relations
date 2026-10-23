@@ -178,8 +178,10 @@ abstract class Usage extends Element
         foreach (self::listedTypes() as $type) {
             foreach ($type::tableAttributes() as $key => $attribute) {
                 // the first type's label wins (Entry Type, then Product Type both as `type`): each row renders its own
-                if (is_string($key) && is_array($attribute) && isset($attribute['label']) && !isset($attributes[$key])) {
-                    $attributes[$key] = ['label' => (string)$attribute['label']] + (isset($attribute['icon']) ? ['icon' => (string)$attribute['icon']] : []);
+                $label = $attribute['label'] ?? null;
+                $icon = $attribute['icon'] ?? null;
+                if (is_string($label) && !isset($attributes[$key])) {
+                    $attributes[$key] = ['label' => $label] + (is_string($icon) ? ['icon' => $icon] : []);
                 }
             }
         }
@@ -269,14 +271,14 @@ abstract class Usage extends Element
         foreach (array_intersect(self::listedTypes(), self::STOCK_TYPES) as $type) {
             foreach ($type::sortOptions() as $key => $option) {
                 // Craft's shorthand: 'slug' => 'Slug'
-                $option = is_string($option) ? ['label' => $option, 'orderBy' => $key, 'attribute' => $key] : $option;
+                $option = is_string($option) ? ['label' => $option, 'orderBy' => $key, 'attribute' => $key] : (array)$option;
                 // a closure (Section, Entry Type: Craft's fixed-order expressions on the joined tables) or a column that
                 // resolves on them; `is_callable` would take 'link' for PHP's link()
                 $orderBy = $option['orderBy'] ?? null;
-                if (!is_array($option) || !is_string($option['label'] ?? null) || !($orderBy instanceof \Closure || (is_string($orderBy) && in_array($orderBy, self::SORTABLE_COLUMNS, true)))) {
+                if (!is_string($option['label'] ?? null) || !($orderBy instanceof \Closure || (is_string($orderBy) && in_array($orderBy, self::SORTABLE_COLUMNS, true)))) {
                     continue;
                 }
-                $attribute = $option['attribute'] ?? (is_string($option['orderBy']) ? $option['orderBy'] : null);
+                $attribute = $option['attribute'] ?? (is_string($orderBy) ? $orderBy : null);
                 if (!is_string($attribute) || isset($seen[$attribute])) {
                     continue;
                 }

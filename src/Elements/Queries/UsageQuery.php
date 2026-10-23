@@ -13,10 +13,10 @@ use CraftCms\Cms\Element\Queries\ElementQuery;
 use CraftCms\Cms\Entry\Elements\Entry;
 use CraftCms\Cms\Section\Data\Section;
 use CraftCms\Cms\Site\Data\Site;
-use CraftCms\Cms\Support\Facades\Plugins;
-use CraftCms\Cms\Support\Facades\Sections;
-use CraftCms\Cms\Support\Facades\Sites;
-use CraftCms\Cms\Support\Facades\Volumes;
+use CraftCms\Cms\Asset\Volumes;
+use CraftCms\Cms\Plugin\Plugins;
+use CraftCms\Cms\Section\Sections;
+use CraftCms\Cms\Site\Sites;
 use CraftCms\Cms\User\Elements\User;
 use CraftCms\DependencyAwareCache\Dependency\TagDependency;
 use CraftCms\DependencyAwareCache\Facades\DependencyCache;
@@ -98,8 +98,10 @@ class UsageQuery extends ElementQuery
     {
         parent::__construct(Usage::class, $config);
         // before Craft's own callbacks: they apply `siteId`, which allSites widens
-        array_unshift($this->beforeQueryCallbacks, static function (self $query): void {
-            $query->prepareUsages();
+        array_unshift($this->beforeQueryCallbacks, static function (ElementQuery $query): void {
+            if ($query instanceof self) {
+                $query->prepareUsages();
+            }
         });
     }
 
@@ -164,9 +166,10 @@ class UsageQuery extends ElementQuery
     private function prepareUsages(): void
     {
         if ($this->allSites) {
-            $this->preferredSiteId ??= is_numeric($this->siteId) ? (int)$this->siteId : (int)Sites::getCurrentSite()->id;
-            $all = Sites::getAllSiteIds()->all();
-            $only = array_map(intval(...), array_filter((array)$this->inSites, is_numeric(...)));
+            $sites = app(Sites::class);
+            $this->preferredSiteId ??= is_numeric($this->siteId) ? (int)$this->siteId : (int)$sites->getCurrentSite()->id;
+            $all = $sites->getAllSiteIds()->all();
+            $only = array_map(fn(int|float|string $id): int => (int)$id, array_filter((array)$this->inSites, is_numeric(...)));
             $this->siteId = $this->inSites !== null && $this->inSites !== '' ? (array_values(array_intersect($all, $only)) ?: [0]) : $all;
         }
         $builder = $this->getQuery();
@@ -312,8 +315,8 @@ class UsageQuery extends ElementQuery
             $byTypeAndSite[$row->type][(int)$row->siteId][] = (int)$row->id;
         }
         $pairs = [];
+        /** @var array<class-string<ElementInterface>, array<int, list<int>>> $byTypeAndSite registered types only (see the query) */
         foreach ($byTypeAndSite as $type => $sites) {
-            /** @var class-string<ElementInterface> $type registered types only (see the query) */
             foreach ($sites as $siteId => $ids) {
                 foreach (array_chunk($ids, 500) as $chunk) { // bounded memory for thousands of usages
                     foreach (ElementRelations::find($type)->id($chunk)->siteId($siteId)->status(null)->drafts(null)->provisionalDrafts(null)->all() as $element) {
@@ -358,8 +361,8 @@ class UsageQuery extends ElementQuery
     private static function viewCondition(Builder $query, User $user): void
     {
         // ids of the sections/volumes whose permission (`viewEntries:<uid>`, ...) the user has
-        $sectionIds = Sections::getAllSections()->filter(fn(Section $section): bool => $user->can("viewEntries:$section->uid"))->map(fn(Section $section): int => (int)$section->id)->values()->all();
-        $volumeIds = Volumes::getAllVolumes()->filter(fn(Volume $volume): bool => $user->can("viewAssets:$volume->uid") || $user->can("viewPeerAssets:$volume->uid"))->map(fn(Volume $volume): int => (int)$volume->id)->values()->all();
+        $sectionIds = app(Sections::class)->getAllSections()->filter(fn(Section $section): bool => $user->can("viewEntries:$section->uid"))->map(fn(Section $section): int => (int)$section->id)->values()->all();
+        $volumeIds = app(Volumes::class)->getAllVolumes()->filter(fn(Volume $volume): bool => $user->can("viewAssets:$volume->uid") || $user->can("viewPeerAssets:$volume->uid"))->map(fn(Volume $volume): int => (int)$volume->id)->values()->all();
         $core = [Entry::class, Asset::class, User::class];
         $query->where(function (Builder $types) use ($core, $sectionIds, $volumeIds, $user): void {
             $types->whereNotIn('elements.type', $core) // plugin types: checked per element
@@ -369,15 +372,15 @@ class UsageQuery extends ElementQuery
                     ? $users->where('elements.type', User::class)
                     : $users->where('elements.type', User::class)->where('elements.id', $user->id));
         });
-        if (Sites::isMultiSite()) {
-            $siteIds = Sites::getAllSites()->filter(fn(Site $site): bool => $user->can("editSite:$site->uid"))->map(fn(Site $site): int => (int)$site->id)->values()->all();
+        if (app(Sites::class)->isMultiSite()) {
+            $siteIds = app(Sites::class)->getAllSites()->filter(fn(Site $site): bool => $user->can("editSite:$site->uid"))->map(fn(Site $site): int => (int)$site->id)->values()->all();
             $query->whereIn('elements_sites.siteId', $siteIds ?: [0]);
         }
     }
 
     private static function hasProducts(): bool
     {
-        return Plugins::isPluginEnabled('commerce');
+        return app(Plugins::class)->isPluginEnabled('commerce');
     }
 
     /**
@@ -393,7 +396,7 @@ class UsageQuery extends ElementQuery
         if ($this->asArray) {
             return parent::hydrate($items);
         }
-        $rows = array_map(fn(\stdClass $row): array => ['id' => (int)$row->id, 'siteId' => (int)$row->siteId], $items);
+        $rows = array_values(array_map(fn(\stdClass $row): array => ['id' => (int)$row->id, 'siteId' => (int)$row->siteId], $items));
         // the element type of each row (not selected by the base query, which Craft's search reuses as a subquery)
         /** @var array<int, string> $types */
         $types = $rows ? DB::table(Table::ELEMENTS)->whereIntegerInRaw('id', array_column($rows, 'id'))->pluck('type', 'id')->all() : [];

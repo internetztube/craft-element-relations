@@ -86,7 +86,7 @@ final class RollbackRun
     public static function groups(Replacement $operation): array
     {
         $groups = [];
-        foreach ($operation->getChanges() as $change) {
+        foreach ($operation->changeList() as $change) {
             $key = ($change['ownerId'] ?? $change['elementId']) . ':' . $change['siteId'];
             $groups[$key] ??= ['key' => $key, 'changes' => []];
             $groups[$key]['changes'][] = $change;

@@ -106,12 +106,12 @@ class ReplaceController
         $message = match ($operation->status) {
             // a rollback that could do nothing leaves the replacement applied; its reasons are the answer to "Undo"
             Replacement::STATUS_APPLIED => isset($result['rollbackSkipped'])
-                ? self::rollbackMessage(0, 0, array_values(array_map('strval', $result['rollbackSkipped'])))
+                ? self::rollbackMessage(0, 0, $result['rollbackSkipped'])
                 : (($result['replaced'] ?? 0) === 0 && empty($result['skipped'])
                     ? t('replace-nothing-done', ['from' => (string)$from], 'element-relations')
-                    : self::resultMessage(['replaced' => (int)($result['replaced'] ?? 0), 'skipped' => array_values(array_map('strval', (array)($result['skipped'] ?? []))), 'withoutRevision' => (int)($result['withoutRevision'] ?? 0)], (string)$from, (string)$to)),
-            Replacement::STATUS_ROLLED_BACK => self::rollbackMessage((int)($result['restored'] ?? 0), (int)($result['reverted'] ?? 0), array_values(array_map('strval', (array)($result['rollbackSkipped'] ?? [])))),
-            Replacement::STATUS_FAILED => implode(' ', array_map('strval', (array)($result['skipped'] ?? []))),
+                    : self::resultMessage(['replaced' => (int)($result['replaced'] ?? 0), 'skipped' => $result['skipped'] ?? [], 'withoutRevision' => (int)($result['withoutRevision'] ?? 0)], (string)$from, (string)$to)),
+            Replacement::STATUS_ROLLED_BACK => self::rollbackMessage((int)($result['restored'] ?? 0), (int)($result['reverted'] ?? 0), $result['rollbackSkipped'] ?? []),
+            Replacement::STATUS_FAILED => implode(' ', $result['skipped'] ?? []),
             default => null,
         };
         return new JsonResponse([
@@ -286,7 +286,9 @@ class ReplaceController
             Usage::$listedTypes = Usage::typesUsing([(int)$from->id]);
             $condition = Usage::createCondition();
             $condition->forQuery = true;
-            $condition->setConditionRules($filter['conditionRules']);
+            /** @var array<array{class: string}|string> $rules a condition's rules as the filter HUD sends them */
+            $rules = $filter['conditionRules'];
+            $condition->setConditionRules($rules);
             $condition->modifyQuery($query);
             Usage::$listedTypes = null;
         }

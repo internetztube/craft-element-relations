@@ -31,7 +31,8 @@ class ReplaceMapCommand extends Command
     public function handle(): int
     {
         $this->requirePro();
-        $file = (string)$this->argument('file');
+        $file = $this->argument('file');
+        $file = is_string($file) ? $file : '';
         if (!is_readable($file)) {
             $this->error("Cannot read $file.");
             return self::FAILURE;
