@@ -17,6 +17,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/craft.php';
 require __DIR__ . '/lib.php';
+// a run that failed midway left Craft's project config lock behind (see the end of this file)
+Illuminate\Support\Facades\Cache::lock(CraftCms\Cms\ProjectConfig\ProjectConfig::MUTEX_NAME)->forceRelease();
 
 use CraftCms\Cms\Asset\Data\Volume;
 use CraftCms\Cms\Asset\Elements\Asset;
@@ -95,5 +97,8 @@ foreach (glob(__DIR__ . '/seed/*.php') ?: [] as $file) {
 
 // the tests switch editions and restore the one they found; a run that failed midway may have left another one
 CraftCms\Cms\Support\Facades\Plugins::switchEdition('element-relations', 'pro');
+// a script never terminates the app, where Craft saves the project config changes and releases its lock (else the
+// next process finds it held for 30 s, and a value set here, like the user photo volume, is lost)
+CraftCms\Cms\Support\Facades\ProjectConfig::saveModifiedConfigData();
 
 echo "Seeded. Targets: Page B (#{$b->id}) for base tests, Page C (#{$c->id}) and asset #{$asset->id} for integrations.\n";

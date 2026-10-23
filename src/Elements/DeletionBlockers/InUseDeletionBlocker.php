@@ -36,6 +36,10 @@ class InUseDeletionBlocker extends BaseDeletionBlocker
     public function __construct(ElementCollection $elements, bool $hardDelete, array $config = [])
     {
         parent::__construct($elements, $hardDelete, $config);
+        // the setting off (or Lite): never in the way
+        if (!ElementRelations::protectsInUse()) {
+            return;
+        }
         foreach ($elements as $element) {
             if (!InUseGuard::counts($element)) {
                 continue;

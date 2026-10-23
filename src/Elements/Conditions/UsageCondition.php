@@ -6,6 +6,7 @@ namespace Internetztube\ElementRelations\Elements\Conditions;
 
 use CraftCms\Cms\Asset\Conditions as AssetRules;
 use CraftCms\Cms\Asset\Elements\Asset;
+use CraftCms\Cms\Condition\Contracts\ConditionGroupInterface;
 use CraftCms\Cms\Condition\Contracts\ConditionRuleInterface;
 use CraftCms\Cms\Element\Conditions\Contracts\ElementQueryConditionRuleInterface;
 use CraftCms\Cms\Element\Conditions\ElementCondition;
@@ -49,6 +50,12 @@ class UsageCondition extends ElementCondition
             UserRules\LastLoginDateConditionRule::class,
         ],
     ];
+
+    #[Override]
+    public static function createGroup(): ConditionGroupInterface
+    {
+        return new UsageConditionGroup();
+    }
 
     /** @return array<array{class: string}|string> */
     #[Override]

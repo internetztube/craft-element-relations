@@ -30,7 +30,7 @@ use CraftCms\Cms\ProjectConfig\Events\ItemAdded;
 use CraftCms\Cms\ProjectConfig\Events\ItemRemoved;
 use CraftCms\Cms\ProjectConfig\Events\ItemUpdated;
 use CraftCms\Cms\Support\Facades\Elements;
-use CraftCms\Cms\Support\Facades\TemplateHooks;
+use CraftCms\Cms\View\TemplateHooks;
 use CraftCms\Cms\Support\Html;
 use CraftCms\Cms\Support\Url;
 use CraftCms\Cms\Twig\Variables\CraftVariable;
@@ -422,8 +422,10 @@ class ElementRelations extends Plugin
             }
         });
 
-        // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else)
-        TemplateHooks::register('cp.elements.toolbar', function (array &$context): string {
+        // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else).
+        // Craft's hook registry is scoped: a queue worker (or Octane) starts each job (request) with a new one, so the
+        // hook goes on every registry Craft creates, not only on the one of this boot
+        $toolbarHook = function (array &$context): string {
             if (($context['elementType'] ?? null) !== Usage::class) {
                 return '';
             }
@@ -431,7 +433,9 @@ class ElementRelations extends Plugin
                 'menu' => $menu,
                 'id' => 'element-relations-menu-' . mt_rand(),
             ], \CraftCms\Cms\View\TemplateMode::Cp), ElementRelationsField::$toolbarMenus));
-        });
+        };
+        // (nothing resolves it before the plugins boot: Craft registers its own hooks in a middleware)
+        app()->afterResolving(TemplateHooks::class, fn(TemplateHooks $hooks) => $hooks->register('cp.elements.toolbar', $toolbarHook));
 
         // "Replace everywhere…" on element indexes, a "Used anywhere" rule for element conditions; decided per call,
         // so switching the edition needs no restart
