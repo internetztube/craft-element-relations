@@ -463,7 +463,7 @@ class ElementRelations extends Plugin
 
         // Craft 6 normalizes every field value while saving (setFieldValue), so by ElementSaved each field reads as
         // dirty: what the save really changed is known only before it
-        /** @var \WeakMap<ElementInterface, list<string>> $changedFields */
+        /** @var \WeakMap<ElementInterface, array<string>> $changedFields */
         $changedFields = new \WeakMap();
         Event::listen(function (ElementSaving $event) use ($changedFields): void {
             $changedFields[$event->element] = $event->element->getDirtyFields();
