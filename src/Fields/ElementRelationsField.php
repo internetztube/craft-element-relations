@@ -203,7 +203,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ->whereColumn('sources.id', "$cache.sourcePrimaryOwnerId")
             ->whereNull('sources.dateDeleted')
             ->whereNull('sources.revisionId')
-            ->where(fn(Builder $draft) => $draft->whereNull('er_drafts.id')->orWhere('er_drafts.provisional', false));
+            // a literal: toRawSql() below writes a `false` binding as 0, which PostgreSQL does not compare to a boolean
+            ->where(fn(Builder $draft) => $draft->whereNull('er_drafts.id')->orWhere('er_drafts.provisional', '=', DB::raw('false')));
         $usages = DB::table($cache)
             ->select(["$cache.sourcePrimaryOwnerId", "$cache.globalKey"])
             ->whereColumn("$cache.targetElementId", 'elements.id')

@@ -468,7 +468,18 @@ class ElementRelations extends Plugin
         /** @var \WeakMap<ElementInterface, array<string>> $changedFields */
         $changedFields = new \WeakMap();
         Event::listen(function (ElementSaving $event) use ($changedFields): void {
-            $changedFields[$event->element] = $event->element->getDirtyFields();
+            $element = $event->element;
+            $changed = $element->getDirtyFields();
+            // and an owner's save saves all its nested elements (content blocks, Matrix entries), their fields read as
+            // dirty: one changed only when the owner's field holding it did (Craft 5 saved them only then)
+            if ($element instanceof NestedElementInterface && $element->id && isset($element->touchOwnersOnSave) && $element->touchOwnersOnSave === false) {
+                $owner = $element->getOwner();
+                $ownerChanged = $owner ? ($changedFields[$owner] ?? null) : null;
+                if ($ownerChanged !== null && !in_array($element->getField()?->handle, $ownerChanged, true)) {
+                    $changed = [];
+                }
+            }
+            $changedFields[$element] = $changed;
         });
         Event::listen(function (ElementSaved $event) use ($forgetIfUsage, $changedFields): void {
             $element = $event->element;

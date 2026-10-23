@@ -94,6 +94,14 @@ function withWebRequest(callable $fn, ?User $user = null): mixed
     $request = Request::create(rtrim((string)config('app.url'), '/') . '/admin', 'GET');
     $request->attributes->set('isCpRequest', true);
     app()->instance('request', $request);
+    // the template hook Craft's control panel middleware registers for the index's sources (their sort options); not
+    // its toolbar hook, which the 4.x smoke (Craft 5 registered both for web requests only) did not run either. The
+    // hooks are a scoped service, which a queue run (flushQueue()) starts afresh.
+    static $hooks = null;
+    if ($hooks !== app(\CraftCms\Cms\View\TemplateHooks::class)) {
+        $hooks = app(\CraftCms\Cms\View\TemplateHooks::class);
+        $hooks->register('cp.elements.sources', \CraftCms\Cms\View\Hooks\PrepareElementSourcesVariables::class);
+    }
     // and no console: the plugin checks app()->runningInConsole() like 4.x checked for a console request
     $console = new ReflectionProperty(app(), 'isRunningInConsole');
     $wasConsole = $console->getValue(app());
