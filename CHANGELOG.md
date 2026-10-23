@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+## 4.0.2.1 - 2026-10-23
 
 ### Fixed
 - The field's list of usages (and `usesElement` queries) no longer scans every element: the using elements come from the cache first and are queried by id (from 10 s to 0.1 s for an entry on a site with 2M elements). The ids go into the SQL as text, so an element with 100,000 usages works on PostgreSQL too (at most 65,535 parameters per query).
