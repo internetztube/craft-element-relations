@@ -95,5 +95,7 @@ foreach (glob(__DIR__ . '/seed/*.php') ?: [] as $file) {
 
 // the tests switch editions and restore the one they found; a run that failed midway may have left another one
 CraftCms\Cms\Support\Facades\Plugins::switchEdition('element-relations', 'pro');
+// a script ends without Laravel's terminate, which would write the project config changes (the edition) to the database
+CraftCms\Cms\Support\Facades\ProjectConfig::saveModifiedConfigData();
 
 echo "Seeded. Targets: Page B (#{$b->id}) for base tests, Page C (#{$c->id}) and asset #{$asset->id} for integrations.\n";
