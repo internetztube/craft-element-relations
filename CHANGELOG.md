@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Fixed
+- The field's list of usages (and `usesElement` queries) no longer scans every element: the using elements come from the cache first and are queried by id (from 10 s to 0.1 s for an entry on a site with 2M elements).
+
 ## 4.0.2 - 2026-10-22
 
 ### Added

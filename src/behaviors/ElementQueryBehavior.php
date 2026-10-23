@@ -108,32 +108,39 @@ class ElementQueryBehavior extends Behavior
         }
         $targetSiteIds = self::targetSiteIds($this->usesElementSite);
 
-        $subQuery->andWhere(['exists', (new Query())
-            ->select(['elementrelations_cache.id'])
-            ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
-            ->where([
-                'elementrelations_cache.sourcePrimaryOwnerId' => new Expression('[[elements.id]]'),
-                'elementrelations_cache.sourceSiteId' => new Expression('[[elements_sites.siteId]]'),
-                'elementrelations_cache.targetElementId' => $targetIds,
-            ])
-            ->andFilterWhere(['elementrelations_cache.targetSiteId' => $targetSiteIds]),
-        ]);
         // a list spanning every site shows each element once, in the site the index asked for when it uses the
         // target there, else its first site that does (the Site column names all of them)
         $owner = $this->owner;
-        if ($owner instanceof \internetztube\elementRelations\elements\db\UsageQuery && $owner->allSites) {
-            $ids = implode(',', array_map(intval(...), $targetIds));
-            $only = array_map(intval(...), array_filter((array)$owner->inSites, is_numeric(...)));
-            $preferred = (int)($owner->preferredSiteId ?? 0);
-            $subQuery->andWhere(new Expression(sprintf(
-                '[[elements_sites.siteId]] = (SELECT [[c.sourceSiteId]] FROM %s [[c]] WHERE [[c.targetElementId]] IN (%s) AND [[c.sourcePrimaryOwnerId]] = [[elements.id]]%s%s ORDER BY CASE WHEN [[c.sourceSiteId]] = %d THEN 0 ELSE 1 END, [[c.sourceSiteId]] LIMIT 1)',
-                Craft::$app->getDb()->quoteTableName('{{%elementrelations_cache}}'),
-                $ids ?: '0',
-                $only ? ' AND [[c.sourceSiteId]] IN (' . implode(',', $only) . ')' : '',
-                $targetSiteIds ? ' AND [[c.targetSiteId]] IN (' . implode(',', $targetSiteIds) . ')' : '',
-                $preferred,
-            )));
+        $allSites = $owner instanceof \internetztube\elementRelations\elements\db\UsageQuery && $owner->allSites;
+        $only = $allSites ? array_map(intval(...), array_filter((array)$owner->inSites, is_numeric(...))) : [];
+        $preferred = $allSites ? (int)($owner->preferredSiteId ?? 0) : 0;
+
+        // The using elements × sites come from the cache first and go into the query as literal ids. A correlated
+        // EXISTS (or a join on the cache) behind Craft's 8+ joins makes Postgres scan every element and element site
+        // before it looks at the cache: 10 s on 2M elements instead of 0.1 s via the primary key.
+        // ponytail: one id per using element in the SQL; fine into the tens of thousands per target
+        $sitesByOwner = [];
+        foreach ((new Query())
+            ->select(['owner' => 'sourcePrimaryOwnerId', 'site' => 'sourceSiteId'])
+            ->distinct()
+            ->from(['{{%elementrelations_cache}}'])
+            ->where(['targetElementId' => $targetIds])
+            ->andFilterWhere(['targetSiteId' => $targetSiteIds, 'sourceSiteId' => $only ?: null])
+            ->all() as $row) {
+            /** @var array{owner: int|string, site: int|string} $row */
+            $sitesByOwner[(int)$row['owner']][] = (int)$row['site'];
         }
+        $ownersBySite = [];
+        foreach ($sitesByOwner as $ownerId => $sites) {
+            foreach ($allSites ? [in_array($preferred, $sites, true) ? $preferred : min($sites)] : $sites as $site) {
+                $ownersBySite[$site][] = $ownerId;
+            }
+        }
+        $subQuery->andWhere(['elements.id' => array_keys($sitesByOwner)]); // no usages: 0=1
+        $subQuery->andWhere(['or', ...array_map(
+            fn(int $site) => ['elements_sites.siteId' => $site, 'elements.id' => $ownersBySite[$site]],
+            array_keys($ownersBySite),
+        )]);
     }
 
     /**
