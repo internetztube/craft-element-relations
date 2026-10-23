@@ -25,7 +25,7 @@ return function (array $ctx): void {
         ProjectConfig::saveModifiedConfigData(); // a script never terminates the app, where Craft writes it
     }
     $admin = User::find()->username('admin')->one() ?? throw new RuntimeException('admin');
-    if ($admin->photoId !== $ctx['asset']->id) {
+    if ($admin->photoId !== (int)$ctx['asset']->id) {
         $admin->setPhoto($ctx['asset']);
         Elements::saveElement($admin) or fail($admin);
     }

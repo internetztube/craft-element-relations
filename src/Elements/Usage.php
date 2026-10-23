@@ -294,6 +294,10 @@ abstract class Usage extends Element
                     continue;
                 }
                 $seen[$attribute] = true;
+                // Craft calls a callable `orderBy`, and the column `uri` is also Laravel's uri(): a closure for the column
+                if (is_string($orderBy) && is_callable($orderBy)) {
+                    $option['orderBy'] = fn(): string => $orderBy;
+                }
                 $options[] = $option + ['attribute' => $attribute];
             }
         }

@@ -17,6 +17,7 @@ use CraftCms\Cms\Asset\Volumes;
 use CraftCms\Cms\Plugin\Plugins;
 use CraftCms\Cms\Section\Sections;
 use CraftCms\Cms\Site\Sites;
+use CraftCms\Cms\Support\Query;
 use CraftCms\Cms\User\Elements\User;
 use CraftCms\DependencyAwareCache\Dependency\TagDependency;
 use CraftCms\DependencyAwareCache\Facades\DependencyCache;
@@ -87,6 +88,31 @@ class UsageQuery extends ElementQuery
     public ?int $preferredSiteId = null;
 
     /**
+     * Craft's own query params for the element types a list can contain, so templates and PHP can narrow a list like
+     * Craft's own queries (`craft.usages().usesElement(x).sectionId(3)`); the stock filter rules write their conditions
+     * on the joined tables themselves. Each applies to its type's table; rows of other types never match. Values as
+     * Craft's queries take them (ids, `['not', …]`, `'*.pdf'`, `'>= 2026-01-01'`, a DateTime).
+     */
+    public mixed $sectionId = null;
+    public mixed $section = null;
+    public mixed $typeId = null;
+    public mixed $authorId = null;
+    public mixed $postDate = null;
+    public mixed $expiryDate = null;
+    public mixed $volumeId = null;
+    public mixed $filename = null;
+    public mixed $kind = null;
+    public mixed $size = null;
+    public mixed $width = null;
+    public mixed $height = null;
+    public mixed $dateModified = null;
+    public mixed $email = null;
+    public mixed $username = null;
+    public mixed $firstName = null;
+    public mixed $lastName = null;
+    public mixed $lastLoginDate = null;
+
+    /**
      * Only what this user may view. Applied automatically for non-admin users in control panel requests (the field's
      * list, the wizard's modal, any element index request for this type); `false` switches it off (server code only).
      *
@@ -150,6 +176,25 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    public function sectionId(mixed $value): static { $this->sectionId = $value; return $this; }
+    public function section(mixed $value): static { $this->section = $value; return $this; }
+    public function typeId(mixed $value): static { $this->typeId = $value; return $this; }
+    public function authorId(mixed $value): static { $this->authorId = $value; return $this; }
+    public function postDate(mixed $value): static { $this->postDate = $value; return $this; }
+    public function expiryDate(mixed $value): static { $this->expiryDate = $value; return $this; }
+    public function volumeId(mixed $value): static { $this->volumeId = $value; return $this; }
+    public function filename(mixed $value): static { $this->filename = $value; return $this; }
+    public function kind(mixed $value): static { $this->kind = $value; return $this; }
+    public function size(mixed $value): static { $this->size = $value; return $this; }
+    public function width(mixed $value): static { $this->width = $value; return $this; }
+    public function height(mixed $value): static { $this->height = $value; return $this; }
+    public function dateModified(mixed $value): static { $this->dateModified = $value; return $this; }
+    public function email(mixed $value): static { $this->email = $value; return $this; }
+    public function username(mixed $value): static { $this->username = $value; return $this; }
+    public function firstName(mixed $value): static { $this->firstName = $value; return $this; }
+    public function lastName(mixed $value): static { $this->lastName = $value; return $this; }
+    public function lastLoginDate(mixed $value): static { $this->lastLoginDate = $value; return $this; }
+
     /** @param int|int[]|string|null $value site id(s), see $inSites */
     public function inSites(mixed $value): static
     {
@@ -211,6 +256,7 @@ class UsageQuery extends ElementQuery
         foreach (self::typeTables() as $table) {
             $builder->leftJoin($table, "$table.id", '=', 'elements.id');
         }
+        $this->applyStockParams($builder);
         $this->applyGroupIds($builder);
         UsesElement::apply($this, UsesElement::params($this));
         $viewer = $this->viewer();
@@ -236,6 +282,52 @@ class UsageQuery extends ElementQuery
                 $condition->orWhere(fn(Builder $pair) => $pair->where('elements_sites.siteId', $siteId)->whereIntegerInRaw('elements.id', $ids));
             }
         });
+    }
+
+    /**
+     * The stock params on their tables. A type's param narrows the list to that type, like on Craft's own queries (an
+     * asset never has a section): "expiry date is empty" means entries without one, not every asset.
+     */
+    private function applyStockParams(Builder $builder): void
+    {
+        if ($this->section === '*') {
+            $builder->whereNotNull('entries.sectionId');
+        }
+        $ofType = fn(string $column): Builder => $builder->whereNotNull(strtok($column, '.') . '.id');
+        $numeric = ['entries.sectionId' => $this->sectionId, 'entries.typeId' => $this->typeId, 'assets.volumeId' => $this->volumeId, 'assets.size' => $this->size, 'assets.width' => $this->width, 'assets.height' => $this->height];
+        foreach (array_filter(array_map(self::param(...), $numeric)) as $column => $value) {
+            Query::whereNumericParam($builder, $column, $value);
+            $ofType($column);
+        }
+        $dates = ['entries.postDate' => $this->postDate, 'entries.expiryDate' => $this->expiryDate, 'assets.dateModified' => $this->dateModified, 'users.lastLoginDate' => $this->lastLoginDate];
+        foreach (array_filter(array_map(fn(mixed $value): \DateTimeInterface|array|string|null => $value instanceof \DateTimeInterface ? $value : self::param($value), $dates)) as $column => $value) {
+            Query::whereDateParam($builder, $column, $value);
+            $ofType($column);
+        }
+        $texts = ['assets.filename' => $this->filename, 'assets.kind' => $this->kind, 'users.email' => $this->email, 'users.username' => $this->username, 'users.firstName' => $this->firstName, 'users.lastName' => $this->lastName];
+        foreach (array_filter(array_map(self::param(...), $texts)) as $column => $value) {
+            Query::whereParam($builder, $column, $value, caseInsensitive: true);
+            $ofType($column);
+        }
+        if (($authorId = self::param($this->authorId)) !== null) {
+            $builder->whereExists(fn(Builder $authors) => Query::whereNumericParam(
+                $authors->from(Table::ENTRIES_AUTHORS)->whereColumn('entries_authors.entryId', 'elements.id'),
+                'entries_authors.authorId',
+                $authorId,
+            ));
+        }
+    }
+
+    /**
+     * A param value as Craft parses it: a string, or a list of strings (ids, `['not', 3, 4]`, `'*.pdf'`); null when not set.
+     * @return list<string>|string|null
+     */
+    private static function param(mixed $value): array|string|null
+    {
+        if (is_array($value)) {
+            return array_values(array_map(fn(mixed $item): string => is_scalar($item) ? (string)$item : '', $value));
+        }
+        return is_scalar($value) ? (string)$value : null;
     }
 
     /**

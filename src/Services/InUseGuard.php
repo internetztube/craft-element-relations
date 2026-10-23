@@ -47,9 +47,7 @@ class InUseGuard
         Event::listen(ElementDeletingForSite::class, [self::class, 'beforeDeleteForSite']);
         // the delete dialog lists the usages before anything is deleted
         Event::listen(function (DefineDeletionBlockers $event): void {
-            if (ElementRelations::protectsInUse()) {
-                $event->blockers[] = new InUseDeletionBlocker($event->elements, $event->hardDelete);
-            }
+            $event->blockers[] = new InUseDeletionBlocker($event->elements, $event->hardDelete);
         });
     }
 

@@ -1,40 +1,54 @@
 <?php
+
+declare(strict_types=1);
+
 /**
  * GraphQL never exposes more relating elements than the active schema may read: types/sections/volumes/sites outside
- * the schema, plugin element types, disabled elements (unless asked for) and drafts stay hidden, and `count` /
- * `isInUse` agree with `elements`. Creates temporary entries ("GS ...") relating to Page C and removes them again.
+ * the schema, element types without a resolver, disabled elements (unless asked for) and drafts stay hidden, and
+ * `count` / `isInUse` agree with `elements`. Creates temporary entries ("GS ...") relating to Page C and the asset and
+ * removes them again.
  */
 
-use craft\elements\Entry;
-use craft\helpers\StringHelper;
-use craft\models\GqlSchema;
-use internetztube\elementRelations\gql\types\Relations;
-use internetztube\elementRelations\models\RelationsModel;
+use CraftCms\Cms\Cms;
+use CraftCms\Cms\Edition;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\Entry\Elements\Entry;
+use CraftCms\Cms\Gql\Data\GqlSchema;
+use CraftCms\Cms\Gql\Gql;
+use CraftCms\Cms\Support\Facades\Drafts;
+use CraftCms\Cms\Support\Facades\Elements;
+use CraftCms\Cms\Support\Facades\Sections;
+use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Support\Facades\Volumes;
+use CraftCms\Cms\Support\Str;
+use CraftCms\Cms\User\Elements\User;
+use Illuminate\Support\Facades\Context;
+use Internetztube\ElementRelations\Gql\Types\Relations;
+use Internetztube\ElementRelations\Models\RelationsModel;
 
 return function (array $ctx): void {
-    $elements = Craft::$app->getElements();
-    $section = Craft::$app->getEntries()->getSectionByHandle('pages');
+    // Craft Solo has no user groups, so GraphQL reads no users: Pro in memory, so the admin (whose photo the asset is)
+    // is a second type among the asset's usages
+    $editionBefore = Context::getHidden(Edition::class);
+    Context::addHidden(Edition::class, Edition::Pro);
+    $section = Sections::getSectionByHandle('pages') ?? throw new RuntimeException('pages');
     $typeId = $section->getEntryTypes()[0]->id;
-    $adminId = craft\elements\User::find()->username('admin')->one()->id;
+    $adminId = (int)admin()->id;
     $asset = $ctx['asset'];
     $target = $ctx['target'];
-    $volume = Craft::$app->getVolumes()->getVolumeByHandle('test');
+    $volume = Volumes::getVolumeByHandle('test') ?? throw new RuntimeException('volume');
     // every schema below may read non-enabled elements (the `status` argument needs it), only case 5 may not
-    $siteScopes = ['elements.inactive:read', ...array_map(fn($site) => "sites.$site->uid:read", Craft::$app->getSites()->getAllSites(true))];
-    $pagesScopes = ["sections.$section->uid:read", ...array_map(fn($t) => "entrytypes.$t->uid:read", $section->getEntryTypes())];
+    $siteScopes = ['elements.inactive:read', ...Sites::getAllSites(true)->map(fn($site): string => "sites.$site->uid:read")->all()];
+    $pagesScopes = ["sections.$section->uid:read", ...array_map(fn($t): string => "entrytypes.$t->uid:read", $section->getEntryTypes())];
 
-    $flush = function (): void {
-        Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
-        Craft::$app->getQueue()->run();
-    };
-    $cleanup = function () use ($elements, $flush): void {
+    $cleanup = function (): void {
         foreach (Entry::find()->title('GS *')->status(null)->drafts(null)->provisionalDrafts(null)->site('*')->unique()->all() as $old) {
-            $elements->deleteElement($old, true);
+            Elements::deleteElement($old, true);
         }
-        $flush();
+        flushQueue();
     };
     // a unique uid per schema: Craft caches GraphQL results per schema uid
-    $schema = fn(array $scope) => new GqlSchema(['uid' => StringHelper::UUID(), 'scope' => $scope]);
+    $schema = fn(array $scope): GqlSchema => new GqlSchema(['uid' => Str::uuid()->toString(), 'name' => 'GS', 'scope' => array_values($scope)]);
     $fields = '{ count isInUse isUsedInSeomaticGlobalSettings elements { id title __typename }
         allSites: elements(siteIds: []) { id }
         allSitesCount: count(siteIds: [])
@@ -48,26 +62,12 @@ return function (array $ctx): void {
             $flatten($component['nested'] ?? []);
         }
     };
-    foreach (Craft::$app->getGql()->getAllSchemaComponents()['queries'] as $group) {
+    foreach (app(Gql::class)->getAllSchemaComponents()['queries'] as $group) {
         $flatten($group);
     }
     $full = $schema($allScopes);
-    // Craft builds the GraphQL types once per process for one schema (as in a request) and cannot rebuild them for
-    // another one, so every query runs in its own process, like a request with that schema
-    $execute = function (GqlSchema $schema, string $query, array $variables = []): array {
-        // `php -r` runs no auto_prepend_file: load it here, so these queries count towards the coverage (dev.sh coverage)
-        $code = 'if ($prepend = ini_get("auto_prepend_file")) { require $prepend; }'
-            . 'require $argv[1] . "/bootstrap.php"; require CRAFT_VENDOR_PATH . "/craftcms/cms/bootstrap/console.php";'
-            . '$in = json_decode(stream_get_contents(STDIN), true);'
-            . 'echo json_encode(Craft::$app->getGql()->executeQuery(new craft\\models\\GqlSchema($in[0]), $in[1], $in[2]));';
-        $process = proc_open([...phpCommand(), '-r', $code, CRAFT_BASE_PATH], [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
-        fwrite($pipes[0], json_encode([['uid' => $schema->uid, 'scope' => $schema->scope], $query, $variables ?: null]));
-        fclose($pipes[0]);
-        $output = stream_get_contents($pipes[1]);
-        $errors = stream_get_contents($pipes[2]);
-        proc_close($process);
-        return json_decode($output, true) ?? ['errors' => [$output . $errors]];
-    };
+    // Craft 6 builds the GraphQL types again for each schema it is given (4.x ran each query in its own process)
+    $execute = fn(GqlSchema $schema, string $query, array $variables = []): array => app(Gql::class)->executeQuery($schema, $query, $variables ?: null);
     $run = function (GqlSchema $schema, string $query, array $variables = []) use ($execute): array {
         $result = $execute($schema, $query, $variables);
         if (!empty($result['errors'])) {
@@ -77,36 +77,40 @@ return function (array $ctx): void {
     };
     $assetRelations = fn(GqlSchema $s) => $run($s, 'query($id: [QueryArgument]) { asset(id: $id) { ... on test_Asset { relations ' . $fields . ' } } }', ['id' => $asset->id])['asset']['relations'] ?? null;
     $entryRelations = fn(GqlSchema $s) => $run($s, 'query($id: [QueryArgument]) { entry(id: $id) { ... on page_Entry { relations ' . $fields . ' } } }', ['id' => $target->id])['entry']['relations'] ?? null;
-    $ids = fn(array $list) => collect($list)->pluck('id')->map(fn($id) => (int)$id)->sort()->values()->all();
+    $ids = fn(array $list): array => collect($list)->pluck('id')->map(fn($id): int => (int)$id)->sort()->values()->all();
     $consistent = function (array $r, string $what) use ($ids): void {
         check($r['count'] === count($r['elements']) && $r['allSitesCount'] === count($r['allSites']) && $r['disabledCount'] === count($r['disabled']), "$what: count matches elements (default, all sites, disabled)");
         check($r['isInUse'] === ($r['count'] > 0), "$what: isInUse agrees with count (only what the schema may read, no plugin settings)");
         check(count($ids($r['elements'])) === count(array_unique($ids($r['elements']))), "$what: no element twice");
     };
-    $unscopedTypes = fn($element) => (new RelationsModel($element->id, $element->siteId))->getElementTypes();
-
-    // the content makes the test meaningful: the asset is used by entries and a user, Page C by many types
-    $assetTypes = $unscopedTypes($asset);
-    check(in_array(Entry::class, $assetTypes, true) && in_array(craft\elements\User::class, $assetTypes, true), 'unscoped: the asset is used by entries and the admin user (' . implode(', ', $assetTypes) . ')');
-    $pluginTypes = array_values(array_diff($unscopedTypes($target), array_keys(Relations::RESOLVERS)));
-    echo '  (Page C is also used by types without a GraphQL resolver mapping: ' . (implode(', ', $pluginTypes) ?: 'none') . ")\n";
+    $unscopedTypes = fn(ElementInterface $element): array => (new RelationsModel((int)$element->id, (int)$element->siteId))->getElementTypes();
 
     $cleanup();
-    $make = function (string $title, array $attrs = []) use ($section, $typeId, $elements, $target): Entry {
+    $make = function (string $title, array $attrs = [], ?ElementInterface $uses = null) use ($section, $typeId, $target): Entry {
         $e = new Entry(['sectionId' => $section->id, 'typeId' => $typeId, 'title' => $title] + $attrs);
-        $e->setFieldValue('relatedEntries', [$target->id]);
-        $elements->saveElement($e) or throw new RuntimeException(json_encode($e->getErrors()));
+        $uses ??= $target;
+        $e->setFieldValue($uses instanceof Entry ? 'relatedEntries' : 'relatedAssets', [$uses->id]);
+        Elements::saveElement($e) or fail($e);
         return $e;
     };
+    // the asset's usages in 4.x came from many integrations; here one entry and the admin's photo
+    $make('GS asset', [], $asset);
     $disabled = $make('GS disabled', ['enabled' => false]);
     $live = $make('GS live');
-    $draft = Craft::$app->getDrafts()->createDraft($live, $adminId, 'GS draft');
+    $make('GS more'); // more than the maxGraphqlResults below (2)
+    $draft = Drafts::createDraft($live, $adminId, 'GS draft');
     $unpublished = new Entry(['sectionId' => $section->id, 'typeId' => $typeId, 'title' => 'GS unpublished']);
     $unpublished->setFieldValue('relatedEntries', [$target->id]);
-    Craft::$app->getDrafts()->saveElementAsDraft($unpublished, $adminId, null, null, false);
-    $flush();
-    $draftIds = [$draft->id, $unpublished->id];
-    check(count(array_intersect($draftIds, array_map(fn($e) => $e->id, (new RelationsModel($target->id, $target->siteId))->getElements([])))) === 2, 'unscoped RelationsModel (Twig/CP) still includes the drafts');
+    Drafts::saveElementAsDraft($unpublished, $adminId, null, null, false);
+    flushQueue();
+
+    // the content makes the test meaningful: the asset is used by entries and a user, Page C by entries
+    $assetTypes = $unscopedTypes($asset);
+    check(in_array(Entry::class, $assetTypes, true) && in_array(User::class, $assetTypes, true), 'unscoped: the asset is used by entries and the admin user (' . implode(', ', $assetTypes) . ')');
+    $unmappedTypes = array_values(array_diff($unscopedTypes($target), array_keys(Relations::RESOLVERS)));
+    echo '  (Page C is also used by types without a GraphQL resolver mapping: ' . (implode(', ', $unmappedTypes) ?: 'none') . ")\n";
+    $draftIds = [(int)$draft->id, (int)$unpublished->id];
+    check(count(array_intersect($draftIds, array_map(fn(ElementInterface $e): int => (int)$e->id, (new RelationsModel((int)$target->id, (int)$target->siteId))->getElements([])))) === 2, 'unscoped RelationsModel (Twig/CP) still includes the drafts');
 
     // 1. volume only: the asset itself is readable, but nothing that relates to it is
     $r = $assetRelations($schema(["volumes.$volume->uid:read", ...$siteScopes]));
@@ -119,18 +123,18 @@ return function (array $ctx): void {
     // 2. volume + "pages": live entries of "pages" relating to the asset, nothing else
     $pagesSchema = $schema(["volumes.$volume->uid:read", ...$pagesScopes, ...$siteScopes]);
     $r = $assetRelations($pagesSchema);
-    $expected = Entry::find()->usesElement($asset)->section('pages')->siteId($asset->siteId)->ids();
+    $expected = array_map('intval', Entry::find()->usesElement($asset)->section('pages')->siteId($asset->siteId)->ids());
     sort($expected);
-    check($expected !== [] && $ids($r['elements']) === array_map('intval', $expected), 'volume + pages schema: exactly the live "pages" entries relating to the asset (' . count($expected) . ')');
+    check($expected !== [] && $ids($r['elements']) === $expected, 'volume + pages schema: exactly the live "pages" entries relating to the asset (' . count($expected) . ')');
     check(collect($r['elements'])->every(fn($e) => str_ends_with($e['__typename'], '_Entry')), 'volume + pages schema: no user (the admin photo) or plugin elements');
     $consistent($r, 'volume + pages schema, asset');
 
-    // ... and on Page C: disabled only on request, drafts never, no category/tag/global set/plugin elements
+    // ... and on Page C: disabled only on request, drafts never, nothing but entries
     $r = $entryRelations($pagesSchema);
     $all = [...$ids($r['elements']), ...$ids($r['allSites']), ...$ids($r['disabled'])];
-    check(in_array($live->id, $ids($r['elements']), true), 'pages schema: GS live is listed');
-    check(!in_array($disabled->id, $ids($r['elements']), true) && !in_array($disabled->id, $ids($r['allSites']), true), 'pages schema: the disabled entry is hidden by default');
-    check(in_array($disabled->id, $ids($r['disabled']), true) && !in_array($live->id, $ids($r['disabled']), true), 'pages schema: status ["disabled"] lists the disabled entry (and not the live one)');
+    check(in_array((int)$live->id, $ids($r['elements']), true), 'pages schema: GS live is listed');
+    check(!in_array((int)$disabled->id, $ids($r['elements']), true) && !in_array((int)$disabled->id, $ids($r['allSites']), true), 'pages schema: the disabled entry is hidden by default');
+    check(in_array((int)$disabled->id, $ids($r['disabled']), true) && !in_array((int)$live->id, $ids($r['disabled']), true), 'pages schema: status ["disabled"] lists the disabled entry (and not the live one)');
     check(array_intersect($draftIds, $all) === [], 'pages schema: drafts and unpublished drafts never appear');
     check(collect($r['elements'])->every(fn($e) => $e['__typename'] === 'page_Entry'), 'pages schema: only entries relate to Page C');
     $consistent($r, 'pages schema, Page C');
@@ -145,14 +149,14 @@ return function (array $ctx): void {
         $expected = [];
         $expectedAllSites = [];
         foreach ($unscopedTypes($element) as $type) {
-            if (!isset(Relations::RESOLVERS[$type]) || !class_exists(Relations::RESOLVERS[$type][0])) {
+            if (!isset(Relations::RESOLVERS[$type])) {
                 continue;
             }
             $query = fn() => $type::find()->usesElement($element)->drafts(false)->provisionalDrafts(false)->revisions(false);
-            $filter = fn(array $ids) => $ids;
-            if ($type === craft\elements\User::class) {
+            $filter = fn(array $ids): array => $ids;
+            if ($type === User::class) {
                 // users the full schema may read, according to Craft's own `users` query (none on Craft Solo: no user groups)
-                $filter = fn(array $ids) => $ids ? array_column($run($full, 'query($id: [QueryArgument]) { users(id: $id) { id } }', ['id' => $ids])['users'], 'id') : [];
+                $filter = fn(array $ids): array => $ids ? array_column($run($full, 'query($id: [QueryArgument]) { users(id: $id) { id } }', ['id' => $ids])['users'], 'id') : [];
             }
             $expected = [...$expected, ...$filter($query()->siteId($element->siteId)->ids())];
             $expectedAllSites = [...$expectedAllSites, ...$filter($query()->site('*')->unique()->ids())]; // each element once, like the field's list
@@ -163,41 +167,41 @@ return function (array $ctx): void {
         sort($expectedAllSites);
         check($ids($r['elements']) === $expected, "full schema, $what: same elements as the per-type queries (" . implode(', ', array_unique(array_column($r['elements'], '__typename'))) . ')');
         check($ids($r['allSites']) === $expectedAllSites, "full schema, $what: siteIds: [] = all sites (" . count($expectedAllSites) . ')');
-        check(array_intersect($draftIds, $ids($r['allSites'])) === [] && !in_array($disabled->id, $ids($r['allSites']), true), "full schema, $what: no drafts, no disabled entry");
+        check(array_intersect($draftIds, $ids($r['allSites'])) === [] && !in_array((int)$disabled->id, $ids($r['allSites']), true), "full schema, $what: no drafts, no disabled entry");
         $unmapped = array_values(array_diff($unscopedTypes($element), array_keys(Relations::RESOLVERS)));
-        $unmappedIds = $unmapped ? array_map(fn($e) => (int)$e->id, (new RelationsModel($element->id, $element->siteId))->getElements([], types: $unmapped)) : [];
+        $unmappedIds = $unmapped ? array_map(fn(ElementInterface $e): int => (int)$e->id, (new RelationsModel((int)$element->id, (int)$element->siteId))->getElements([], types: $unmapped)) : [];
         check(array_intersect($unmappedIds, $ids($r['allSites'])) === [], "full schema, $what: none of the " . count($unmappedIds) . ' elements of types without a resolver (' . (implode(', ', $unmapped) ?: 'none installed') . ')');
         $consistent($r, "full schema, $what");
     }
-    $typenames = array_unique(array_column($entryRelations($full)['elements'], '__typename'));
-    check(count($typenames) > 1, 'full schema: Page C is used by several mapped types (' . implode(', ', $typenames) . ')');
+    // (4.x: Page C, used by entries, categories, tags, global sets; on Craft 6 the asset is the one with several types)
+    $typenames = array_unique(array_column($assetRelations($full)['elements'], '__typename'));
+    check(count($typenames) > 1, 'full schema: the asset is used by several mapped types (' . implode(', ', $typenames) . ')');
 
     // 4c. Craft's own queries take `usesElement`: any query, any of Craft's arguments, Craft's own scoping
-    $model = new RelationsModel($target->id, $target->siteId);
+    $model = new RelationsModel((int)$target->id, (int)$target->siteId);
     $own = $run($full, 'query($id: [QueryArgument]) { entries(section: "pages", usesElement: $id, status: null) { id } allSites: entries(usesElement: $id, status: null, site: "*", unique: true) { id } none: entries(usesElement: 999999999) { id } }', ['id' => $target->id]);
-    $twigEntries = $ids($model->getElements([], sections: ['pages'], status: null, drafts: false));
+    $twigEntries = $ids(array_map(fn(ElementInterface $e): array => ['id' => $e->id], $model->getElements([], sections: ['pages'], status: null, drafts: false)));
     check($ids($own['entries']) === $twigEntries && $twigEntries !== [], 'entries(section: "pages", usesElement: C): Craft’s own query lists the ' . count($twigEntries) . ' entries the Twig param does');
     check(count($own['allSites']) === count(array_unique($ids($own['allSites']))) && count($own['allSites']) >= count($own['entries']) && $own['none'] === [], 'entries(usesElement: C, site: "*", unique: true): each entry once; an element nothing uses: none');
-    if (class_exists('craft\commerce\elements\Product')) {
-        $products = $run($full, 'query($id: [QueryArgument]) { products(usesElement: $id) { id } none: products(usesElement: $id, type: "nope") { id } }', ['id' => $target->id]);
-        check($ids($products['products']) === $ids($model->getElements([], status: null, drafts: false, types: ['craft\commerce\elements\Product'])) && $products['none'] === [], 'products(usesElement: C) lists the product; products(type: "nope", usesElement: C) nothing');
-    }
 
     // 5. a schema without "Query for non-enabled elements": defaults work, `status` is refused (Craft does not offer it either)
-    $noInactive = $schema(array_values(array_diff([...$pagesScopes, ...$siteScopes], ['elements.inactive:read'])));
+    $noInactive = $schema(array_diff([...$pagesScopes, ...$siteScopes], ['elements.inactive:read']));
     $query = 'query($id: [QueryArgument]) { entry(id: $id) { ... on page_Entry { relations { count elements { id } } } } }';
     $r = $run($noInactive, $query, ['id' => $target->id])['entry']['relations'];
-    check($r['count'] === count($r['elements']) && in_array($live->id, $ids($r['elements']), true) && !in_array($disabled->id, $ids($r['elements']), true), 'schema without inactive scope: live entries, count matches');
+    check($r['count'] === count($r['elements']) && in_array((int)$live->id, $ids($r['elements']), true) && !in_array((int)$disabled->id, $ids($r['elements']), true), 'schema without inactive scope: live entries, count matches');
     foreach (['elements(status: ["disabled"]) { id }', 'count(status: ["disabled"])', 'isInUse(status: ["disabled"])'] as $field) {
         $result = $execute($noInactive, 'query($id: [QueryArgument]) { entry(id: $id) { ... on page_Entry { relations { ' . $field . ' } } } }', ['id' => $target->id]);
-        check(str_contains(json_encode($result['errors'] ?? []), 'non-enabled elements'), "schema without inactive scope: $field is refused");
+        check(str_contains(json_encode($result['errors'] ?? []) ?: '', 'non-enabled elements'), "schema without inactive scope: $field is refused");
     }
 
-    // never more elements than Craft's maxGraphqlResults, asked for more or not at all (the env var sets it for the query's process)
-    putenv('CRAFT_MAX_GRAPHQL_RESULTS=2');
+    // never more elements than Craft's maxGraphqlResults, asked for more or not at all
+    $config = Cms::config();
+    $maxBefore = $config->maxGraphqlResults;
+    $config->maxGraphqlResults = 2;
     $capped = $run($full, 'query($id: [QueryArgument]) { entry(id: $id) { ... on page_Entry { relations { count more: elements(limit: 10) { id } all: elements { id } } } } }', ['id' => $target->id])['entry']['relations'] ?? [];
-    putenv('CRAFT_MAX_GRAPHQL_RESULTS');
+    $config->maxGraphqlResults = $maxBefore;
     check(count($capped['more'] ?? []) === 2 && count($capped['all'] ?? []) === 2 && ($capped['count'] ?? 0) > 2, 'elements never returns more than maxGraphqlResults (2), count still counts all (' . ($capped['count'] ?? '?') . ')');
 
     $cleanup();
+    $editionBefore === null ? Context::forgetHidden(Edition::class) : Context::addHidden(Edition::class, $editionBefore);
 };
