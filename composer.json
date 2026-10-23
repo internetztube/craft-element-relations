@@ -1,8 +1,8 @@
 {
     "name": "internetztube/craft-element-relations",
-    "description": "See where every element is used: one native list across all element types, sites and supported plugins, with Twig, GraphQL and element query support. Pro: unused filter, replace with undo.",
+    "description": "See where every element is used: one native list across all element types, sites and supported plugins, with Twig, GraphQL and element query support. Unused filter, replace with undo.",
     "type": "craft-plugin",
-    "version": "4.0.2.1",
+    "version": "5.0.0-alpha.1",
     "keywords": [
         "craft",
         "cms",
@@ -16,7 +16,7 @@
         "replace"
     ],
     "support": {
-        "docs": "https://github.com/internetztube/craft-element-relations/blob/4.x/README.md",
+        "docs": "https://github.com/internetztube/craft-element-relations/blob/5.x/README.md",
         "issues": "https://github.com/internetztube/craft-element-relations/issues",
         "source": "https://github.com/internetztube/craft-element-relations"
     },
@@ -28,12 +28,13 @@
         }
     ],
     "require": {
+        "php": "^8.5",
         "ext-json": "*",
-        "craftcms/cms": "^5.3.0"
+        "craftcms/cms": "^6.0.0-alpha.20"
     },
     "autoload": {
         "psr-4": {
-            "internetztube\\elementRelations\\": "src/"
+            "Internetztube\\ElementRelations\\": "src/"
         }
     },
     "extra": {
@@ -41,20 +42,15 @@
         "handle": "element-relations",
         "developer": "Frederic Koeberl",
         "developerUrl": "https://frederickoeberl.com/",
-        "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/4.x/README.md",
-        "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/4.x/CHANGELOG.md",
-        "class": "internetztube\\elementRelations\\ElementRelations"
+        "documentationUrl": "https://github.com/internetztube/craft-element-relations/blob/5.x/README.md",
+        "changelogUrl": "https://raw.githubusercontent.com/internetztube/craft-element-relations/5.x/CHANGELOG.md",
+        "class": "Internetztube\\ElementRelations\\ElementRelations"
     },
     "minimum-stability": "dev",
     "prefer-stable": true,
     "config": {
         "allow-plugins": {
-            "yiisoft/yii2-composer": true,
             "craftcms/plugin-installer": true
         }
-    },
-    "require-dev": {
-        "craftcms/rector": "dev-main",
-        "craftcms/phpstan": "dev-main"
     }
 }

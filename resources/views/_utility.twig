@@ -1,0 +1,80 @@
+<h1>{{ "utility-main-headline" | t("element-relations") }}</h1>
+
+<form method="post">
+    {{ csrfInput() }}
+    {{ actionInput('element-relations/rebuild') }}
+    {{ redirectInput(cpUrl('utilities/element-relations')) }}
+    <p>{{ "utility-form-rebuild-cache-intro" | t("element-relations") }}</p>
+    <button type="submit" class="btn submit">{{ "utility-form-rebuild-cache-button-label" | t("element-relations") }}</button>
+</form>
+
+{% if history is not null %}
+    <hr>
+    <h2>{{ 'history-headline'|t('element-relations') }}</h2>
+    <p class="light">{{ 'history-intro'|t('element-relations') }}</p>
+    {% if history|length %}
+        <table class="data fullwidth" id="element-relations-history">
+            <thead>
+                <tr>
+                    <th scope="col">{{ 'Date'|t('app') }}</th>
+                    <th scope="col">{{ 'history-replaced'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'history-with'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'history-elements'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'history-by'|t('element-relations') }}</th>
+                    <th scope="col">{{ 'Status'|t('app') }}</th>
+                    <td></td>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history %}
+                    <tr data-operation-id="{{ row.id }}">
+                        <td>{{ row.date|datetime('short') }}</td>
+                        <td>{{ row.from|raw }}</td>
+                        <td>{{ row.to|raw }}</td>
+                        <td>{{ row.elements|number }}</td>
+                        <td>{{ row.user|raw }}</td>
+                        <td>{{ row.status|raw }}</td>
+                        <td class="thin">
+                            <div class="flex flex-nowrap">
+                                {% if row.canRollBack %}
+                                    <form method="post" class="element-relations-rollback">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('element-relations/replace/rollback') }}
+                                        {{ redirectInput(cpUrl('utilities/element-relations')) }}
+                                        {{ hiddenInput('operationId', row.id) }}
+                                        <button type="submit" class="btn small" title="{{ 'history-rollback-instructions'|t('element-relations') }}">{{ 'history-rollback'|t('element-relations') }}</button>
+                                    </form>
+                                {% endif %}
+                                {% if row.canResume %}
+                                    <form method="post" class="element-relations-resume">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('element-relations/replace/resume') }}
+                                        {{ redirectInput(cpUrl('utilities/element-relations')) }}
+                                        {{ hiddenInput('operationId', row.id) }}
+                                        <button type="submit" class="btn small" title="{{ 'history-resume-instructions'|t('element-relations') }}">{{ 'history-resume'|t('element-relations') }}</button>
+                                    </form>
+                                {% endif %}
+                                {% if row.canRevert %}
+                                    {# Craft asks for confirmation the same way (Craft.submitForm uses confirm()) #}
+                                    <form method="post" class="element-relations-revert" onsubmit="return confirm({{ 'history-revert-confirm'|t('element-relations')|json_encode }});">
+                                        {{ csrfInput() }}
+                                        {{ actionInput('element-relations/replace/rollback') }}
+                                        {{ redirectInput(cpUrl('utilities/element-relations')) }}
+                                        {{ hiddenInput('operationId', row.id) }}
+                                        {{ hiddenInput('mode', 'revisions') }}
+                                        <button type="submit" class="btn small" title="{{ 'history-revert-instructions'|t('element-relations') }}">{{ 'history-revert'|t('element-relations') }}</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                            {% if row.withoutRevision %}
+                                <div class="light smalltext">{{ 'history-without-revision'|t('element-relations', {count: row.withoutRevision}) }}</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>{{ 'history-empty'|t('element-relations') }}</p>
+    {% endif %}
+{% endif %}
