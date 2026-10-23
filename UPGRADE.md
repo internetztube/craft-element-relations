@@ -103,7 +103,8 @@ Extractors and replacers implement the same interfaces as before, with Craft 6's
 Craft's own fields work as before: Entries, Assets, Users, Link, Matrix, Content Block, Addresses, user photos. Craft 6's
 Markdown field counts as rich text: reference tags in it (`{entry:12@1:url}`) are usages.
 
-Craft 6 has no categories, tags or global sets of its own, so they are no longer listed.
+Categories, tags and global sets exist in Craft 6 only through Craft's Yii2 adapter (`craftcms/yii2-adapter`). With the
+adapter installed, they work as in 4.x.
 
 The plugins 4.x supports have no Craft 6 version yet, so 5.0 does not read them: SEOmatic, Formie, Hyper, Vizy, Neo,
 Navigation, CKEditor, Redactor, LinkIt, Typed Link, LinkMate, FreeLink, SEO (by Ether), Wishlist and Commerce. Fields
