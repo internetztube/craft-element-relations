@@ -57,7 +57,8 @@ return function (array $ctx): void {
         $inSite = $model->forTargetSite()->getCountsByType(); // what the field lists: the target in its own site
         if (count($inSite) > 1) {
             $multiType++;
-            check($menu('elementTypes') && str_contains($html, 'data-value="' . Entry::class . '"') && str_contains($html, 'data-value="' . User::class . '"'), "$target: type dropdown lists the element types");
+            $missing = array_filter(array_keys($inSite), fn(string $type): bool => !str_contains($html, 'data-value="' . $type . '"'));
+            check($menu('elementTypes') && !$missing, "$target: type dropdown lists the element types that use it (" . implode(', ', array_keys($inSite)) . ')');
             check(str_contains($html, 'Entries <span class="badge">' . $inSite[Entry::class] . '</span>'), "$target: type dropdown shows counts as Craft badges");
         } else {
             check(!$menu('elementTypes'), "$target: no type dropdown with a single element type");

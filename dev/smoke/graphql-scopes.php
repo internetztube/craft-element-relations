@@ -54,10 +54,16 @@ return function (array $ctx): void {
         allSitesCount: count(siteIds: [])
         disabled: elements(status: ["disabled"]) { id title }
         disabledCount: count(status: ["disabled"]) }';
-    // a schema with every query scope
+    // a schema with every query scope; but those of Craft's Yii2 adapter (categories, tags, global sets): with them the
+    // adapter (alpha.20) fails to build the schema (array_push() with string keys), dev/smoke/adapter.php covers them
+    $adapterScope = fn(string $key): bool => (bool)preg_match('/^(categorygroups|taggroups|globalsets)\./', $key);
+    $adapterType = fn(string $type): bool => str_starts_with($type, 'craft\\elements\\');
     $allScopes = [];
-    $flatten = function (array $components) use (&$flatten, &$allScopes): void {
+    $flatten = function (array $components) use (&$flatten, &$allScopes, $adapterScope): void {
         foreach ($components as $key => $component) {
+            if ($adapterScope((string)$key)) {
+                continue;
+            }
             $allScopes[] = $key;
             $flatten($component['nested'] ?? []);
         }
@@ -149,7 +155,7 @@ return function (array $ctx): void {
         $expected = [];
         $expectedAllSites = [];
         foreach ($unscopedTypes($element) as $type) {
-            if (!isset(Relations::RESOLVERS[$type])) {
+            if (!isset(Relations::RESOLVERS[$type]) || $adapterType($type)) {
                 continue;
             }
             $query = fn() => $type::find()->usesElement($element)->drafts(false)->provisionalDrafts(false)->revisions(false);

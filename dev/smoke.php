@@ -129,7 +129,8 @@ function relatingTitles(ElementInterface $element): array
 function flushQueue(): void
 {
     QueueElementsForRefreshService::destruct();
-    app(Kernel::class)->call('queue:work', ['--stop-when-empty' => true, '--tries' => 1, '--quiet' => true]);
+    // --memory: the worker stops after a job once its process uses more (128 MB by default); this one is the whole test run
+    app(Kernel::class)->call('queue:work', ['--stop-when-empty' => true, '--tries' => 1, '--quiet' => true, '--memory' => 4096]);
 }
 
 /** Queued jobs of a class (Laravel's database queue). */
