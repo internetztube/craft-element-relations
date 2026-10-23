@@ -34,6 +34,7 @@ use Internetztube\ElementRelations\Fields\ElementRelationsField;
 $configFile = config_path('craft/element-relations.php');
 if (!file_exists($configFile)) {
     file_put_contents($configFile, "<?php\n\nreturn [\n    'features' => ['editions' => true],\n];\n");
+    config(['craft.element-relations' => require $configFile]); // this process booted without it (a new project)
 }
 
 // 0b. Second site, created before anything else (sections and groups created later get both sites).
