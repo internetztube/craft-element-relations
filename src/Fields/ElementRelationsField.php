@@ -29,6 +29,7 @@ use CraftCms\Cms\Form\Nodes\Field as FormField;
 use CraftCms\Cms\Gql\Data\GqlSchema;
 use CraftCms\Cms\Shared\Enums\Color;
 use CraftCms\Cms\Support\Facades\HtmlStack;
+use CraftCms\Cms\View\HtmlFragment;
 use CraftCms\Cms\Support\Facades\I18N;
 use CraftCms\Cms\Site\Sites;
 use CraftCms\Cms\Support\Html;
@@ -328,7 +329,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ElementRelations::registerClassicUi();
             return $this->inputHtmlFor($context->value, $context->element);
         });
-        return HtmlControl::make($context->path)->fragment($html)->mode($context->mode);
+        // the field has no value: ticking a usage or typing in the list's search must not reach Craft's form, which
+        // takes every input/change event in a field for an edit and saves a provisional draft
+        $wrapped = '<div data-element-relations-input oninput="event.stopPropagation()" onchange="event.stopPropagation()">' . $html->html . '</div>';
+        return HtmlControl::make($context->path)->fragment(new HtmlFragment($wrapped, $html->headHtml, $html->bodyHtml))->mode($context->mode);
     }
 
     /** The field's HTML for an element (see formControl()). */
@@ -354,9 +358,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         if ($hasElements) {
             self::$toolbarMenus = self::toolbarMenus($value);
             Usage::$listedTypes = $value->getElementTypes(); // the View menu offers these types' columns
+            $indexId = 'element-relations-' . Str::random(8);
             $html .= app(ElementIndexHtml::class)->html(Usage::class, [
                 'context' => 'embedded-index',
-                'id' => 'element-relations-' . Str::random(8),
+                'id' => $indexId,
                 'sources' => false,
                 'showStatusMenu' => $this->showStatusMenu,
                 // Craft's index is per site (its JS always sends a siteId); the relating elements can be in any site
@@ -378,6 +383,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ]);
             self::$toolbarMenus = [];
             Usage::$listedTypes = null;
+            self::bindSearch($indexId);
             if ($viewer = ElementRelations::restrictedViewer()) {
                 // so nobody takes the element for unused when the usages are only hidden from them
                 $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer, targetSiteId: $value->getSiteId());
@@ -399,6 +405,31 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             'element-relations-from' => $value->getElementId(),
             'element-relations-site' => $element->siteId,
         ]]);
+    }
+
+    /**
+     * Craft 6's toolbar wraps the search input in `<craft-input>`, where the classic index (`children("input:first")`)
+     * does not find it: typing searched nothing. Binds it the way the index does.
+     */
+    private static function bindSearch(string $indexId): void
+    {
+        HtmlStack::js(<<<'JS'
+            window.ElementRelationsSearch = window.ElementRelationsSearch || function (id, tries = 0) {
+                const index = $('#' + id).closest('.element-index').add($('#' + id).find('.element-index')).first().data('elementIndex');
+                if (!index) { return tries < 40 && setTimeout(() => ElementRelationsSearch(id, tries + 1), 50); }
+                if (index.$search.length) { return; } // Craft found it
+                index.$search = index.$searchContainer.find('input').first();
+                index.addListener(index.$search, 'input', () => {
+                    if (!index.searching && index.$search.val()) { index.startSearching(); } else if (index.searching && !index.$search.val()) { index.stopSearching(); }
+                    clearTimeout(index.searchTimeout);
+                    index.searchTimeout = setTimeout(index.updateElementsIfSearchTextChanged.bind(index), 500);
+                });
+                index.addListener(index.$search, 'keypress', (event) => {
+                    if (event.keyCode === Garnish.RETURN_KEY) { event.preventDefault(); clearTimeout(index.searchTimeout); index.updateElementsIfSearchTextChanged(); }
+                });
+            };
+            JS, key: 'element-relations-search');
+        HtmlStack::js('ElementRelationsSearch(' . json_encode($indexId) . ');');
     }
 
     /** HTML id of the field layout tab containing this field, so links can deep-link to it. */
