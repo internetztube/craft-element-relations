@@ -96,5 +96,8 @@ foreach (glob(__DIR__ . '/seed/*.php') ?: [] as $file) {
 
 // the tests switch editions and restore the one they found; a run that failed midway may have left another one
 CraftCms\Cms\Support\Facades\Plugins::switchEdition('element-relations', 'pro');
+// what an app's termination does, which a script never reaches: write the project config and release its lock (held
+// otherwise for 30 s, where the next seed process fails with "Project config is being modified by another process")
+CraftCms\Cms\Support\Facades\ProjectConfig::saveModifiedConfigData();
 
 echo "Seeded. Targets: Page B (#{$b->id}) for base tests, Page C (#{$c->id}) and asset #{$asset->id} for integrations.\n";

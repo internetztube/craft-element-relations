@@ -17,9 +17,11 @@ return function (array $ctx): void {
     if ($old = User::find()->username('photouser')->status(null)->one()) {
         Elements::deleteElement($old, true);
     }
-    // Craft keeps user photos in the configured "user photo volume"; point it at the test volume
-    if (!ProjectConfig::get('users.photoVolumeUid')) {
-        ProjectConfig::set('users.photoVolumeUid', Volumes::getVolumeByHandle('test')?->uid);
+    // Craft keeps user photos in the configured "user photo volume"; point it at the test volume (also after a reset,
+    // when the setting still names the volume of the dropped database)
+    $volumeUid = Volumes::getVolumeByHandle('test')?->uid;
+    if (ProjectConfig::get('users.photoVolumeUid') !== $volumeUid) {
+        ProjectConfig::set('users.photoVolumeUid', $volumeUid);
         ProjectConfig::saveModifiedConfigData(); // a script never terminates the app, where Craft writes it
     }
     $admin = User::find()->username('admin')->one() ?? throw new RuntimeException('admin');

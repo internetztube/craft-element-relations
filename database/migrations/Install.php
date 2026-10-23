@@ -36,7 +36,7 @@ class Install extends Migration
             $table->dateTime('dateUpdated');
             $table->char('uid', 36)->default('0');
             foreach (\Internetztube\ElementRelations\Models\CacheRecord::INDEXES as $columns) {
-                $table->index($columns);
+                $table->index($columns, 'er_cache_' . strtolower(implode('_', $columns))); // MySQL: names up to 64 characters
             }
         });
 
@@ -74,7 +74,7 @@ class Install extends Migration
             $table->dateTime('dateCreated');
             $table->dateTime('dateUpdated');
             $table->char('uid', 36)->default('0');
-            $table->index(['operationId', 'ownerId', 'siteId']);
+            $table->index(['operationId', 'ownerId', 'siteId'], 'er_changes_operationid_ownerid_siteid');
             $table->foreign('operationId')->references('id')->on(self::REPLACEMENTS)->cascadeOnDelete();
         });
     }
