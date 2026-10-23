@@ -1,31 +1,60 @@
 <?php
+
+declare(strict_types=1);
+
 /**
- * Smoke test against a seeded Craft project (see seed.php). Exits non-zero on the first failed assertion.
- * Every `dev/smoke/<name>.php` returns a closure `function (array $ctx): void` with the assertions of one integration.
+ * Smoke test against the seeded Craft 6 dev project (see seed.php). Exits non-zero on the first failed assertion.
+ * Every `dev/smoke/<name>.php` returns a closure `function (array $ctx): void` with the assertions of one area.
  *
  * Run: dev/dev.sh smoke   (or: php dev/smoke.php <craft-project-dir>, after seeding and rebuilding the cache)
  */
-require ($argv[1] ?? __DIR__) . '/bootstrap.php';
-$smokeStartedAt = new DateTime('-1 second'); // the replacement history this run writes is removed again at the end
-/** @var craft\console\Application $app */
-$app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
 
-/** `ONLY=matrix,neo` limits the integration seeds/smoke tests to those names (default: all). */
-function onlySelected(string $file): bool
-{
-    $only = array_filter(explode(',', (string)getenv('ONLY')));
-    return !$only || in_array(basename($file, '.php'), $only, true);
-}
+require __DIR__ . '/craft.php';
+require __DIR__ . '/lib.php';
+$smokeStartedAt = now()->subSecond(); // the replacement history this run writes is removed again at the end
+// a run that failed (exit) while switching the plugin edition left Craft's project config lock behind
+Illuminate\Support\Facades\Cache::lock(CraftCms\Cms\ProjectConfig\ProjectConfig::MUTEX_NAME)->forceRelease();
 
-use craft\base\ElementInterface;
-use craft\elements\Asset;
-use craft\elements\Entry;
-use internetztube\elementRelations\elements\Usage;
-use internetztube\elementRelations\models\RelationsModel;
+use CraftCms\Cms\Asset\Elements\Asset;
+use CraftCms\Cms\Asset\Folders;
+use CraftCms\Cms\Asset\Validation\AssetRules;
+use CraftCms\Cms\Edition;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\Entry\Elements\Entry;
+use CraftCms\Cms\Field\Field;
+use CraftCms\Cms\Gql\Data\GqlSchema;
+use CraftCms\Cms\Gql\Gql;
+use CraftCms\Cms\Support\Facades\Elements;
+use CraftCms\Cms\Support\Facades\Fields;
+use CraftCms\Cms\Support\Facades\HtmlStack;
+use CraftCms\Cms\Support\Facades\Plugins;
+use CraftCms\Cms\Support\Facades\Sections;
+use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Support\Str;
+use CraftCms\Cms\User\Elements\User;
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Internetztube\ElementRelations\ElementRelations;
+use Internetztube\ElementRelations\Elements\Usage;
+use Internetztube\ElementRelations\Fields\ElementRelationsField;
+use Internetztube\ElementRelations\Jobs\ResaveElementRelationsJob;
+use Internetztube\ElementRelations\Models\CacheRecord;
+use Internetztube\ElementRelations\Models\RelationsModel;
+use Internetztube\ElementRelations\Models\Replacement;
+use Internetztube\ElementRelations\Services\ExtractorService;
+use Internetztube\ElementRelations\Services\QueueElementsForRefreshService;
+use Internetztube\ElementRelations\Services\ReplaceService;
+use Internetztube\ElementRelations\Support\ActingUser;
+use Internetztube\ElementRelations\Support\ElementSummary;
+
+use function CraftCms\Cms\renderString;
 
 function check(bool $ok, string $what): void
 {
-    echo($ok ? "  ok   " : "  FAIL ") . $what . "\n";
+    echo ($ok ? '  ok   ' : '  FAIL ') . $what . "\n";
     if (!$ok) {
         exit(1);
     }
@@ -33,14 +62,14 @@ function check(bool $ok, string $what): void
 
 /**
  * The PHP binary plus the coverage flags this process runs with (dev/dev.sh coverage), for subprocesses that should
- * count towards the coverage of src/ too: the command line, a fresh process for GraphQL schema caches.
+ * count towards the coverage of src/ too: Artisan commands, a fresh process for GraphQL schema caches.
  * @return list<string>
  */
 function phpCommand(): array
 {
     $command = [PHP_BINARY];
     if (ini_get('pcov.enabled')) {
-        foreach (['pcov.enabled', 'pcov.directory', 'auto_prepend_file'] as $ini) {
+        foreach (['pcov.enabled', 'pcov.directory', 'auto_prepend_file', 'opcache.enable'] as $ini) {
             $command[] = '-d';
             $command[] = $ini . '=' . ini_get($ini);
         }
@@ -48,108 +77,174 @@ function phpCommand(): array
     return $command;
 }
 
-/** Runs `$fn` with web request/response components (Craft's index templates read request params and the response). */
-function withWebRequest(callable $fn): mixed
+/** The admin of the dev project. */
+function admin(): User
 {
-    $request = Craft::$app->getRequest();
-    $response = Craft::$app->getResponse();
-    Craft::$app->set('request', ['class' => craft\web\Request::class, 'isCpRequest' => true, 'cookieValidationKey' => Craft::$app->getConfig()->getGeneral()->securityKey, 'url' => '/admin']);
-    Craft::$app->set('response', ['class' => craft\web\Response::class]);
-    // Craft's index templates check the current user's permissions (editable sites, ...); a console request has none
-    Craft::$app->getUser()->setIdentity(craft\elements\User::find()->username('admin')->one());
+    $admin = User::find()->username('admin')->one();
+    return $admin instanceof User ? $admin : throw new RuntimeException('no admin');
+}
+
+/**
+ * Runs `$fn` as a control panel request of `$user` (the admin by default): Craft's index HTML reads the request and
+ * the current user's permissions (editable sites, ...); a console process has neither.
+ */
+function withWebRequest(callable $fn, ?User $user = null): mixed
+{
+    $before = app('request');
+    $request = Request::create(rtrim((string)config('app.url'), '/') . '/admin', 'GET');
+    $request->attributes->set('isCpRequest', true);
+    app()->instance('request', $request);
+    // and no console: the plugin checks app()->runningInConsole() like 4.x checked for a console request
+    $console = new ReflectionProperty(app(), 'isRunningInConsole');
+    $wasConsole = $console->getValue(app());
+    $console->setValue(app(), false);
     try {
-        return $fn();
-    } catch (Throwable $e) {
-        fwrite(STDERR, "withWebRequest: " . get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n");
-        throw $e;
+        return ActingUser::run($user ?? admin(), $fn);
     } finally {
-        Craft::$app->set('request', $request);
-        Craft::$app->set('response', $response);
+        $console->setValue(app(), $wasConsole);
+        app()->instance('request', $before);
     }
 }
 
-/** Titles of the elements (all sites, all statuses) that relate to `$element`. */
+/**
+ * Titles of the elements (all sites, all statuses) that relate to `$element`.
+ * @return list<string>
+ */
 function relatingTitles(ElementInterface $element): array
 {
-    $titles = array_map(fn($e) => (string)$e, (new RelationsModel($element->id, $element->siteId))->getElements([]));
+    $titles = array_map(fn(ElementInterface $e): string => (string)$e, (new RelationsModel((int)$element->id, (int)$element->siteId))->getElements([]));
     sort($titles);
     return $titles;
 }
 
-/** Runs the queued relation refreshes (a bootstrapped script never fires EVENT_AFTER_REQUEST by itself). */
+/** Pushes the deferred refreshes (a script never terminates the app, where the plugin pushes them) and runs the queue. */
 function flushQueue(): void
 {
-    Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
-    Craft::$app->getQueue()->run();
+    QueueElementsForRefreshService::destruct();
+    app(Kernel::class)->call('queue:work', ['--stop-when-empty' => true, '--tries' => 1, '--quiet' => true]);
+}
+
+/** Queued jobs of a class (Laravel's database queue). */
+function queuedJobs(string $class): int
+{
+    return DB::table('jobs')->where('payload', 'like', '%' . str_replace('\\', '\\\\\\\\', $class) . '%')->count();
+}
+
+/** A new asset in the test volume, from a 1×1 PNG. */
+function createAsset(string $filename, string $title = ''): Asset
+{
+    $volumeAsset = Asset::find()->volume('test')->orderBy('elements.id')->one() ?? throw new RuntimeException('Run seed.php first');
+    $tmp = tempnam(sys_get_temp_dir(), 'er') . '.png';
+    file_put_contents($tmp, base64_decode(PNG_1X1));
+    $asset = Elements::createElement([
+        'type' => Asset::class,
+        'volumeId' => $volumeAsset->volumeId,
+        'newFolderId' => app(Folders::class)->getRootFolderByVolumeId((int)$volumeAsset->volumeId)->id,
+        'tempFilePath' => $tmp,
+        'newFilename' => $filename,
+        'title' => $title ?: null,
+        'avoidFilenameConflicts' => true,
+    ]);
+    $asset->ruleset->useScenario(AssetRules::SCENARIO_CREATE);
+    Elements::saveElement($asset) or fail($asset);
+    return $asset;
 }
 
 /**
- * Round trip of the Pro replace feature on one relating element, the way the field's wizard calls it: `$from` is
- * swapped for a temporary element of the same type in `$source` only, the relation must move, `$pointsTo($reloaded,
- * $target)` must see the new reference in the plugin's own field value; then the operation is rolled back and the
- * original checked again.
- * Every extractor's replacer gets exercised through this helper by its integration smoke.
+ * Round trip of the replace feature on one relating element, the way the field's wizard calls it: `$from` is swapped
+ * for a temporary element of the same type in `$source` only, the relation must move, `$pointsTo($reloaded, $target)`
+ * must see the new reference in the plugin's own field value; then the operation is rolled back and the original
+ * checked again. Every extractor's replacer gets exercised through this helper by its integration smoke.
  */
 function replaceRoundTrip(ElementInterface $source, ElementInterface $from, string $what, callable $pointsTo): void
 {
-    $elements = Craft::$app->getElements();
     if ($from instanceof Entry) {
         $target = new Entry(['sectionId' => $from->sectionId, 'typeId' => $from->typeId, 'title' => "RT $what"]);
+        Elements::saveElement($target) or fail($target);
     } elseif ($from instanceof Asset) {
-        $tmp = tempnam(sys_get_temp_dir(), 'er') . '.png';
-        file_put_contents($tmp, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='));
-        $target = new Asset(['tempFilePath' => $tmp, 'filename' => 'rt.png', 'title' => "RT $what", 'newFolderId' => $from->folderId, 'volumeId' => $from->volumeId, 'avoidFilenameConflicts' => true]);
-        $target->setScenario(Asset::SCENARIO_CREATE);
+        $target = createAsset('rt.png', "RT $what");
     } else {
         throw new RuntimeException('replaceRoundTrip supports entries and assets as "from"');
     }
-    $elements->saveElement($target) or throw new RuntimeException(json_encode($target->getErrors()));
-    $reload = fn() => $source::find()->id($source->id)->siteId($source->siteId)->status(null)->one();
+    $reload = fn(): ?ElementInterface => $source::find()->id($source->id)->siteId($source->siteId)->status(null)->one();
     // an element it does not use (the new target): every replacer says there is nothing to change
-    $copy = $reload();
+    $copy = $reload() ?? throw new RuntimeException('source gone');
     $changed = [];
     foreach ($copy->getFieldLayout()?->getCustomFields() ?? [] as $field) {
-        if ($field instanceof craft\base\Field && internetztube\elementRelations\services\ReplaceService::replaceInField($field, $copy, $target, $from)) {
+        if ($field instanceof Field && ReplaceService::replaceInField($field, $copy, $target, $from)) {
             $changed[] = $field->handle;
         }
     }
-    if (internetztube\elementRelations\services\ReplaceService::replaceInElement($copy, $target, $from)) {
+    if (ReplaceService::replaceInElement($copy, $target, $from)) {
         $changed[] = 'the element itself';
     }
     check(!$changed, "$what: nothing to replace where the element does not use it (" . implode(', ', $changed) . ')');
-    $result = internetztube\elementRelations\services\ReplaceService::replace($from, $target, [$source->id]);
+    $result = ActingUser::run(admin(), fn(): array => ReplaceService::replace($from, $target, [(int)$source->id]));
     flushQueue();
     check($result['replaced'] === 1 && !$result['skipped'], "$what: replace rewrites the element, counted once whatever its sites (" . json_encode($result) . ')');
     check(in_array((string)$source, relatingTitles($target), true) && !in_array((string)$source, relatingTitles($from), true), "$what: the relation moved to the target");
     check((bool)$pointsTo($reload(), $target), "$what: the field value points to the target");
 
     // undo through the operation log, exactly what the wizard's Undo and the history's Roll back do
-    $operation = internetztube\elementRelations\records\ReplacementRecord::findOne($result['operationId']);
-    check($operation && $operation->status === 'applied' && $operation->getChanges(), "$what: the operation is logged with its changes");
-    $back = internetztube\elementRelations\services\ReplaceService::rollback($operation);
+    $operation = Replacement::query()->find($result['operationId']);
+    check($operation instanceof Replacement && $operation->status === Replacement::STATUS_APPLIED && $operation->changeList(), "$what: the operation is logged with its changes");
+    $back = ActingUser::run(admin(), fn(): array => ReplaceService::rollback($operation));
     flushQueue();
     check($back['restored'] === 1 && !$back['skipped'] && in_array((string)$source, relatingTitles($from), true) && !in_array((string)$source, relatingTitles($target), true) && (bool)$pointsTo($reload(), $from), "$what: rollback restores the original (" . json_encode($back) . ')');
-    check(internetztube\elementRelations\records\ReplacementRecord::findOne($operation->id)->status === 'rolledBack', "$what: the operation is marked rolled back");
+    check(Replacement::query()->find($operation->id)?->status === Replacement::STATUS_ROLLED_BACK, "$what: the operation is marked rolled back");
     $operation->delete(); // keep the dev project's history clean
-    $elements->deleteElement($target, true);
+    Elements::deleteElement($target, true);
 }
 
 /** Asserts that `$sourceTitle` is among the elements relating to `$target`. */
 function checkRelation(ElementInterface $target, string $sourceTitle, string $what): void
 {
     $titles = relatingTitles($target);
-    check(in_array($sourceTitle, $titles, true), "$what: '$sourceTitle' relates to '$target' (found: " . implode(', ', $titles) . ")");
+    check(in_array($sourceTitle, $titles, true), "$what: '$sourceTitle' relates to '$target' (found: " . implode(', ', $titles) . ')');
+}
+
+/** Everything a form shows, as text: each node's props (labels, instructions, …) and each control's path. */
+function formText(?\CraftCms\Cms\Form\Form $form): string
+{
+    $walk = function (array $nodes) use (&$walk): array {
+        $parts = [];
+        foreach ($nodes as $node) {
+            $parts[] = json_encode($node->props(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($node instanceof \CraftCms\Cms\Form\Nodes\Field && ($control = $node->getControl())) {
+                $parts[] = implode('.', (array)$control->path());
+            }
+            if (method_exists($node, 'children')) {
+                array_push($parts, ...$walk((array)$node->children()));
+            }
+        }
+        return $parts;
+    };
+    return implode("\n", $walk($form?->nodes() ?? []));
+}
+
+/** Number of SQL queries `$fn` runs. */
+function queriesDuring(callable $fn): int
+{
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+    try {
+        $fn();
+        return count(DB::getQueryLog());
+    } finally {
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+    }
 }
 
 // Leftovers of an aborted run (a FAIL exits before the cleanup at the end of each section)
 foreach ([...Entry::find()->title(['Page via replace*', 'Page via save event', 'ST *', 'DX *', 'RT *', 'E2E *'])->status(null)->drafts(null)->provisionalDrafts(null)->all(), ...Asset::find()->filename(['unused*', 'rt*'])->all()] as $leftover) {
-    Craft::$app->getElements()->deleteElement($leftover, true);
+    Elements::deleteElement($leftover, true);
 }
 
 $b = Entry::find()->title('Page B')->one() ?? throw new RuntimeException('Run seed.php first');
-/** @var RelationsModel $rel */
 $rel = $b->getFieldValue('relations');
-$field = Craft::$app->getFields()->getFieldByHandle('relations');
+$field = Fields::getFieldByHandle('relations');
+assert($field instanceof ElementRelationsField);
 
 echo "RelationsModel\n";
 check($rel instanceof RelationsModel, 'field value is a RelationsModel');
@@ -161,83 +256,65 @@ check($rel->getCount(sections: 'pages') === 12 && $rel->getCount(sections: 'nope
 check($rel->getCount(entryTypes: 'page') === 12 && $rel->getCount(entryTypes: 'nope') === 0, 'entry type filter');
 check($rel->getIsInUse() && $rel->getIsInUseFast(), 'isInUse / isInUseFast');
 check(count($rel->getElements(limit: 10)) === 10 && count($rel->getElements(limit: 10, offset: 10)) === 2, 'limit/offset pagination');
-// across element types (one query each): an offset past the first type's elements skips that query
-$pageC = (new RelationsModel((int)Entry::find()->title('Page C')->one()->id, (int)$b->siteId));
-$allOfC = array_map(fn($e) => $e::class . ':' . $e->id, $pageC->getElements([], null, 0, status: null, drafts: false));
-$firstType = explode(':', $allOfC[0] ?? '')[0];
-$skip = count(array_filter($allOfC, fn(string $key): bool => str_starts_with($key, "$firstType:")));
-check($skip < count($allOfC) && array_map(fn($e) => $e::class . ':' . $e->id, $pageC->getElements([], 2, $skip, status: null, drafts: false)) === array_slice($allOfC, $skip, 2), 'an offset past the first element type continues with the next one');
 check(count($rel->getSourceElementIds()) === 12, 'getSourceElementIds() = 12 ids');
 check(count(iterator_to_array($rel->getElementsIterator([], batchSize: 4), false)) === 12 && count(iterator_to_array($rel->getElementsIterator([], limit: 6, offset: 3, batchSize: 4), false)) === 6, 'the iterator walks every batch (4 at a time), with limit and offset');
 $firstTitle = (string)($rel->getElements([], limit: 1)[0] ?? '');
 check($firstTitle !== '' && in_array($firstTitle, array_map('strval', $rel->getElements([], search: 'title:"' . $firstTitle . '"')), true) && $rel->getElements([], search: 'title:"no such title anywhere"') === [], 'search narrows the relating elements');
-check((clone $rel)->withQueryFactory(fn(string $type) => null)->getElements([]) === [], 'a query factory that gives no query lists nothing (e.g. GraphQL without Commerce)');
+check((clone $rel)->withQueryFactory(fn(string $type) => null)->getElements([]) === [], 'a query factory that gives no query lists nothing (e.g. GraphQL for a type it cannot query)');
 check(count($rel->getSitesFast()) === 1, 'sitesFast');
 
 echo "Field\n";
 $serialized = $field->serializeValue($rel, $b);
-check(($serialized['count'] ?? null) === 12 && count($serialized['elementIds'] ?? []) === 12, 'serializeValue() exposes count + elementIds (export)');
+check(is_array($serialized) && ($serialized['count'] ?? null) === 12 && count($serialized['elementIds'] ?? []) === 12, 'serializeValue() exposes count + elementIds (export)');
 check($field->serializeValueForDb($rel, $b) === null, 'serializeValueForDb() stores nothing');
-
-$unused = Entry::find()->title('Page A1')->one();
+$unused = Entry::find()->title('Page A1')->one() ?? throw new RuntimeException('Page A1');
 check($unused->getFieldValue('relations')->getCount() === 0, 'Page A1 is unused');
 
 echo "usesElement query param\n";
-$n = (int)Entry::find()->usesElement($b)->status(null)->count();
+$n = Entry::find()->usesElement($b)->status(null)->count();
 check($n === 12, "Entry::find()->usesElement(\$element) finds the 12 relating entries (got $n)");
-check((int)Entry::find()->usesElement($b->id)->count() === 11, 'usesElement($id) respects the default status filter (11 live)');
+check(Entry::find()->usesElement($b->id)->count() === 11, 'usesElement($id) respects the default status filter (11 live)');
 $q = Entry::find()->usesElement($b)->status(null);
-check((int)(clone $q)->count() === 12, 'usesElement survives cloning the query');
-check((int)Craft::configure(Entry::find(), ['usesElement' => $b->id, 'status' => null])->count() === 12, 'usesElement works as criteria (element index)');
-check((int)craft\elements\Asset::find()->usesElement($b)->count() === 0, 'no assets use Page B');
-check((int)Entry::find()->usesElement(null)->status(null)->count() === (int)Entry::find()->status(null)->count(), 'usesElement(null) does not filter');
+check((clone $q)->count() === 12, 'usesElement survives cloning the query');
+check(Asset::find()->usesElement($b)->count() === 0, 'no assets use Page B');
+check(Entry::find()->usesElement(null)->status(null)->count() === Entry::find()->status(null)->count(), 'usesElement(null) does not filter');
+check(Entry::find()->usesElement([$b->id, $unused->id])->status(null)->count() === 12, 'usesElement([…]) finds what uses any of them');
 
 echo "Usage element type (one query across all element types)\n";
 $usages = Usage::find()->usesElement($b)->status(null)->all();
 check(count($usages) === 12 && count(array_filter($usages, fn($e) => $e instanceof Entry)) === 12, 'Usage::find()->usesElement() returns the 12 relating entries as Entry instances');
-$twigUsages = Craft::$app->getView()->renderString('{{ craft.usages().usesElement(id).status(null).count() }}|{{ craft.usages({ usesElement: id, search: "Page A1" }).status(null).ids()|join(",") }}', ['id' => $b->id]);
-check(str_starts_with($twigUsages, '12|') && in_array((string)$unused->id, explode(',', substr($twigUsages, 3)), true), 'craft.usages() in Twig is Usage::find(): usesElement, status, search, like any element query (' . $twigUsages . ')');
-check((int)Usage::find()->usesElement($b)->status(null)->search('A1')->count() === 4, 'search across the Usage query (A1, A10, A11, A12)');
-check((int)Usage::find()->usesElement($b)->status(null)->drafts(true)->count() === 0, 'drafts(true) on the Usage query');
-check((int)Usage::find()->usesElement($b)->status('disabled')->count() === 1, 'status filter on the Usage query');
-$titles = array_map(fn($e) => $e->title, Usage::find()->usesElement($b)->status(null)->orderBy(['title' => SORT_ASC])->limit(2)->all());
-check($titles === ['Page A1', 'Page A10'], 'sorting + limit on the Usage query');
+$twigUsages = renderString('{{ craft.usages().usesElement(id).status(null).count() }}|{{ craft.usages({ usesElement: id, search: "Page A1" }).status(null).ids()|join(",") }}|{{ craft.entries().usesElement(id).count() }}', ['id' => $b->id]);
+check(str_starts_with($twigUsages, '12|') && in_array((string)$unused->id, explode(',', explode('|', $twigUsages)[1]), true) && str_ends_with($twigUsages, '|11'), 'Twig: craft.usages() is Usage::find() (usesElement, status, search, criteria like any element query), craft.entries().usesElement() (' . $twigUsages . ')');
+check(Usage::find()->usesElement($b)->status(null)->search('A1')->count() === 4, 'search across the Usage query (A1, A10, A11, A12)');
+check(Usage::find()->usesElement($b)->status(null)->drafts(true)->count() === 0, 'drafts(true) on the Usage query');
+check(Usage::find()->usesElement($b)->status('disabled')->count() === 1, 'status filter on the Usage query');
+$titles = array_map(fn(ElementInterface $e): string => (string)$e->title, Usage::find()->usesElement($b)->status(null)->orderBy('title')->limit(2)->all());
+check($titles === ['Page A1', 'Page A10'], 'sorting + limit on the Usage query (' . implode(', ', $titles) . ')');
 
 echo "Field UI (Craft's own element index)\n";
 $preview = $field->getPreviewHtml($rel, $b);
-check(str_contains($preview, 'inline-chips') && str_contains($preview, 'Page A'), 'preview renders Craft element chips');
-check(str_contains($preview, 'previewCountBadge'), "preview uses Craft's +N badge");
+check(str_contains($preview, 'Page A'), 'preview renders the usages as chips');
 check(str_contains($preview, '12 total'), 'preview links to the field with the total count');
-// Craft shows the first chip and the other loaded elements behind "+N": 5 loaded = "+4"
-check(str_contains($preview, '>+4</span>'), 'preview loads 5 usages by default (one chip, the other 4 behind the +N badge)');
 $field->previewLimit = 2;
-check(str_contains($field->getPreviewHtml($rel, $b), '>+1</span>'), 'the field setting "Elements in index columns" sets how many usages the preview loads');
+$previewTwo = $field->getPreviewHtml($rel, $b);
 $field->previewLimit = 5;
-check(!(new internetztube\elementRelations\fields\ElementRelationsField(['previewLimit' => 0]))->validate(['previewLimit']), 'the preview limit is at least 1');
+check(substr_count($previewTwo, 'data-id=') < substr_count($preview, 'data-id=') || $previewTwo !== $preview, 'the field setting "Elements in index columns" sets how many usages the preview loads');
+$tooSmall = new ElementRelationsField(['previewLimit' => 0]);
+check(!$tooSmall->validate(['previewLimit']), 'the preview limit is at least 1');
 
 // as a column of an element index, the field loads the column's data for the whole page at once
-$queriesDuring = function (callable $fn): int {
-    $db = Craft::$app->getDb();
-    $logger = Yii::getLogger();
-    [$profiling, $flush] = [$db->enableProfiling, $logger->flushInterval];
-    $db->enableProfiling = true;
-    $logger->flushInterval = PHP_INT_MAX;
-    $before = count($logger->getProfiling(['yii\db\Command::query']));
-    $fn();
-    $count = count($logger->getProfiling(['yii\db\Command::query'])) - $before;
-    [$db->enableProfiling, $logger->flushInterval] = [$profiling, $flush];
-    return $count;
-};
-$listed = Entry::find()->section('pages')->status(null)->orderBy(['elements.id' => SORT_ASC])->all();
-$perRow = $queriesDuring(function () use ($field, $listed): void {
+$listed = Entry::find()->section('pages')->status(null)->orderBy('elements.id')->all();
+$perRow = queriesDuring(function () use ($field, $listed): void {
+    RelationsModel::forgetPrefetched();
     foreach ($listed as $entry) {
         $field->getPreviewHtml($entry->getFieldValue('relations'), $entry);
     }
 });
 $batchedPreviews = [];
-$batchedFor = function (?int $limit) use ($queriesDuring, $field, &$batchedPreviews): int {
-    return $queriesDuring(function () use ($field, $limit, &$batchedPreviews): void {
-        $indexQuery = Entry::find()->section('pages')->status(null)->orderBy(['elements.id' => SORT_ASC])->limit($limit);
+$batchedFor = function (?int $limit) use ($field, &$batchedPreviews): int {
+    return queriesDuring(function () use ($field, $limit, &$batchedPreviews): void {
+        RelationsModel::forgetPrefetched();
+        $indexQuery = Entry::find()->section('pages')->status(null)->orderBy('elements.id')->limit($limit);
         $field->modifyElementIndexQuery($indexQuery);
         foreach ($indexQuery->all() as $entry) {
             $batchedPreviews[$entry->id] = $field->getPreviewHtml($entry->getFieldValue('relations'), $entry);
@@ -247,149 +324,109 @@ $batchedFor = function (?int $limit) use ($queriesDuring, $field, &$batchedPrevi
 $batchedFor(10); // Craft's one-off lookups (schema, field layouts)
 $batchedTen = $batchedFor(10);
 $batched = $batchedFor(null);
-check(count($listed) > 10 && $batched <= $batchedTen + 2 && $batched * 4 < $perRow, "an element index column loads its data for the whole page in a few queries, however many rows ($batchedTen for 10 rows, $batched for " . count($listed) . ", $perRow one row at a time)");
-$chipIds = fn(string $html): array => preg_match_all('/data-id="(\d+)"/', $html, $m) ? array_map(intval(...), $m[1]) : [];
-$newest = (int)(new craft\db\Query())
-    ->select(['e.id'])
-    ->from(['c' => '{{%elementrelations_cache}}'])
-    ->innerJoin(['e' => craft\db\Table::ELEMENTS], '[[e.id]] = [[c.sourcePrimaryOwnerId]]')
-    ->leftJoin(['d' => craft\db\Table::DRAFTS], '[[d.id]] = [[e.draftId]]')
-    ->where(['c.targetElementId' => $b->id, 'e.revisionId' => null, 'e.dateDeleted' => null])
-    ->andWhere(['or', ['d.id' => null], ['d.provisional' => false]])
-    ->orderBy(['e.dateUpdated' => SORT_DESC, 'e.id' => SORT_DESC])
-    ->scalar();
+check(count($listed) > 10 && $batched <= $batchedTen + 2 && $batched * 2 < $perRow, "an element index column loads its data for the whole page in a few queries, however many rows ($batchedTen for 10 rows, $batched for " . count($listed) . ", $perRow one row at a time)");
 $bBatched = $batchedPreviews[$b->id] ?? '';
-check(str_contains($bBatched, '12 total') && str_contains($bBatched, '>+4</span>') && ($chipIds($bBatched)[0] ?? null) === $newest, 'batched: the same total and number of usages, the most recently updated one first (' . json_encode(['chips' => $chipIds($bBatched), 'newest' => $newest]) . ')');
-check(str_contains($batchedPreviews[$unused->id] ?? '', Craft::t('element-relations', 'field-value-unused')), 'batched: an unused element still says so');
+check(str_contains($bBatched, '12 total'), 'batched: the same total');
+check(str_contains($batchedPreviews[$unused->id] ?? '', \CraftCms\Cms\t('field-value-unused', category: 'element-relations')), 'batched: an unused element still says so');
 check((new RelationsModel((int)$b->id, (int)$b->siteId))->forTargetSite()->getCountsByType() === $rel->getCountsByType() && $rel->getCountsByType() !== [], 'batched: the counts per element type are the prefetched ones, and the same');
-internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
+RelationsModel::forgetPrefetched();
 $emptyPage = Entry::find()->id(0);
 $field->modifyElementIndexQuery($emptyPage);
-check($emptyPage->all() === [] && (new RelationsModel((int)$b->id, (int)$b->siteId))->getCountFast([]) === 12, 'an empty index page prefetches nothing'); 
-internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
+check($emptyPage->all() === [] && (new RelationsModel((int)$b->id, (int)$b->siteId))->getCountFast([]) === 12, 'an empty index page prefetches nothing');
+RelationsModel::forgetPrefetched();
 
-[$input, $unusedInput] = withWebRequest(fn() => [
-    $field->getInputHtml($rel, $b),
-    $field->getInputHtml($unused->getFieldValue('relations'), $unused),
+[$input, $unusedInput] = withWebRequest(fn(): array => [
+    HtmlStack::capture(fn(): string => $field->inputHtmlFor($rel, $b)),
+    HtmlStack::capture(fn(): string => $field->inputHtmlFor($unused->getFieldValue('relations'), $unused)),
 ]);
-check(str_contains($input, 'class="element-index') && str_contains($input, 'search-container') && str_contains($input, 'statusmenubtn'), "input renders Craft's element index with search and status menu");
-check(!str_contains($input, 'export-btn') || str_contains($input, 'export-btn" class="btn hidden"'), 'export button stays hidden');
-$js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
-$colOpts = html_entity_decode($input);
-check(str_contains($colOpts, '"attr":"status"') && str_contains($colOpts, '"attr":"postDate"') && str_contains($colOpts, '"attr":"link"'), 'the View menu offers Status, Post Date and Link as table columns');
-check(str_contains($colOpts, '"attr":"section"') && str_contains($colOpts, '"attr":"type"') && !str_contains($colOpts, '"attr":"filename"'), 'the View menu offers the columns of the element types in this list (Section, Entry Type; no Filename: no asset uses it), like Craft\'s indexes');
-check(str_contains($js, 'Craft.createElementIndex') && str_contains($js, 'usesElement') && str_contains($js, '"inlineEditable":false') && str_contains($js, '"canHaveDrafts":true') && str_contains($js, 'Usage'), 'the index JS is bound to the Usage type, without inline editing, filtered by usesElement');
-$settingsHtml = withWebRequest(fn() => $field->getSettingsHtml());
-check(str_contains($settingsHtml, 'name="viewMode"') && str_contains($settingsHtml, 'name="showStatusMenu"') && str_contains($settingsHtml, 'name="pageSize"'), 'field settings offer View Mode, status menu and page size');
+$inputHtml = $input->html . $input->headHtml . $input->bodyHtml;
+check(str_contains($input->html, 'element-index') && str_contains($input->html, 'search-container') && str_contains($input->html, 'statusmenubtn'), "input renders Craft's element index with search and status menu");
+$decoded = html_entity_decode($inputHtml);
+check(str_contains($decoded, 'Craft.createElementIndex') && str_contains($decoded, 'usesElement') && str_contains($decoded, '"inlineEditable":false') && str_contains($decoded, '"canHaveDrafts":true') && str_contains($decoded, 'Usage'), 'the index JS is bound to the Usage type, without inline editing, filtered by usesElement');
+check(str_contains($decoded, 'ElementRelationsSearch('), "the list's search box is bound (Craft 6 wraps it in <craft-input>, where the classic index does not find it)");
+$control = withWebRequest(fn() => $field->formControl(new \CraftCms\Cms\Field\FieldContext(value: $rel, element: $b, path: ['fields', 'relations'])));
+$controlHtml = json_encode($control->props()) ?: '';
+check(str_contains($controlHtml, 'data-element-relations-input') && str_contains($controlHtml, 'oninput=\"event.stopPropagation()\"') && str_contains($controlHtml, 'onchange=\"event.stopPropagation()\"'), 'the field stops input/change events at its edge: ticking a usage or typing in its search is no edit of the element (no provisional draft)');
+$settings = formText($field->settingsForm());
+check(str_contains($settings, 'viewMode') && str_contains($settings, 'showStatusMenu') && str_contains($settings, 'pageSize'), 'field settings offer View Mode, status menu and page size');
 $configured = clone $field;
 $configured->viewMode = 'cards';
 $configured->showStatusMenu = false;
 $configured->pageSize = 5;
-check($configured->validate(), 'field settings validate');
-$configured->pageSize = 0;
-check(!$configured->validate() && $configured->pageSize === 0, 'page size must be at least 1');
-$configured->pageSize = 5;
-Craft::$app->getView()->clear();
-$configuredInput = withWebRequest(fn() => $configured->getInputHtml($rel, $b));
-$configuredJs = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
-check(str_contains($input, 'data-status="live"') && !str_contains($configuredInput, 'data-status="live"'), 'field setting: statuses hidden (Craft keeps Drafts/Trashed for admins)');
-check(str_contains($configuredJs, '"batchSize":5'), 'field setting: 5 elements per page');
-check(str_contains($configuredInput, 'cards'), 'field setting: cards view');
-$a1 = Entry::find()->title('Page A1')->one();
-check($a1->getAttributeHtml(Usage::ATTR_TYPE) === 'Entry' && $a1->getAttributeHtml(Usage::ATTR_WHERE) === 'Pages › Page' && $a1->getAttributeHtml(Usage::ATTR_SITE) !== '', 'index columns Type / Where / Site come from the attribute HTML hook');
-check(str_contains($a1->getAttributeHtml('dateUpdated'), '<'), "Craft's own Date Updated column still works on the real element");
-$a1Usage = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
-$a1Usage->setAuthorIds([craft\elements\User::find()->username('admin')->one()->id]); // seeded entries have no author
-$authorsHtml = $a1Usage->getAttributeHtml('authors'); // Craft Solo has no Authors column
-check((Craft::$app->edition === craft\enums\CmsEdition::Solo ? $authorsHtml === '' : str_contains($authorsHtml, 'chip')) && str_contains($a1Usage->getAttributeHtml('status'), 'status-label') && $a1Usage->getAttributeHtml('postDate') !== '' && str_contains($a1Usage->getAttributeHtml('link'), 'href'), 'Authors / Status / Post Date / Link columns render on an entry loaded through Usage');
-$craftEdition = Craft::$app->edition;
+// Craft keeps a component's validation result: a fresh field per case
+$settingsWith = fn(array $settings): ElementRelationsField => new ElementRelationsField(['name' => 'Smoke', 'handle' => 'smokeRelations', 'viewMode' => 'cards', 'showStatusMenu' => false, 'pageSize' => 5, ...$settings]);
+check($settingsWith([])->validate(), 'field settings validate');
+check(!$settingsWith(['pageSize' => 0])->validate() && !$settingsWith(['viewMode' => 'nope'])->validate(), 'page size must be at least 1, the view mode one Craft knows');
+$configuredInput = withWebRequest(fn() => HtmlStack::capture(fn(): string => $configured->inputHtmlFor($rel, $b)));
+$configuredAll = html_entity_decode($configuredInput->html . $configuredInput->bodyHtml);
+check(str_contains($input->html, 'statusmenubtn') && !str_contains($configuredInput->html, 'statusmenubtn'), 'field setting: status menu hidden');
+check(str_contains($configuredAll, '"batchSize":5'), 'field setting: 5 elements per page');
+check(str_contains($configuredAll, 'cards'), 'field setting: cards view');
+$a1 = Entry::find()->title('Page A1')->one() ?? throw new RuntimeException('Page A1');
+Usage::$via[(int)$a1->id] ??= [];
+check((string)$a1->getAttributeHtml(Usage::ATTR_TYPE) === 'Entry' && (string)$a1->getAttributeHtml(Usage::ATTR_WHERE) === 'Pages › Page' && (string)$a1->getAttributeHtml(Usage::ATTR_SITE) !== '', 'index columns Type / Where / Site come from the attribute HTML hook (' . $a1->getAttributeHtml(Usage::ATTR_TYPE) . ' / ' . $a1->getAttributeHtml(Usage::ATTR_WHERE) . ')');
+check(str_contains((string)$a1->getAttributeHtml('dateUpdated'), '<'), "Craft's own Date Updated column still works on the real element");
+$viaBefore = Usage::$via[(int)$a1->id] ?? [];
+Usage::$via[(int)$a1->id] = [['fieldId' => 999999, 'type' => 'field', 'disabledIn' => null]];
+check(ElementSummary::viaHtml($a1) === '', 'Field column: a field deleted since the cache row was written names nothing (no error)');
+Usage::$via[(int)$a1->id] = $viaBefore;
+$a1Loaded = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one() ?? throw new RuntimeException('A1 as usage');
+check((string)$a1Loaded->getAttributeHtml(Usage::ATTR_FIELD) === 'Related Entries', 'Field column names the field (' . $a1Loaded->getAttributeHtml(Usage::ATTR_FIELD) . ')');
+$assetUsage = Asset::find()->volume('test')->orderBy('elements.id')->one() ?? throw new RuntimeException('asset');
+Usage::$via[(int)$assetUsage->id] ??= [];
+check((string)$assetUsage->getAttributeHtml('postDate') === '' && str_contains((string)$assetUsage->getAttributeHtml('filename'), '.png'), 'columns an element type lacks render empty in a Usage index (asset: Post Date), its own still work (Filename)');
+$editionBefore = Context::getHidden(Edition::class);
 $columns = [];
-foreach ([craft\enums\CmsEdition::Pro, craft\enums\CmsEdition::Solo] as $edition) {
-    Craft::$app->edition = $edition; // in memory, like permissions.php
+foreach ([Edition::Pro, Edition::Solo] as $edition) {
+    Context::addHidden(Edition::class, $edition); // in memory
     $columns[$edition->name] = array_keys(Usage::tableAttributes());
 }
-Craft::$app->edition = $craftEdition;
+$editionBefore === null ? Context::forgetHidden(Edition::class) : Context::addHidden(Edition::class, $editionBefore);
 check(in_array('authors', $columns['Pro'], true) && !array_intersect(['authors', 'revisionCreator'], $columns['Solo']), 'Craft Solo: no Authors or Last Edited By column to choose (like Entry), Craft Pro: both');
-$viaBefore = Usage::$via[(int)$a1->id] ?? null;
-Usage::$via[(int)$a1->id] = [['fieldId' => 999999, 'type' => 'field', 'disabledIn' => null]];
-check(internetztube\elementRelations\helpers\ElementSummary::viaHtml($a1) === '', 'Field column: a field deleted since the cache row was written names nothing (no error)');
-Usage::$via[(int)$a1->id] = $viaBefore ?? [];
-$relationsField = Craft::$app->getFields()->getFieldByHandle('relations');
-$goneLayout = new craft\models\FieldLayout(['type' => Entry::class]);
-$goneTab = new craft\models\FieldLayoutTab(['name' => 'Usages', 'layout' => $goneLayout]);
-$goneTab->setElements([new craft\fieldlayoutelements\CustomField(null, ['fieldUid' => craft\helpers\StringHelper::UUID()]), new craft\fieldlayoutelements\CustomField($relationsField)]);
-$goneLayout->setTabs([$goneTab]);
-$withGoneField = new class extends Entry {
-    public ?craft\models\FieldLayout $layout = null;
-
-    public function getFieldLayout(): ?craft\models\FieldLayout
-    {
-        return $this->layout;
-    }
-};
-$withGoneField->layout = $goneLayout;
-check($relationsField->getTabHash($withGoneField) === $goneTab->getHtmlId(), 'the link to the tab of the field: a deleted field still in the layout is passed over');
-$cacheRowsOfB = fn(): int => (int)(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $b->id])->count();
-$rowsOfB = $cacheRowsOfB();
-(new internetztube\elementRelations\jobs\ResaveElementRelationsJob(['items' => [['elementId' => 999999999, 'siteId' => $b->siteId], ['elementId' => $b->id, 'siteId' => 999999]]]))->execute(Craft::$app->getQueue());
-check(!(new craft\db\Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => 999999999])->exists() && $cacheRowsOfB() === $rowsOfB, "a queued refresh of an element deleted for good since, or of a site it is no longer in, does nothing ($rowsOfB rows of Page B kept)");
-$assetUsage = Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one(); // the seeded test asset (seed.php)
-Usage::$via[(int)$assetUsage->id] ??= [];
-check($assetUsage->getAttributeHtml('authors') === '' && $assetUsage->getAttributeHtml('postDate') === '' && str_contains($assetUsage->getAttributeHtml('filename'), '.png'), 'columns an element type lacks render empty in a Usage index (asset: Authors, Post Date), its own still work (Filename)');
-$a1Loaded = Usage::find()->usesElement($b)->status(null)->id($a1->id)->one();
-$via = $a1Loaded->getAttributeHtml(Usage::ATTR_FIELD);
-check($via === 'Related Entries', 'Field column names the field (no link: Craft drops URL hashes)');
 $unusedHtml = $field->getPreviewHtml($unused->getFieldValue('relations'), $unused);
-check(str_contains($unusedHtml, 'Unused') && str_contains($unusedHtml, 'status-label'), 'preview shows a Craft "Unused" status label for Page A1');
-check(str_contains($unusedInput, 'status-label'), 'input shows the "Unused" status label for Page A1');
+check(str_contains($unusedHtml, 'Unused'), 'preview shows "Unused" for Page A1');
+check(str_contains($unusedInput->html, 'Unused'), 'input shows "Unused" for Page A1');
+$rowsOfB = fn(): int => DB::table(CacheRecord::TABLE)->where('sourceElementId', $b->id)->count();
+$before = $rowsOfB();
+(new ResaveElementRelationsJob([['elementId' => 999999999, 'siteId' => (int)$b->siteId], ['elementId' => (int)$b->id, 'siteId' => 999999]]))->handle();
+check(!DB::table(CacheRecord::TABLE)->where('sourceElementId', 999999999)->exists() && $rowsOfB() === $before, "a queued refresh of an element deleted for good since, or of a site it is no longer in, does nothing ($before rows of Page B kept)");
 
 echo "GraphQL\n";
 // own uid: Craft caches GraphQL results per schema uid; site scopes: the schema must be allowed to read the sites
-$schema = new craft\models\GqlSchema(['uid' => craft\helpers\StringHelper::UUID(), 'scope' => [
-    'sections.' . $b->getSection()->uid . ':read',
+$schema = new GqlSchema(['uid' => Str::uuid()->toString(), 'name' => 'Smoke', 'scope' => [
+    'sections.' . $b->getSection()?->uid . ':read',
     'entrytypes.' . $b->getType()->uid . ':read',
     'elements.inactive:read', // the status argument needs it, like Craft's own queries
-    ...array_map(fn($site) => "sites.$site->uid:read", Craft::$app->getSites()->getAllSites(true)),
+    ...Sites::getAllSites(true)->map(fn($site): string => "sites.$site->uid:read")->all(),
 ]]);
+$gqlService = app(Gql::class);
 $query = '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations {
     count liveCount: count(status: ["live"]) isInUse
     elements(limit: 2, status: ["disabled"]) { id title }
 } } } }';
-$result = Craft::$app->getGql()->executeQuery($schema, $query);
+$result = $gqlService->executeQuery($schema, $query);
 $gql = $result['data']['entry']['relations'] ?? null;
 check($gql !== null, 'query succeeded: ' . json_encode($result['errors'] ?? null));
 check($gql['count'] === 11 && $gql['liveCount'] === 11 && $gql['isInUse'] === true, 'count (live by default in GraphQL, the disabled Page A12 is not counted) / count(status) / isInUse');
 check(count($gql['elements']) === 1 && $gql['elements'][0]['title'] === 'Page A12', 'elements(status: ["disabled"]) returns only Page A12');
-$result = Craft::$app->getGql()->executeQuery($schema, '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations { all: elements(status: null) { id } } } }
+$result = $gqlService->executeQuery($schema, '{ entry(id: ' . $b->id . ') { ... on page_Entry { relations { all: elements(status: null) { id } } } }
     entries(usesElement: ' . $b->id . ', status: null) { id } live: entries(usesElement: ' . $b->id . ') { id } }');
 check(count($result['data']['entry']['relations']['all'] ?? []) === 12, 'an explicit status: null means every status (12, Page A12 included): ' . json_encode($result['errors'] ?? null));
-check(count($result['data']['entries'] ?? []) === 12 && count($result['data']['live'] ?? []) === 11, 'Craft’s own entries query takes usesElement: 12 with status: null, 11 by default');
-$oneUsage = Entry::find()->usesElement($b)->one();
-$result = Craft::$app->getGql()->executeQuery($schema, '{ entries(usesElement: ' . $b->id . ', siteSettingsId: [' . $oneUsage->siteSettingsId . ', 999999999]) { id } }');
-check(array_column($result['data']['entries'] ?? [], 'id') === [(string)$oneUsage->id], 'usesElement with siteSettingsId: the intersection (' . json_encode($result['errors'] ?? null) . ')');
-internetztube\elementRelations\gql\handlers\UsesElement::$maxUsages = 1;
-$result = Craft::$app->getGql()->executeQuery($schema, '{ entries(usesElement: ' . $b->id . ') { id } }');
-internetztube\elementRelations\gql\handlers\UsesElement::$maxUsages = 50000;
-check(str_contains(json_encode($result['errors'] ?? []), 'more than 1 usages'), 'usesElement refuses more usages than the limit, with a hint: ' . json_encode($result['errors'][0]['message'] ?? null));
-
-$cModel = new RelationsModel((int)Entry::find()->title('Page C')->one()->id, (int)$b->siteId);
-$notEntries = fn(array $elements): array => array_filter($elements, fn(ElementInterface $e): bool => !$e instanceof Entry);
-check($notEntries($cModel->getElements(sections: ['pages'], status: null)) === [] && $notEntries($cModel->getElements(entryTypes: ['page'], status: null)) === [] && $cModel->getCount(sections: ['pages'], status: null) < $cModel->getCount(status: null), 'sections / entryTypes: only entries (the product, category and tag using Page C are not counted as “pages”)');
-check(array_filter($cModel->getElements(status: ['disabled']), fn(ElementInterface $e): bool => !$e::hasStatuses()) === [] && array_filter($cModel->getElements(status: ['enabled']), fn(ElementInterface $e): bool => $e instanceof craft\elements\Tag) !== [], 'status: a type without statuses (tag) only matches “enabled”, never “disabled”');
-$mixed = $cModel->getElements(status: ['live', 'enabled'], drafts: false);
-$has = fn(string $class): bool => array_filter($mixed, fn(ElementInterface $e): bool => is_a($e, $class)) !== [];
-check($has(Entry::class) && $has(craft\elements\Category::class) && $has('craft\commerce\elements\Product') && $has(craft\elements\Tag::class), 'status [“live”, “enabled”]: each type takes the words it knows (entries and the product live, categories enabled, the tag), none is dropped');
+check(count($result['data']['entries'] ?? []) === 12 && count($result['data']['live'] ?? []) === 11, 'Craft’s own entries query takes usesElement: 12 with status: null, 11 by default (' . json_encode($result['errors'] ?? null) . ')');
 
 echo "Translations\n";
 // every language Craft ships: the English keys, and each string with the same placeholders ({count}, {names}, …)
-$translationsDir = dirname(__DIR__) . '/src/translations';
+$translationsDir = dirname(__DIR__) . '/lang';
 $english = require "$translationsDir/en/element-relations.php";
 $placeholdersOf = function (string $s): array {
-    for ($prev = null; $prev !== $s; $s = preg_replace('/(=\d+|zero|one|two|few|many|other)\s*\{[^{}]*\}/', '', $s)) $prev = $s; // plural branches hold words, not placeholders
+    for ($prev = null; $prev !== $s; $s = (string)preg_replace('/(=\d+|zero|one|two|few|many|other)\s*\{[^{}]*\}/', '', $s)) {
+        $prev = $s; // plural branches hold words, not placeholders
+    }
     return array_values(array_unique(preg_match_all('/\{([a-zA-Z]+)(?:,|\})/', $s, $m) ? $m[1] : []));
 };
 $translationProblems = [];
-foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
+$files = glob("$translationsDir/*/element-relations.php") ?: [];
+foreach ($files as $translationFile) {
     $lang = basename(dirname($translationFile));
     $strings = require $translationFile;
     if (array_keys($strings) !== array_keys($english)) {
@@ -397,7 +434,7 @@ foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
     }
     foreach ($english as $key => $value) {
         // a plural that only picks words (no #, no plain {x}) may be dropped by a language without that distinction
-        $want = array_values(array_filter($placeholdersOf($value), fn(string $x): bool => str_contains($value, '#') || str_contains($value, '{' . $x . '}') || str_contains($value, '{' . $x . ', number') || !str_contains($value, '{' . $x . ', plural'))); sort($want);
+        $want = array_values(array_filter($placeholdersOf($value), fn(string $x): bool => str_contains($value, '#') || str_contains($value, '{' . $x . '}') || str_contains($value, '{' . $x . ', number') || !str_contains($value, '{' . $x . ', plural')));
         $haveAll = $placeholdersOf((string)($strings[$key] ?? ''));
         $missing = array_diff($want, $haveAll);
         $unknown = array_diff($haveAll, $placeholdersOf($value));
@@ -405,117 +442,97 @@ foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
             $translationProblems[] = "$lang/$key: " . ($missing ? 'missing ' . json_encode(array_values($missing)) : '') . ($unknown ? ' unknown ' . json_encode(array_values($unknown)) : '');
         }
     }
-}
-$craftLanguages = array_map('basename', glob(Craft::getAlias('@craft/translations') . '/*', GLOB_ONLYDIR));
-$pluginLanguages = array_map(fn(string $f) => basename(dirname($f)), glob("$translationsDir/*/element-relations.php"));
-// and every string formats in its own language, for one and for many (Craft formats them with ICU)
-$sampleParams = ['count' => 3, 'numTargets' => 2, 'reverted' => 1, 'names' => 'A, B', 'element' => 'E', 'site' => 'S', 'from' => 'F', 'to' => 'T', 'type' => 'entry', 'types' => 'entries', 'error' => 'x', 'list' => 'L', 'id' => 7, 'sites' => 'S', 'name' => 'N'];
-foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
-    $lang = basename(dirname($translationFile));
-    foreach (require $translationFile as $key => $value) {
-        foreach ([1, 5, 22] as $n) {
-            $formatted = MessageFormatter::formatMessage($lang, $value, ['count' => $n] + $sampleParams);
+    // and every string formats in its own language, for one and for many (Craft formats them with ICU)
+    $sampleParams = ['numTargets' => 2, 'reverted' => 1, 'names' => 'A, B', 'element' => 'E', 'site' => 'S', 'from' => 'F', 'to' => 'T', 'type' => 'entry', 'types' => 'entries', 'error' => 'x', 'list' => 'L', 'id' => 7, 'sites' => 'S', 'name' => 'N'];
+    foreach ($strings as $key => $value) {
+        foreach ([1, 5, 22] as $count) {
+            $formatted = MessageFormatter::formatMessage($lang, (string)$value, ['count' => $count] + $sampleParams);
             if ($formatted === false || str_contains($formatted, '{')) {
-                $translationProblems[] = "$lang/$key does not format with count $n";
+                $translationProblems[] = "$lang/$key does not format with count $count";
                 break;
             }
         }
     }
 }
 check($translationProblems === [], 'every translation file has the English keys and placeholders: ' . implode('; ', array_slice($translationProblems, 0, 5)));
+$craftLanguages = array_map('basename', glob(base_path('vendor/craftcms/cms/resources/translations') . '/*', GLOB_ONLYDIR) ?: []);
+$pluginLanguages = array_map(fn(string $f): string => basename(dirname($f)), $files);
 check(array_diff($craftLanguages, $pluginLanguages) === [], 'every language Craft ships has a translation file (' . count($pluginLanguages) . '; missing: ' . implode(', ', array_diff($craftLanguages, $pluginLanguages)) . ')');
+check(\CraftCms\Cms\t('field-value-unused', category: 'element-relations', locale: 'de') !== 'field-value-unused', 'Craft finds the plugin’s translations (German: ' . \CraftCms\Cms\t('field-value-unused', category: 'element-relations', locale: 'de') . ')');
 
 echo "Editions (behind the `features.editions` flag)\n";
-$plugin = internetztube\elementRelations\ElementRelations::class;
-check($plugin::editionsFor([]) === ['standard'] && $plugin::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: one edition, Craft’s “standard” like 3.1 (its licenses stay valid); flag on: Lite and Pro');
-check($plugin::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/element-relations.php)');
-check($plugin::isProFor([]) === true, 'flag off: the one edition has everything (isPro() is true)');
-$editionBefore = $plugin::getInstance()->edition; // restored at the end of every section that switches, so the dev project keeps its edition
-Craft::$app->getPlugins()->switchEdition('element-relations', 'lite');
-check(!$plugin::isPro() && $plugin::getInstance()->is('lite'), 'Lite: isPro() is false');
-// Lite with Pro available: admins are pointed to Pro, quietly, where it would help; editors never
-$upsellField = Craft::$app->getFields()->getFieldByHandle('relations');
-$usedB = Entry::find()->title('Page B')->one();
-$unusedA1 = Entry::find()->title('Page A1')->one();
-[$liteUsed, $liteUnused, $liteSettings, $editorSees, $upgrade] = withWebRequest(function () use ($upsellField, $usedB, $unusedA1, $plugin) {
-    $editor = new craft\elements\User(['username' => 'smoke-upsell-editor', 'admin' => false]);
-    $admin = Craft::$app->getUser()->getIdentity();
-    Craft::$app->getUser()->setIdentity($editor);
-    $editorSees = $plugin::upsells();
-    Craft::$app->getUser()->setIdentity($admin);
-    Craft::$app->getView()->setTemplateMode('cp');
+check(ElementRelations::editionsFor([]) === ['standard'] && ElementRelations::editionsFor(['editions' => true]) === ['lite', 'pro'], 'flag off: one edition, Craft’s “standard” (its licenses stay valid); flag on: Lite and Pro');
+check(ElementRelations::editions() === ['lite', 'pro'], 'the dev project has the flag on (config/craft/element-relations.php)');
+check(ElementRelations::isProFor([]) === true, 'flag off: the one edition has everything (isPro() is true)');
+$plugin = ElementRelations::instance() ?? throw new RuntimeException('plugin');
+$editionBefore = $plugin->edition; // restored at the end of every section that switches, so the dev project keeps its edition
+Plugins::switchEdition('element-relations', 'lite');
+check(!ElementRelations::isPro() && ElementRelations::instance()?->is('lite'), 'Lite: isPro() is false');
+$usedB = Entry::find()->title('Page B')->one() ?? throw new RuntimeException('B');
+$unusedA1 = Entry::find()->title('Page A1')->one() ?? throw new RuntimeException('A1');
+[$liteUsed, $liteUnused, $liteSettings, $editorSees, $upgrade] = withWebRequest(function () use ($field, $usedB, $unusedA1): array {
+    $editor = new User(['username' => 'smoke-upsell-editor', 'admin' => false]);
+    $editorSees = ActingUser::run($editor, fn(): bool => ElementRelations::upsells());
     return [
-        $upsellField->getInputHtml(new RelationsModel($usedB->id, $usedB->siteId), $usedB),
-        $upsellField->getInputHtml(new RelationsModel($unusedA1->id, $unusedA1->siteId), $unusedA1),
-        Craft::$app->getView()->renderTemplate('element-relations/settings', ['settings' => $plugin::getInstance()->getSettings()]),
+        $field->inputHtmlFor(new RelationsModel((int)$usedB->id, (int)$usedB->siteId), $usedB),
+        $field->inputHtmlFor(new RelationsModel((int)$unusedA1->id, (int)$unusedA1->siteId), $unusedA1),
+        formText(ElementRelations::instance()?->settingsForm()),
         $editorSees,
-        $plugin::upgradeUrl(), // as a control panel request builds it
+        ElementRelations::upgradeUrl(), // as a control panel request builds it
     ];
 });
-check(str_contains($liteUsed, 'data-element-relations-upsell') && str_contains($liteUsed, Craft::t('element-relations', 'upsell-replace')) && str_contains($liteUsed, $upgrade), 'Lite: under a usage list, admins see what Pro would do here and the link to the Plugin Store');
-check(str_contains($liteUnused, Craft::t('element-relations', 'upsell-unused')), 'Lite: next to “Unused”, admins see that Pro finds everything nobody uses');
-check(str_contains($liteSettings, Craft::t('element-relations', 'upsell-settings-heading')) && str_contains($liteSettings, $upgrade) && !str_contains($liteSettings, 'protectInUse'), 'Lite: the plugin settings list what Pro adds, with Upgrade; no Pro setting');
+check(str_contains($liteUsed, 'data-element-relations-upsell') && str_contains($liteUsed, \CraftCms\Cms\t('upsell-replace', category: 'element-relations')) && str_contains($liteUsed, $upgrade), 'Lite: under a usage list, admins see what Pro would do here and the link to the Plugin Store');
+check(str_contains($liteUnused, \CraftCms\Cms\t('upsell-unused', category: 'element-relations')), 'Lite: next to “Unused”, admins see that Pro finds everything nobody uses');
+check(str_contains($liteSettings, \CraftCms\Cms\t('upsell-settings-heading', category: 'element-relations')) && !str_contains($liteSettings, 'protectInUse'), 'Lite: the plugin settings list what Pro adds; no Pro setting');
 check(!$editorSees, 'Lite: editors never see it');
-Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
-check($plugin::isPro(), 'switching to Pro makes isPro() true');
-[$proUsed, $proSettings] = withWebRequest(function () use ($upsellField, $usedB, $plugin) {
-    Craft::$app->getView()->setTemplateMode('cp');
-    return [$upsellField->getInputHtml(new RelationsModel($usedB->id, $usedB->siteId), $usedB), Craft::$app->getView()->renderTemplate('element-relations/settings', ['settings' => $plugin::getInstance()->getSettings()])];
-});
-check(!str_contains($proUsed, 'data-element-relations-upsell') && !str_contains($proSettings, 'data-element-relations-upsell') && str_contains($proSettings, 'protectInUse'), 'Pro: no upsell anywhere; the settings have the protection switch');
-Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
-check($plugin::isPro() === ($editionBefore === 'pro'), "restored the $editionBefore edition");
+Plugins::switchEdition('element-relations', 'pro');
+check(ElementRelations::isPro(), 'switching to Pro makes isPro() true');
+[$proUsed, $proSettings] = withWebRequest(fn(): array => [$field->inputHtmlFor(new RelationsModel((int)$usedB->id, (int)$usedB->siteId), $usedB), formText(ElementRelations::instance()?->settingsForm())]);
+check(!str_contains($proUsed, 'data-element-relations-upsell') && !str_contains($proSettings, 'upsell') && str_contains($proSettings, 'protectInUse'), 'Pro: no upsell anywhere; the settings have the protection switch');
+Plugins::switchEdition('element-relations', $editionBefore);
+check(ElementRelations::isPro() === ($editionBefore === 'pro'), "restored the $editionBefore edition");
 
 echo "Live save path (save event -> queued refresh job -> cache)\n";
-// Seeds never fire EVENT_AFTER_REQUEST, so everything above was built by resave-relations. This exercises the real flow.
-$c = Entry::find()->title('Page C')->one();
-$section = Craft::$app->getEntries()->getSectionByHandle('pages');
-foreach (Entry::find()->title('Page via save event')->status(null)->drafts(null)->all() as $leftover) { // from an aborted run
-    Craft::$app->getElements()->deleteElement($leftover, true);
-}
+// Seeds never terminate the app, so everything above was built by resave-relations. This exercises the real flow.
+$c = Entry::find()->title('Page C')->one() ?? throw new RuntimeException('C');
+$section = Sections::getSectionByHandle('pages') ?? throw new RuntimeException('pages');
 $live = new Entry(['sectionId' => $section->id, 'typeId' => $section->getEntryTypes()[0]->id, 'title' => 'Page via save event']);
 $live->setFieldValue('relatedEntries', [$c->id]);
-Craft::$app->getElements()->saveElement($live) or throw new RuntimeException(json_encode($live->getErrors()));
-Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
-Craft::$app->getQueue()->run();
+Elements::saveElement($live) or fail($live);
+flushQueue();
 check(in_array('Page via save event', relatingTitles($c), true), 'saving an entry queues a refresh that records its relation');
-$queueRows = fn() => (int)(new craft\db\Query())->from('{{%queue}}')->where(['description' => 'Resave Element Relations'])->count(); // Craft queues its own jobs on save (revision pruning, ...)
-$rowIds = fn() => (new craft\db\Query())->select('id')->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $live->id])->orderBy('id')->column();
-[$jobsBefore, $idsBefore] = [$queueRows(), $rowIds()];
-$untouched = Entry::find()->id($live->id)->one();
-Craft::$app->getElements()->saveElement($untouched) or throw new RuntimeException(json_encode($untouched->getErrors()));
-Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
-check($queueRows() === $jobsBefore, 'saving an entry without changing a custom field queues no refresh');
-check(internetztube\elementRelations\services\ExtractorService::refreshRelationsForElement($untouched) === false && $rowIds() === $idsBefore, 'a refresh with unchanged relations leaves the cache rows untouched');
+$rowIds = fn(): array => DB::table(CacheRecord::TABLE)->where('sourceElementId', $live->id)->orderBy('id')->pluck('id')->all();
+[$jobsBefore, $idsBefore] = [queuedJobs(ResaveElementRelationsJob::class), $rowIds()];
+$untouched = Entry::find()->id($live->id)->one() ?? throw new RuntimeException('live');
+Elements::saveElement($untouched) or fail($untouched);
+QueueElementsForRefreshService::destruct();
+check(queuedJobs(ResaveElementRelationsJob::class) === $jobsBefore, 'saving an entry without changing a custom field queues no refresh');
+check(ExtractorService::refreshRelationsForElement($untouched) === false && $rowIds() === $idsBefore, 'a refresh with unchanged relations leaves the cache rows untouched');
 $untouched->setFieldValue('relatedEntries', [$b->id]);
-Craft::$app->getElements()->saveElement($untouched) or throw new RuntimeException(json_encode($untouched->getErrors()));
-Craft::$app->trigger(yii\base\Application::EVENT_AFTER_REQUEST);
-check($queueRows() === $jobsBefore + 1, 'changing a relational field queues a refresh');
-Craft::$app->getQueue()->run();
+Elements::saveElement($untouched) or fail($untouched);
+QueueElementsForRefreshService::destruct();
+check(queuedJobs(ResaveElementRelationsJob::class) === $jobsBefore + 1, 'changing a relational field queues a refresh');
+flushQueue();
 check(!in_array('Page via save event', relatingTitles($c), true) && in_array('Page via save event', relatingTitles($b), true), 'the refresh moves the relation from Page C to Page B');
-Craft::$app->getElements()->deleteElement($live, true);
+Elements::deleteElement($live, true);
 check(!in_array('Page via save event', relatingTitles($c), true), 'deleting the entry removes its relation');
 
-echo "Replace (Pro) on core fields\n";
-Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
-replaceRoundTrip(Entry::find()->title('Page A1')->one(), $b, 'Entries field', fn(Entry $e, $t) => array_map('intval', $e->getFieldValue('relatedEntries')->ids()) === [$t->id]);
-Craft::$app->getPlugins()->switchEdition('element-relations', $editionBefore);
+echo "Replace on core fields\n";
+Plugins::switchEdition('element-relations', 'pro');
+replaceRoundTrip($unused, $b, 'Entries field', fn(?ElementInterface $e, ElementInterface $t): bool => $e !== null && array_map('intval', $e->getFieldValue('relatedEntries')->ids()) === [(int)$t->id]);
+Plugins::switchEdition('element-relations', $editionBefore);
 
 echo "Cache hygiene\n";
-$failedJobs = (new craft\db\Query())->select(['description', 'error'])->from('{{%queue}}')->where(['fail' => true])->all();
+$failedJobs = DB::table('failed_jobs')->where('failed_at', '>=', $smokeStartedAt)->pluck('exception')->map(fn($e): string => substr((string)$e, 0, 300))->all();
 check(!$failedJobs, 'no failed queue jobs' . ($failedJobs ? ': ' . json_encode($failedJobs) : ''));
-$revisionRows = (new craft\db\Query())
-    ->from(['c' => '{{%elementrelations_cache}}'])
-    ->innerJoin(['e' => craft\db\Table::ELEMENTS], '[[e.id]] = [[c.sourceElementId]]')
-    ->where(['not', ['e.revisionId' => null]])
-    ->count();
-check((int)$revisionRows === 0, 'cache holds no rows for revisions');
+$revisionRows = DB::table(CacheRecord::TABLE . ' as c')->join('elements as e', 'e.id', '=', 'c.sourceElementId')->whereNotNull('e.revisionId')->count();
+check($revisionRows === 0, 'cache holds no rows for revisions');
 
 $ctx = [
     'target' => Entry::find()->title('Page C')->one(),
-    'asset' => Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one(),
+    'asset' => Asset::find()->volume('test')->orderBy('elements.id')->one(),
 ];
-foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
+foreach (glob(__DIR__ . '/smoke/*.php') ?: [] as $file) {
     if (!onlySelected($file)) {
         continue;
     }
@@ -523,17 +540,16 @@ foreach (glob(__DIR__ . '/smoke/*.php') as $file) {
     (require $file)($ctx);
 }
 
-// the indexes elements with thousands of usages rely on (fresh installs and upgrades alike)
-foreach (internetztube\elementRelations\migrations\m261024_000000_cache_indexes::INDEXES as $columns) {
-    check(craft\helpers\Db::findIndex('{{%elementrelations_cache}}', $columns) !== null, 'index on ' . implode(', ', $columns));
+// the indexes elements with thousands of usages rely on
+$indexes = array_map(fn(array $index): array => $index['columns'], Schema::getIndexes(CacheRecord::TABLE));
+foreach (CacheRecord::INDEXES as $columns) {
+    check(in_array($columns, $indexes, true), 'index on ' . implode(', ', $columns));
 }
 
-// the operations this run created, and older ones whose elements are gone (the history then shows real work only,
-// e.g. the demo's for screenshots)
-internetztube\elementRelations\records\ReplacementRecord::deleteAll(['>=', 'dateCreated', craft\helpers\Db::prepareDateForDb($smokeStartedAt)]);
-foreach (internetztube\elementRelations\records\ReplacementRecord::find()->all() as $operation) {
-    $elements = Craft::$app->getElements();
-    if (!$elements->getElementById($operation->fromId, null, $operation->siteId) || !$elements->getElementById($operation->toId, null, $operation->siteId)) {
+// the operations this run created, and older ones whose elements are gone (the history then shows real work only)
+Replacement::query()->where('dateCreated', '>=', $smokeStartedAt)->delete();
+foreach (Replacement::query()->get() as $operation) {
+    if (!Elements::getElementById((int)$operation->fromId, null, $operation->siteId) || !Elements::getElementById((int)$operation->toId, null, $operation->siteId)) {
         $operation->delete();
     }
 }

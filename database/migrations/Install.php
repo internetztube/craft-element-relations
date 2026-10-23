@@ -18,15 +18,6 @@ class Install extends Migration
     public const REPLACEMENTS = 'elementrelations_replacements';
     public const CHANGES = 'elementrelations_replacement_changes';
 
-    /** Indexes for the lookups of elements with thousands of usages. */
-    public const CACHE_INDEXES = [
-        ['type', 'globalKey'],
-        ['targetElementId', 'sourcePrimaryOwnerId', 'sourceSiteId'], // usages of an element, per owner and site
-        ['targetElementId', 'targetSiteId'],
-        ['sourcePrimaryOwnerId', 'sourceSiteId'], // the usage list joins by owner
-        ['sourceElementId', 'sourceSiteId'], // refreshing an element's own relations
-    ];
-
     public function up(): void
     {
         Schema::create(self::CACHE, function (Blueprint $table): void {
@@ -44,7 +35,7 @@ class Install extends Migration
             $table->dateTime('dateCreated');
             $table->dateTime('dateUpdated');
             $table->char('uid', 36)->default('0');
-            foreach (self::CACHE_INDEXES as $columns) {
+            foreach (\Internetztube\ElementRelations\Models\CacheRecord::INDEXES as $columns) {
                 $table->index($columns);
             }
         });

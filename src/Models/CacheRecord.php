@@ -29,6 +29,15 @@ class CacheRecord extends BaseModel
 
     public const TABLE = 'elementrelations_cache';
 
+    /** Indexes for the lookups of elements with thousands of usages (database/migrations/Install.php). */
+    public const INDEXES = [
+        ['type', 'globalKey'],
+        ['targetElementId', 'sourcePrimaryOwnerId', 'sourceSiteId'], // usages of an element, per owner and site
+        ['targetElementId', 'targetSiteId'],
+        ['sourcePrimaryOwnerId', 'sourceSiteId'], // the usage list joins by owner
+        ['sourceElementId', 'sourceSiteId'], // refreshing an element's own relations
+    ];
+
     public const TYPE_FIELD = 'field';
     public const TYPE_ELEMENT_USER_PHOTO = 'element-user-photo';
     /** non-element usage rows (no source element), see Extractors\InterfaceGlobalUsage */

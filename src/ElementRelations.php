@@ -16,6 +16,7 @@ use CraftCms\Cms\Element\Events\ElementDeletedForSite;
 use CraftCms\Cms\Element\Events\ElementDeleting;
 use CraftCms\Cms\Element\Events\ElementRestored;
 use CraftCms\Cms\Element\Events\ElementSaved;
+use CraftCms\Cms\Element\Events\ElementSaving;
 use CraftCms\Cms\Element\Events\ElementDeleted;
 use CraftCms\Cms\Element\Queries\Contracts\ElementQueryInterface;
 use CraftCms\Cms\Entry\Elements\Entry;
@@ -234,7 +235,7 @@ class ElementRelations extends Plugin
     public static function upsells(): bool
     {
         return in_array(self::EDITION_PRO, self::editions(), true) && !self::isPro()
-            && !app()->runningInConsole() && request()->isCpRequest() && currentUserElement()?->admin === true;
+            && request()->isCpRequest() && currentUserElement()?->admin === true;
     }
 
     /** The plugin's page in the control panel's Plugin Store, where Pro is bought. */
@@ -460,7 +461,14 @@ class ElementRelations extends Plugin
             Event::listen($event, $forgetPermissions);
         }
 
-        Event::listen(function (ElementSaved $event) use ($forgetIfUsage): void {
+        // Craft 6 normalizes every field value while saving (setFieldValue), so by ElementSaved each field reads as
+        // dirty: what the save really changed is known only before it
+        /** @var \WeakMap<ElementInterface, list<string>> $changedFields */
+        $changedFields = new \WeakMap();
+        Event::listen(function (ElementSaving $event) use ($changedFields): void {
+            $changedFields[$event->element] = $event->element->getDirtyFields();
+        });
+        Event::listen(function (ElementSaved $event) use ($forgetIfUsage, $changedFields): void {
             $element = $event->element;
             $forgetIfUsage($element);
             // Revisions are never shown as relation sources, so don't waste queue time and cache rows on them.
@@ -471,7 +479,9 @@ class ElementRelations extends Plugin
             // other sites). Elements read by an element-level extractor (user photo) have no such signal and always
             // refresh.
             $hasElementExtractor = ExtractorService::hasElementExtractor($element);
-            if (!$event->isNew && !$element->isNewForSite && !$element->getDirtyFields() && !$hasElementExtractor) {
+            $changed = $changedFields[$element] ?? $element->getDirtyFields();
+            unset($changedFields[$element]);
+            if (!$event->isNew && !$element->isNewForSite && !$changed && !$hasElementExtractor) {
                 return;
             }
             if ($hasElementExtractor) {
