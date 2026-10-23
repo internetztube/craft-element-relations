@@ -106,11 +106,11 @@ Replacing, rolling back, and deleting or disabling elements that are in use are 
 
 ## Command line
 
-For deploy scripts and content migrations: `php craft element-relations/replace <from> <to>` (with `--usages`, `--site`, `--dry-run`), `replace/map mapping.csv` for many pairs at once, `replace/history` and `replace/rollback`. See the [README](../README.md#command-line).
+For deploy scripts and content migrations: `php artisan element-relations:replace <from> <to>` (with `--usages`, `--site`, `--dry-run`), `replace:map mapping.csv` for many pairs at once, `replace:history` and `replace:rollback`. See the [README](../README.md#command-line).
 
 ## Settings
 
-Field settings like Craft's relation fields (view mode, status menu, page size), and plugin settings that can be set per environment in `config/element-relations.php`.
+Field settings like Craft's relation fields (view mode, status menu, page size), and plugin settings that can be set per environment in `config/craft/element-relations.php`.
 
 ![Field settings](screenshots/field-settings.jpg)
 

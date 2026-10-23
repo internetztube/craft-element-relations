@@ -184,7 +184,7 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     /**
      * Sort option for element indexes: number of relating elements in the index's site, plus a half when the element
      * is used in another site, so "used in other sites" (0.5) ranks above unused (0) and below used here (1 and more).
-     * @return array{label: string, orderBy: \Illuminate\Contracts\Database\Query\Expression, attribute: string, defaultDir: string}
+     * @return array{label: string, orderBy: string, attribute: string, defaultDir: string}
      */
     #[Override]
     public function getSortOption(): array
@@ -219,7 +219,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ->where(fn(Builder $live) => $live->whereNull("$cache.sourceElementId")->orWhereExists($liveSource));
         return [
             'label' => t((string)$this->name, category: 'site'),
-            'orderBy' => Sql::raw('((' . $count->toRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->toRawSql() . ') THEN 0.5 ELSE 0 END)'),
+            // SQL as a string: Craft adds the direction to a field's string orderBy, not to an expression
+            'orderBy' => '((' . $count->toRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->toRawSql() . ') THEN 0.5 ELSE 0 END)',
             'attribute' => isset($this->layoutElement->handle) ? "fieldInstance:{$this->layoutElement->uid}" : "field:$this->uid",
             'defaultDir' => 'desc',
         ];

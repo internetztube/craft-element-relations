@@ -29,11 +29,11 @@ Every Craft project asks the same questions. Can I delete this asset? Which page
 
 ## Tested
 
-Three test suites run on every push, on PHP 8.2 and 8.3, on MySQL 8 and PostgreSQL 14: a console test, the control panel over HTTP, and the control panel in headless Chrome. Over 1,400 checks. Every supported plugin is seeded and round-tripped (read, replace, roll back). 100 % line coverage of `src/`. [`dev/TESTS.md`](dev/TESTS.md) lists every check in one sentence.
+On every push, on PHP 8.5, on MySQL 8 and PostgreSQL 14, with and without Craft's Yii2 adapter: a console test of every feature, every supported field seeded and round-tripped (read, replace, roll back). The control panel suites of 4.x (over HTTP and in headless Chrome) are being ported to Craft 6. [`dev/TESTS.md`](dev/TESTS.md) lists every check in one sentence.
 
 ## Requirements
 
-Craft CMS 5.3 or later, PHP 8.2 or later. For Craft 4, use the 3.1.x releases.
+Craft CMS 6 and PHP 8.5, from version 5.0 (in alpha). For Craft 5, use the 4.x releases. For Craft 4, use the 3.1.x releases. Coming from 4.x: see [UPGRADE.md](UPGRADE.md).
 
 ## Installation
 
@@ -41,14 +41,14 @@ Install from the Plugin Store in the control panel, or with Composer:
 
 ```sh
 composer require internetztube/craft-element-relations
-php craft plugin/install element-relations
+php artisan craft:plugin:install element-relations
 ```
 
 Then create an **Element Relations** field and add it to the field layouts of the elements you want to inspect (assets, entries, categories, …). After the install, the plugin builds its cache for existing content in the queue.
 
 ## Configuration
 
-Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to set the plugin settings per environment:
+Copy [`config/craft/element-relations.php`](config/element-relations.php) to `config/craft/element-relations.php` in your project to set the plugin settings per environment:
 
 | Setting | Default | Description |
 |---|---|---|
@@ -57,28 +57,19 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to set
 
 Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Elements per page, Elements in index columns (default 5).
 
-You can rebuild the cache any time under Utilities → Element Relations, or with `php craft element-relations/resave-relations`. `php craft element-relations/prune` removes rows of elements that no longer exist; garbage collection does that by itself.
+You can rebuild the cache any time under Utilities → Element Relations, or with `php artisan element-relations:resave-relations`. `php artisan element-relations:prune` removes rows of elements that no longer exist; garbage collection does that by itself.
 
 ## Supported fields and plugins
 
 Anything that stores its targets in Craft's relations table works out of the box:
 
-- Entries, Assets, Categories, Tags, Users, Products and other relation fields, also inside Matrix, Neo, Super Table, Content Block and Addresses
-- Craft's Link field and plugin fields that implement `RelationalFieldInterface`
+- Entries, Assets, Users and other relation fields, also inside Matrix, Content Block and Addresses
+- Craft's Link field (links to entries, assets and, with Craft's Yii2 adapter, categories)
+- Reference tags in Craft's Markdown field
 - User photos
+- Categories, tags and global sets, with Craft's Yii2 adapter
 
-Own extractors (each one can also rewrite what it reads, for replace):
-
-| Plugin | What is read |
-|---|---|
-| CKEditor, Redactor | reference tags in links and images |
-| SEOmatic | SEO, Twitter and Open Graph images in the field, global and per-section settings |
-| Hyper, LinkIt, Typed Link Field, LinkMate, FreeLink | element links |
-| Vizy | link marks, images, fields inside blocks |
-| SEO (by Ether) | social images |
-| Navigation | nodes that link to an element (listed as their menu) |
-| Wishlist | list items (listed as their list) |
-| Formie | redirect entries and rules, element field defaults, notification attachments, submission values |
+The plugins 4.x reads (CKEditor, Redactor, SEOmatic, Hyper, LinkIt, Typed Link Field, LinkMate, FreeLink, Vizy, SEO by Ether, Navigation, Wishlist, Formie, Commerce) have no Craft 6 version yet. Support comes back as they are released for Craft 6. On Craft 5, use 4.x.
 
 Missing one? [Open an issue](https://github.com/internetztube/craft-element-relations/issues), or register your own extractor (see [Events](#events)).
 
@@ -89,7 +80,7 @@ Missing one? [Open an issue](https://github.com/internetztube/craft-element-rela
 Get the `RelationsModel` from the element's field:
 
 ```twig
-{# @var relationsModel \internetztube\elementRelations\models\RelationsModel #}
+{# @var relationsModel \Internetztube\ElementRelations\Models\RelationsModel #}
 {% set relationsModel = element.relationsField %}
 
 {% if relationsModel.isInUse %}…{% endif %}                     {# in the element's site #}
@@ -131,7 +122,7 @@ All element types at once (entries, products, menus, …, each as its real class
 ```
 
 ```php
-use internetztube\elementRelations\elements\Usage;
+use Internetztube\ElementRelations\Elements\Usage;
 
 $everything = Usage::find()->usesElement($asset)->search('contact')->all();
 ```
@@ -166,7 +157,7 @@ In detail:
 - **Replace:** tick usages in the field's list and choose “Replace…”, or choose “Replace everywhere…” in an element index. A slideout opens: pick the replacement, untick usages or take all in the filtered list (across pages), and read a summary before anything changes. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button. Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the link back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them. So saving many or large entries never blocks the page. The notice shows the progress and offers Undo when the job is done. If a job gets lost (a worker stopped), it resumes where it was: by itself while the notice waits, with Resume in the history, or on the command line.
-- **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line).
+- **Command line:** `php artisan element-relations:replace` for scripts and migrations, see [Command line](#command-line).
 - <a id="protect-what-is-in-use"></a>**Protect what is in use:** in the control panel, an element that live content uses (live entries, enabled elements, plugin settings) can't be deleted, disabled, disabled for a site, expired or scheduled. The error names the usages the user may view and counts the rest. On Craft 5.10 and later, Craft's delete dialog lists them first, with “Replace…” and, only with the permission, “Delete anyway”. This covers the edit page, slideouts and the index actions Delete, Set status and Delete for site. Drafts and disabled elements that point to it don't count. Users with the permission “Delete or disable elements that are in use” (admins) may go ahead. Console commands, migrations, queue jobs and settings changes (like deleting a section) are never blocked.
 
 ### Permissions
@@ -195,14 +186,14 @@ Entries changed by a replacement or rollback get a revision with a note. This in
 Replacements from the command line run right away (no queue), without a user. They land in the history like any other, so you can roll them back:
 
 ```sh
-php craft element-relations/replace 12 34                  # replace element #12 with #34 everywhere
-php craft element-relations/replace 12 34 --usages=56,78   # only in these related elements (ids as listed in the field)
-php craft element-relations/replace 12 34 --dry-run        # list what would change, change nothing
-php craft element-relations/replace 12 34 --site=de        # elements of another site (handle or id)
-php craft element-relations/replace/map duplicates.csv     # many at once: one "from,to" pair of ids per line
-php craft element-relations/replace/history --limit=50     # the latest replacements with their ids
-php craft element-relations/replace/rollback 1234          # roll one back (--revisions: revert entries to their revisions)
-php craft element-relations/replace/resume 1234            # continue one whose queue job got lost (e.g. a worker stopped)
+php artisan element-relations:replace 12 34                  # replace element #12 with #34 everywhere
+php artisan element-relations:replace 12 34 --usages=56,78   # only in these related elements (ids as listed in the field)
+php artisan element-relations:replace 12 34 --dry-run        # list what would change, change nothing
+php artisan element-relations:replace 12 34 --site=de        # elements of another site (handle or id)
+php artisan element-relations:replace:map duplicates.csv     # many at once: one "from,to" pair of ids per line
+php artisan element-relations:replace:history --limit=50     # the latest replacements with their ids
+php artisan element-relations:replace:rollback 1234          # roll one back (--revisions: revert entries to their revisions)
+php artisan element-relations:replace:resume 1234            # continue one whose queue job got lost (e.g. a worker stopped)
 ```
 
 A mapping file may have a header line and `#` comments. For example, after merging duplicate assets:
@@ -217,14 +208,13 @@ from,to
 In a content migration, call the service:
 
 ```php
-use craft\elements\Asset;
-use internetztube\elementRelations\services\ReplaceService;
+use CraftCms\Cms\Asset\Elements\Asset;
+use Internetztube\ElementRelations\Services\ReplaceService;
 
-public function safeUp(): bool
+public function up(): void
 {
     $result = ReplaceService::replace(Asset::find()->id(412)->one(), Asset::find()->id(388)->one());
     echo "Replaced in {$result['replaced']} elements (rollback: #{$result['operationId']})\n";
-    return true;
 }
 ```
 
@@ -235,28 +225,27 @@ public function safeUp(): bool
 Register your own extractors, or react to replacements:
 
 ```php
-use craft\events\RegisterComponentTypesEvent;
-use internetztube\elementRelations\events\ReplaceEvent;
-use internetztube\elementRelations\services\ExtractorService;
-use internetztube\elementRelations\services\ReplaceService;
-use yii\base\Event;
+use Illuminate\Support\Facades\Event;
+use Internetztube\ElementRelations\Events\FieldExtractorsResolving;
+use Internetztube\ElementRelations\Events\ReplacingUsages;
+use Internetztube\ElementRelations\Events\UsagesReplaced;
 
 // a field extractor implements InterfaceFieldExtractor (and InterfaceFieldReplacer for replace);
 // the first extractor that returns records for a field wins, so put specific ones first
-Event::on(ExtractorService::class, ExtractorService::EVENT_REGISTER_FIELD_EXTRACTORS, function (RegisterComponentTypesEvent $event) {
+Event::listen(function (FieldExtractorsResolving $event) {
     array_unshift($event->types, MyFieldExtractor::class);
 });
 
-// element extractors (InterfaceElementExtractor / InterfaceElementReplacer) and non-element usage providers
-// (RelationsModel::EVENT_REGISTER_GLOBAL_USAGE_PROVIDERS, InterfaceGlobalUsage) work the same way
+// element extractors (ElementExtractorsResolving: InterfaceElementExtractor / InterfaceElementReplacer) and non-element
+// usage providers (GlobalUsageProvidersResolving: InterfaceGlobalUsage) work the same way
 
-Event::on(ReplaceService::class, ReplaceService::EVENT_BEFORE_REPLACE, function (ReplaceEvent $event) {
+Event::listen(function (ReplacingUsages $event) {
     // $event->from, $event->to, $event->sourceIds; set $event->isValid = false to stop it
 });
-Event::on(ReplaceService::class, ReplaceService::EVENT_AFTER_REPLACE, function (ReplaceEvent $event) {
+Event::listen(function (UsagesReplaced $event) {
     // $event->result['replaced'], $event->result['skipped'], $event->operation
 });
-// ReplaceService::EVENT_AFTER_ROLLBACK: $event->result['restored'], $event->operation
+// ReplacementRolledBack: $event->result['restored'], $event->operation
 ```
 
 ## Logging

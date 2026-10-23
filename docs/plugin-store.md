@@ -31,7 +31,7 @@ A “Used anywhere” rule in Craft’s filter. It works on any source, with Cra
 - **Every field and plugin.** Relation fields, rich text, link fields, SEOmatic, Navigation, Formie and the others are rewritten the same way they were read.
 - **Undo in one click.** The notice has an Undo button. A history under Utilities lists every replacement, with Roll back and Revert to revisions. Entries get a revision with a note.
 - **Never blocks the page.** Large replacements run in the background, in batches, as the user who started them. If a worker dies, they continue where they stopped.
-- **Command line and migrations.** `php craft element-relations/replace 412 388`, or many pairs at once from a CSV file, for example after merging duplicate assets.
+- **Command line and migrations.** `php artisan element-relations:replace 412 388`, or many pairs at once from a CSV file, for example after merging duplicate assets.
 
 ## Nothing breaks by accident
 

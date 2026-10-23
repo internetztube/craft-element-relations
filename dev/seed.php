@@ -17,6 +17,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/craft.php';
 require __DIR__ . '/lib.php';
+// a run that failed midway left Craft's project config lock behind (see the end of this file)
+Illuminate\Support\Facades\Cache::lock(CraftCms\Cms\ProjectConfig\ProjectConfig::MUTEX_NAME)->forceRelease();
 
 use CraftCms\Cms\Asset\Data\Volume;
 use CraftCms\Cms\Asset\Elements\Asset;

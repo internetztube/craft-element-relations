@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 5.0.0-alpha.1 - 2026-10-23
+
+The first version for Craft 6. The field, its list of usages, replace, undo, the history and the protection of
+elements in use work as in 4.x. See [UPGRADE.md](UPGRADE.md) for what changes in your code, config and scripts.
+
+### Breaking changes
+- Craft 6 and PHP 8.5. Sites on Craft 5 keep using 4.x.
+- The PHP namespace is now `Internetztube\ElementRelations\…`, with capitalized folders (`Fields`, `Models`, `Services`, …).
+- The events are Laravel events now: `FieldExtractorsResolving`, `ElementExtractorsResolving`, `GlobalUsageProvidersResolving`, `ReplacingUsages`, `UsagesReplaced`, `ReplacementRolledBack`.
+- The commands run with `php artisan`: `element-relations:resave-relations`, `element-relations:prune`, `element-relations:replace` (with `:map`, `:history`, `:rollback`, `:resume`). The old names still work.
+- The config file moves to `config/craft/element-relations.php`.
+- `usesElement` and `unused` work as query methods only, not inside a criteria array: Craft 6 ignores keys it does not know there.
+- The plugins 4.x reads have no Craft 6 version yet, so they are not read: SEOmatic, Formie, Hyper, Vizy, Neo, Navigation, CKEditor, Redactor, LinkIt, Typed Link, LinkMate, FreeLink, SEO (by Ether), Wishlist and Commerce.
+
+### Added
+- Craft 6's Markdown field: reference tags in it count as usages and can be replaced.
+- Categories, tags and global sets, when Craft's Yii2 adapter is installed.
+
+### Fixed
+- Ticking a usage in the field's list, or searching it, no longer saves a draft of the element.
+- The search box of the field's list works.
+
 ## 4.0.2.1 - 2026-10-23
 
 ### Fixed

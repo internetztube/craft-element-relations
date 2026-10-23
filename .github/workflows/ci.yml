@@ -24,7 +24,7 @@ jobs:
   smoke:
     # A real Craft 6 project (a Laravel app) with the plugin and every supported third-party plugin (dev/plugins.txt),
     # seeded with content for each integration, then the three suites. Same script as local development: `dev/dev.sh ci`.
-    name: smoke (PHP ${{ matrix.php }}, ${{ matrix.db }})
+    name: smoke (PHP ${{ matrix.php }}, ${{ matrix.db }}, ${{ matrix.adapter == '1' && 'Yii2 adapter' || 'no adapter' }})
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -32,6 +32,13 @@ jobs:
       matrix:
         php: ['8.5']
         db: [mysql, pgsql]
+        # with Craft's Yii2 adapter (categories, tags, global sets): the coverage runs, every line of src/ is reachable
+        adapter: ['1']
+        include:
+          # and without it: the plugin works the same without the adapter (no coverage bar, its branches never run)
+          - php: '8.5'
+            db: pgsql
+            adapter: '0'
     services:
       mysql:
         image: mysql:8.0
@@ -55,6 +62,7 @@ jobs:
       DB_USER: ${{ matrix.db == 'mysql' && 'root' || 'craft' }}
       DB_PASSWORD: craft
       COMPOSER_NO_INTERACTION: '1'
+      YII2_ADAPTER: ${{ matrix.adapter }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,13 +80,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/composer
-          key: composer-${{ runner.os }}-php${{ matrix.php }}-${{ hashFiles('plugin/dev/plugins.txt', 'plugin/composer.json') }}
-          restore-keys: composer-${{ runner.os }}-php${{ matrix.php }}-
-      - name: Install Craft and the plugins, seed, run smoke, e2e and the Chrome suite with line coverage of src/
-        run: plugin/dev/dev.sh coverage
+          key: composer-${{ runner.os }}-php${{ matrix.php }}-adapter${{ matrix.adapter }}-${{ hashFiles('plugin/dev/plugins.txt', 'plugin/composer.json') }}
+          restore-keys: composer-${{ runner.os }}-php${{ matrix.php }}-adapter${{ matrix.adapter }}-
+      - name: Install Craft and the plugins, seed, run smoke, e2e and the Chrome suite (with line coverage when the adapter is on)
+        run: plugin/dev/dev.sh ${{ matrix.adapter == '1' && 'coverage' || 'ci' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-${{ matrix.db }}-php${{ matrix.php }}
+          name: coverage-${{ matrix.db }}-php${{ matrix.php }}-adapter${{ matrix.adapter }}
           path: app/storage/coverage/html
           if-no-files-found: ignore

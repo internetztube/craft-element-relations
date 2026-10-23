@@ -98,7 +98,7 @@ return function (array $ctx): void {
     check(str_contains($inputNoDe, 'German') && !str_contains(html_entity_decode($inputNoDe), 'site=de') && !str_contains($inputNoDe, t('field-value-unused', category: 'element-relations')), 'an editor without the German site: "Used in other sites: German" without a link, never "Unused"');
     // sorting the English index by the field: unused, then used in other sites only, then used here
     $sortSql = $field->getSortOption()['orderBy'];
-    $sortedEn = Entry::find()->section('multi')->siteId($en)->status(null)->id([$source->id, $targetDe->id, $target->id])->orderBy($sortSql, 'asc')->ids();
+    $sortedEn = Entry::find()->section('multi')->siteId($en)->status(null)->id([$source->id, $targetDe->id, $target->id])->orderByRaw($sortSql . ' asc')->ids(); // the index adds the direction to the SQL string
     check(array_map('intval', $sortedEn) === [(int)$source->id, (int)$targetDe->id, (int)$target->id], 'sorting by the field: unused (Multi Source), then used in other sites only (Multi Target (de only)), then used here (Multi Target)');
     $targetDeOnDe = Entry::find()->id($targetDe->id)->siteId($de)->one() ?? throw new RuntimeException('de only, on de');
     $preview = withWebRequest(fn() => $field->getPreviewHtml($targetDeOnDe->getFieldValue('relations'), $targetDeOnDe));
