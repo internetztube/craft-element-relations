@@ -36,6 +36,10 @@ class Relations extends ObjectType implements SingularTypeInterface
         \CraftCms\Cms\Asset\Elements\Asset::class => [\CraftCms\Cms\Gql\Resolvers\Elements\Asset::class, [GqlHelper::class, 'canQueryAssets']],
         \CraftCms\Cms\User\Elements\User::class => [\CraftCms\Cms\Gql\Resolvers\Elements\User::class, [GqlHelper::class, 'canQueryUsers']],
         \CraftCms\Cms\Address\Elements\Address::class => [\CraftCms\Cms\Gql\Resolvers\Elements\Address::class, [GqlHelper::class, 'canQueryUsers']],
+        // Craft's Yii2 adapter (only registered, so only ever asked for, while it is installed)
+        'craft\\elements\\Category' => ['craft\\gql\\resolvers\\elements\\Category', ['craft\\helpers\\Gql', 'canQueryCategories']],
+        'craft\\elements\\Tag' => ['craft\\gql\\resolvers\\elements\\Tag', ['craft\\helpers\\Gql', 'canQueryTags']],
+        'craft\\elements\\GlobalSet' => ['craft\\gql\\resolvers\\elements\\GlobalSet', ['craft\\helpers\\Gql', 'canQueryGlobalSets']],
     ];
 
     /**
@@ -50,12 +54,13 @@ class Relations extends ObjectType implements SingularTypeInterface
             throw new UserError('The `status` argument requires the “Query for non-enabled elements” schema scope.');
         }
         $model = $source->withQueryFactory(function (string $elementType): mixed {
-            $entry = self::RESOLVERS[$elementType] ?? null;
-            if ($entry === null || !($entry[1])()) {
+            [$resolver, $canQuery] = self::RESOLVERS[$elementType] ?? [null, null];
+            /** @var (callable(): bool)|null $canQuery the adapter's helper exists whenever its types are registered */
+            if ($resolver === null || $canQuery === null || !$canQuery()) {
                 return null; // a type GraphQL can't query (fail closed), or the schema may not read it
             }
             // a schema that may read nothing of the type gets an empty collection instead of a query
-            $query = $entry[0]::prepareQuery(null, []);
+            $query = $resolver::prepareQuery(null, []);
             return $query instanceof \CraftCms\Cms\Element\Queries\ElementQuery ? $query : null;
         });
         $allowed = array_map(fn(Site $site): int => (int)$site->id, GqlHelper::getAllowedSites());

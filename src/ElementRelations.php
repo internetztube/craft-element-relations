@@ -90,6 +90,8 @@ class ElementRelations extends Plugin
     public const PRO_ELEMENT_TYPES = [
         Asset::class,
         Entry::class,
+        'craft\\elements\\Category', // Craft's Yii2 adapter
+        'craft\\elements\\Tag',
         'craft\\commerce\\elements\\Product',
     ];
 

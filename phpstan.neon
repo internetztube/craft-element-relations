@@ -11,6 +11,8 @@ parameters:
     ignoreErrors:
         # Optional plugin classes that are not installed here.
         - '#craft\\commerce\\#'
+        # Categories and tags of Craft's Yii2 adapter, which the plugin supports without requiring it.
+        - '#craft\\elements\\(Category|Tag)\b#'
         # webonyx types a field's resolver as callable(mixed, …); this type's resolvers take the RelationsModel the field
         # resolves to, and Craft's complexity helper returns an untyped callable
         -

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Internetztube\ElementRelations\Elements;
 
 use CraftCms\Cms\Asset\Elements\Asset;
+use CraftCms\Cms\Database\Expressions\FixedOrderExpression;
 use CraftCms\Cms\Edition;
 use CraftCms\Cms\Element\Conditions\Contracts\ElementConditionInterface;
 use CraftCms\Cms\Element\Contracts\ElementInterface;
@@ -12,6 +13,7 @@ use CraftCms\Cms\Element\Element;
 use CraftCms\Cms\Entry\Elements\Entry;
 use CraftCms\Cms\Support\Facades\Sites;
 use CraftCms\Cms\User\Elements\User;
+use Illuminate\Support\Facades\DB;
 use Internetztube\ElementRelations\ElementRelations;
 use Internetztube\ElementRelations\Elements\Actions\ReplaceUsages;
 use Internetztube\ElementRelations\Elements\Conditions\UsageCondition;
@@ -199,7 +201,8 @@ abstract class Usage extends Element
     public static function listedTypes(): array
     {
         if (self::$listedTypes !== null) {
-            return self::$listedTypes;
+            // registered types only: STOCK_TYPES names the Yii2 adapter's, which may be missing
+            return array_values(array_intersect(self::$listedTypes, ElementRelations::elementTypes()));
         }
         // the list's base condition (every request of the index, the filter HUD's too), or its criteria
         $request = request();
@@ -210,7 +213,7 @@ abstract class Usage extends Element
         if ($ids) {
             return self::typesUsing($ids);
         }
-        $types = [Entry::class, Asset::class, User::class, 'craft\\commerce\\elements\\Product'];
+        $types = [Entry::class, Asset::class, User::class, ...self::ADAPTER_TYPES, 'craft\\commerce\\elements\\Product'];
         foreach (ExtractorService::elementExtractors() as $extractor) {
             array_push($types, ...$extractor::elementTypes());
         }
@@ -244,8 +247,11 @@ abstract class Usage extends Element
     /** Columns of the joined tables a stock sort option may name unqualified (unambiguous across them). */
     private const SORTABLE_COLUMNS = ['title', 'slug', 'uri', 'filename', 'size', 'kind', 'dateModified', 'width', 'height', 'username', 'fullName', 'firstName', 'lastName', 'email', 'lastLoginDate'];
 
+    /** Categories, tags and global sets: Craft 6 has them only through its Yii2 adapter (registered while it is installed). */
+    public const ADAPTER_TYPES = ['craft\\elements\\Category', 'craft\\elements\\Tag', 'craft\\elements\\GlobalSet'];
+
     /** Element types whose stock sort options and filter rules the list takes over (their tables are joined, see UsageQuery). */
-    public const STOCK_TYPES = [Entry::class, Asset::class, User::class];
+    public const STOCK_TYPES = [Entry::class, Asset::class, 'craft\\elements\\Category', 'craft\\elements\\Tag', User::class];
 
     /**
      * The plugin's sort options, then Craft's own of the element types in the list (Section, Entry Type, Post Date,
@@ -272,6 +278,11 @@ abstract class Usage extends Element
             foreach ($type::sortOptions() as $key => $option) {
                 // Craft's shorthand: 'slug' => 'Slug'
                 $option = is_string($option) ? ['label' => $option, 'orderBy' => $key, 'attribute' => $key] : (array)$option;
+                if ($type === 'craft\\elements\\Category' && ($option['attribute'] ?? null) === 'group') {
+                    // the Yii2 adapter's Group option wants a Yii connection; the same order, as Craft 6 sorts sections
+                    $option['orderBy'] = fn(int $dir): FixedOrderExpression => new FixedOrderExpression('categories.groupId',
+                        array_values(DB::table('categorygroups')->orderBy('name', $dir === SORT_DESC ? 'desc' : 'asc')->pluck('id')->all()));
+                }
                 // a closure (Section, Entry Type: Craft's fixed-order expressions on the joined tables) or a column that
                 // resolves on them; `is_callable` would take 'link' for PHP's link()
                 $orderBy = $option['orderBy'] ?? null;

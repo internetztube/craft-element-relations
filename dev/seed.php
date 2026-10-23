@@ -34,6 +34,7 @@ use Internetztube\ElementRelations\Fields\ElementRelationsField;
 $configFile = config_path('craft/element-relations.php');
 if (!file_exists($configFile)) {
     file_put_contents($configFile, "<?php\n\nreturn [\n    'features' => ['editions' => true],\n];\n");
+    config(['craft.element-relations' => require $configFile]); // this process loaded the config before the file existed
 }
 
 // 0b. Second site, created before anything else (sections and groups created later get both sites).
@@ -95,5 +96,8 @@ foreach (glob(__DIR__ . '/seed/*.php') ?: [] as $file) {
 
 // the tests switch editions and restore the one they found; a run that failed midway may have left another one
 CraftCms\Cms\Support\Facades\Plugins::switchEdition('element-relations', 'pro');
+// a script never terminates the app, where Craft writes the project config and frees its lock: the next seed pass,
+// started at once, would find it locked for 30 s
+app(CraftCms\Cms\ProjectConfig\ProjectConfig::class)->saveModifiedConfigData();
 
 echo "Seeded. Targets: Page B (#{$b->id}) for base tests, Page C (#{$c->id}) and asset #{$asset->id} for integrations.\n";

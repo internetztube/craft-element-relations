@@ -39,9 +39,10 @@ use Override;
  * are then loaded through their own element type's query (one query per type and site on the page), so every result
  * is a fully populated element of its real class.
  *
- * The tables of the types a list can contain (entries, assets, users, Commerce products) are left-joined, so Craft's
- * own sort options and filter rules of those types work on it unchanged: they write their conditions against those
- * tables (`entries.sectionId`, `assets.filename`, …), which rows of other types never match.
+ * The tables of the types a list can contain (entries, assets, users, Commerce products, and the categories and tags
+ * of Craft's Yii2 adapter) are left-joined, so Craft's own sort options and filter rules of those types work on it
+ * unchanged: they write their conditions against those tables (`entries.sectionId`, `assets.filename`,
+ * `categories.groupId`, …), which rows of other types never match.
  *
  * @extends ElementQuery<ElementInterface>
  */
@@ -67,6 +68,17 @@ class UsageQuery extends ElementQuery
 
     /** With `allSites`: only these of the sites (the field's site dropdown); null = every site. */
     public mixed $inSites = null;
+
+    /**
+     * A category or tag group id (Craft's Yii2 adapter): category and tag groups are numbered separately, so `groupId`
+     * matches both, `categoryGroupId` / `tagGroupId` only their own type.
+     */
+    public mixed $groupId = null;
+    public mixed $categoryGroupId = null;
+    public mixed $tagGroupId = null;
+
+    /** Element types of Craft's Yii2 adapter with a table of their own; registered only while that table exists. */
+    private const ADAPTER_TABLES = ['craft\\elements\\Category' => 'categories', 'craft\\elements\\Tag' => 'tags'];
 
     /**
      * With `allSites`: the site the index asked for before it was widened, so an element used in several sites is
@@ -145,6 +157,24 @@ class UsageQuery extends ElementQuery
         return $this;
     }
 
+    public function groupId(mixed $value): static
+    {
+        $this->groupId = $value;
+        return $this;
+    }
+
+    public function categoryGroupId(mixed $value): static
+    {
+        $this->categoryGroupId = $value;
+        return $this;
+    }
+
+    public function tagGroupId(mixed $value): static
+    {
+        $this->tagGroupId = $value;
+        return $this;
+    }
+
     /**
      * How many usages of the targets (relating element × site, drafts included; or only those with `$status`, e.g.
      * the live ones the delete dialog lists) the user may not view.
@@ -181,6 +211,7 @@ class UsageQuery extends ElementQuery
         foreach (self::typeTables() as $table) {
             $builder->leftJoin($table, "$table.id", '=', 'elements.id');
         }
+        $this->applyGroupIds($builder);
         UsesElement::apply($this, UsesElement::params($this));
         $viewer = $this->viewer();
         if (!$viewer) {
@@ -213,7 +244,31 @@ class UsageQuery extends ElementQuery
      */
     private static function typeTables(): array
     {
-        return [Table::ENTRIES, Table::ASSETS, Table::USERS, ...(self::hasProducts() ? ['commerce_products'] : [])];
+        return [Table::ENTRIES, Table::ASSETS, Table::USERS, ...(self::hasProducts() ? ['commerce_products'] : []), ...self::adapterTables()];
+    }
+
+    /** @return list<string> the tables of the adapter's types that are registered (see ADAPTER_TABLES) */
+    private static function adapterTables(): array
+    {
+        return array_values(array_intersect_key(self::ADAPTER_TABLES, array_flip(ElementRelations::elementTypes())));
+    }
+
+    /** `groupId`, `categoryGroupId`, `tagGroupId`: each narrows the list to its type's elements in those groups. */
+    private function applyGroupIds(Builder $builder): void
+    {
+        $tables = self::adapterTables();
+        foreach ([[$this->groupId, ['categories', 'tags']], [$this->categoryGroupId, ['categories']], [$this->tagGroupId, ['tags']]] as [$groupId, $of]) {
+            if ($groupId === null || $groupId === '' || $groupId === []) {
+                continue;
+            }
+            $of = array_values(array_intersect($of, $tables));
+            $builder->where(function (Builder $inGroup) use ($of, $groupId): void {
+                $inGroup->whereRaw('0 = 1'); // no such type installed: nothing is in its groups
+                foreach ($of as $table) {
+                    $inGroup->orWhere(fn(Builder $query) => $query->whereNotNull("$table.id")->whereNumericParam("$table.groupId", $groupId));
+                }
+            });
+        }
     }
 
     /**
@@ -301,6 +356,7 @@ class UsageQuery extends ElementQuery
             ->join(Table::ELEMENTS_SITES, fn($join) => $join->on('elements_sites.elementId', '=', 'elements.id')->on('elements_sites.siteId', '=', "$cache.sourceSiteId"))
             ->leftJoin(Table::ENTRIES, 'entries.id', '=', 'elements.id')
             ->leftJoin(Table::ASSETS, 'assets.id', '=', 'elements.id')
+            ->when(in_array('categories', self::adapterTables(), true), fn(Builder $query) => $query->leftJoin('categories', 'categories.id', '=', 'elements.id'))
             ->whereIn("$cache.targetElementId", $targetIds)
             ->whereNull('elements.dateDeleted')
             ->whereNull('elements.revisionId')
@@ -355,8 +411,8 @@ class UsageQuery extends ElementQuery
 
     /**
      * The coarse part of Craft's view permissions as SQL, for the core element types: only what the user could see
-     * at all (section, volume, other users, sites). Finer rules (other authors' entries, drafts, temporary uploads,
-     * plugin authorization rules) are checked per element in computeViewablePairs().
+     * at all (section, volume, category group, global set, other users, sites). Finer rules (other authors' entries,
+     * drafts, temporary uploads, plugin authorization rules) are checked per element in computeViewablePairs().
      */
     private static function viewCondition(Builder $query, User $user): void
     {
@@ -364,13 +420,27 @@ class UsageQuery extends ElementQuery
         $sectionIds = app(Sections::class)->getAllSections()->filter(fn(Section $section): bool => $user->can("viewEntries:$section->uid"))->map(fn(Section $section): int => (int)$section->id)->values()->all();
         $volumeIds = app(Volumes::class)->getAllVolumes()->filter(fn(Volume $volume): bool => $user->can("viewAssets:$volume->uid") || $user->can("viewPeerAssets:$volume->uid"))->map(fn(Volume $volume): int => (int)$volume->id)->values()->all();
         $core = [Entry::class, Asset::class, User::class];
-        $query->where(function (Builder $types) use ($core, $sectionIds, $volumeIds, $user): void {
-            $types->whereNotIn('elements.type', $core) // plugin types: checked per element
+        // Craft's Yii2 adapter: categories by group (`viewCategories:<uid>`), global sets by set (`editGlobalSet:<uid>`)
+        $adapter = [];
+        $allowed = fn(Builder $rows, string $permission): array => $rows->get(['id', 'uid'])
+            ->filter(fn(object $row): bool => $user->can($permission . ':' . (is_string($row->uid ?? null) ? $row->uid : '')))
+            ->map(fn(object $row): int => (int)(is_numeric($row->id ?? null) ? $row->id : 0))->values()->all();
+        if (in_array('categories', self::adapterTables(), true)) {
+            $adapter['craft\\elements\\Category'] = ['categories.groupId', $allowed(DB::table('categorygroups'), 'viewCategories')];
+        }
+        if (in_array('craft\\elements\\GlobalSet', ElementRelations::elementTypes(), true)) {
+            $adapter['craft\\elements\\GlobalSet'] = ['elements.id', $allowed(DB::table(Table::ELEMENTS)->where('type', 'craft\\elements\\GlobalSet'), 'editGlobalSet')];
+        }
+        $query->where(function (Builder $types) use ($core, $adapter, $sectionIds, $volumeIds, $user): void {
+            $types->whereNotIn('elements.type', [...$core, ...array_keys($adapter)]) // plugin types: checked per element
                 ->orWhere(fn(Builder $entries) => $entries->where('elements.type', Entry::class)->whereIn('entries.sectionId', $sectionIds ?: [0]))
                 ->orWhere(fn(Builder $assets) => $assets->where('elements.type', Asset::class)->whereIn('assets.volumeId', $volumeIds ?: [0]))
                 ->orWhere(fn(Builder $users) => $user->can('viewUsers')
                     ? $users->where('elements.type', User::class)
                     : $users->where('elements.type', User::class)->where('elements.id', $user->id));
+            foreach ($adapter as $type => [$column, $ids]) {
+                $types->orWhere(fn(Builder $ofType) => $ofType->where('elements.type', $type)->whereIn($column, $ids ?: [0]));
+            }
         });
         if (app(Sites::class)->isMultiSite()) {
             $siteIds = app(Sites::class)->getAllSites()->filter(fn(Site $site): bool => $user->can("editSite:$site->uid"))->map(fn(Site $site): int => (int)$site->id)->values()->all();

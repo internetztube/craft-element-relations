@@ -12,3 +12,8 @@ require $projectDir . '/vendor/autoload.php';
 /** @var Illuminate\Foundation\Application $app */
 $app = require $projectDir . '/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+// an uncaught exception fails the script: the Yii2 adapter's error handler (registered while booting) would exit with 0
+set_exception_handler(static function (Throwable $e): never {
+    fwrite(STDERR, $e . "\n");
+    exit(1);
+});

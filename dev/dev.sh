@@ -15,6 +15,7 @@
 #   dev/dev.sh typecheck  tsc over the TypeScript dev scripts (dev/*.mts; installs typescript into dev/node_modules once)
 # Env: PROJECT_DIR (default ../craft-element-relations-dev6), PORT (8090), DB_DRIVER (pgsql|mysql, default pgsql),
 #      DB_NAME (default: project dir name), DB_SERVER (127.0.0.1), DB_PORT, DB_USER, DB_PASSWORD (local defaults: no password).
+#      YII2_ADAPTER=1 installs Craft's Yii2 adapter into the project (categories, tags, global sets); it stays installed.
 set -euo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -90,6 +91,11 @@ install() {
 # third-party plugins an extractor supports and that exist for Craft 6 (dev/plugins.txt; none yet)
 install_plugins() {
   cd "$PROJECT_DIR"
+  # YII2_ADAPTER=1: Craft's Yii2 adapter, the version of the installed Craft (categories, tags, global sets; dev/seed/adapter.php)
+  if [ "${YII2_ADAPTER:-0}" = 1 ] && ! composer show craftcms/yii2-adapter >/dev/null 2>&1; then
+    # -W: it needs older Symfony packages (symfony/mailer 7) than a fresh Craft 6 project locks
+    composer require "craftcms/yii2-adapter:$(composer show craftcms/cms | sed -n 's/^versions : \* //p')" -W --no-interaction --quiet || return 1
+  fi
   grep -v '^#' "$PLUGIN_DIR/dev/plugins.txt" | grep -q . || return 0
   grep -v '^#' "$PLUGIN_DIR/dev/plugins.txt" | xargs composer require --no-interaction --quiet
 }

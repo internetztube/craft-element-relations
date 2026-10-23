@@ -48,6 +48,10 @@ class UsageCondition extends ElementCondition
             UserRules\LastNameConditionRule::class,
             UserRules\LastLoginDateConditionRule::class,
         ],
+        // Craft's Yii2 adapter; they write `categories.groupId` / `tags.groupId`, so each matches its own type only
+        // (category and tag group ids overlap)
+        'craft\\elements\\Category' => ['craft\\elements\\conditions\\categories\\GroupConditionRule'],
+        'craft\\elements\\Tag' => ['craft\\elements\\conditions\\tags\\GroupConditionRule'],
     ];
 
     /** @return array<array{class: string}|string> */

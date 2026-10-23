@@ -35,10 +35,11 @@ class Install extends Migration
             $table->dateTime('dateCreated');
             $table->dateTime('dateUpdated');
             $table->char('uid', 36)->default('0');
-            foreach (\Internetztube\ElementRelations\Models\CacheRecord::INDEXES as $columns) {
-                $table->index($columns);
-            }
         });
+        // Craft's short index names: Laravel's (table and columns) are longer than MySQL's limit of 64 characters
+        foreach (\Internetztube\ElementRelations\Models\CacheRecord::INDEXES as $columns) {
+            Schema::createIndex(self::CACHE, $columns);
+        }
 
         // log of replace operations (Models\Replacement); the JSON columns may hold megabytes
         Schema::create(self::REPLACEMENTS, function (Blueprint $table): void {
@@ -74,9 +75,9 @@ class Install extends Migration
             $table->dateTime('dateCreated');
             $table->dateTime('dateUpdated');
             $table->char('uid', 36)->default('0');
-            $table->index(['operationId', 'ownerId', 'siteId']);
             $table->foreign('operationId')->references('id')->on(self::REPLACEMENTS)->cascadeOnDelete();
         });
+        Schema::createIndex(self::CHANGES, ['operationId', 'ownerId', 'siteId']);
     }
 
     public function down(): void

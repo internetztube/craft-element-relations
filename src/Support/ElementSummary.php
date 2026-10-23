@@ -20,12 +20,13 @@ use function CraftCms\Cms\t;
 /** Small presentation helpers for the relations index, built from Craft's own components. */
 class ElementSummary
 {
-    /** "Section › Entry type", "Volume", "Product type" — where the element lives. */
+    /** "Section › Entry type", "Volume", "Category group", "Product type" — where the element lives. */
     public static function where(ElementInterface $element): string
     {
         $parts = match (true) {
             $element instanceof Entry => [$element->getSection()?->name, $element->getType()->name],
             $element instanceof Asset => [$element->getVolume()->name],
+            $element instanceof \craft\elements\Category, $element instanceof \craft\elements\Tag => [$element->getGroup()->name],
             $element instanceof \craft\commerce\elements\Product => [$element->getType()->name],
             $element instanceof \craft\commerce\elements\Variant => [$element->getOwner()?->getType()->name],
             default => [],

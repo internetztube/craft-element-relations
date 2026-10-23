@@ -163,8 +163,12 @@ function replaceRoundTrip(ElementInterface $source, ElementInterface $from, stri
         Elements::saveElement($target) or fail($target);
     } elseif ($from instanceof Asset) {
         $target = createAsset('rt.png', "RT $what");
+    } elseif (in_array($from::class, Usage::ADAPTER_TYPES, true) && isset($from->groupId)) {
+        // a category or tag (Craft's Yii2 adapter): a new one in the same group
+        $target = new ($from::class)(['groupId' => $from->groupId, 'title' => "RT $what"]);
+        Elements::saveElement($target) or fail($target);
     } else {
-        throw new RuntimeException('replaceRoundTrip supports entries and assets as "from"');
+        throw new RuntimeException('replaceRoundTrip supports entries, assets, categories and tags as "from"');
     }
     $reload = fn(): ?ElementInterface => $source::find()->id($source->id)->siteId($source->siteId)->status(null)->one();
     // an element it does not use (the new target): every replacer says there is nothing to change
