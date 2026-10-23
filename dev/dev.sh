@@ -37,7 +37,7 @@ MYSQL="mysql -u$DB_USER -h$DB_SERVER -P$DB_PORT --protocol=tcp${DB_PASSWORD:+ -p
 # (no opcache: the built-in server uses it, and its optimizer drops lines such as `continue;` from what pcov sees)
 PHP=(php)
 ROUTER="$PROJECT_DIR/vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php"
-if [ "${COVERAGE:-0}" = 1 ]; then export COVERAGE_PROJECT_DIR="$PROJECT_DIR"; PHP=(php -d pcov.enabled=1 -d opcache.enable=0 -d "pcov.directory=$PLUGIN_DIR/src" -d "auto_prepend_file=$PLUGIN_DIR/dev/coverage.php"); ROUTER="$PLUGIN_DIR/dev/coverage-router.php"; fi
+if [ "${COVERAGE:-0}" = 1 ]; then export COVERAGE_PROJECT_DIR="$PROJECT_DIR"; PHP=(php -d pcov.enabled=1 -d opcache.enable=0 -d "pcov.directory=$PLUGIN_DIR" -d "auto_prepend_file=$PLUGIN_DIR/dev/coverage.php"); ROUTER="$PLUGIN_DIR/dev/coverage-router.php"; fi
 
 db_up() {
   if [ "$DB_DRIVER" = "mysql" ]; then

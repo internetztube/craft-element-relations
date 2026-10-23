@@ -37,7 +37,7 @@ foreach ($report as $node) { // Directory's iterator walks every node below it
 }
 usort($files, fn(array $a, array $b): int => $a[0] <=> $b[0]);
 $total = $report->percentageOfExecutedLines()->asFloat();
-printf("Coverage of src/: %.1f%% of lines (%d of %d), %d files; bar: %.0f%%\n", $total, $report->numberOfExecutedLines(), $report->numberOfExecutableLines(), count($files), $min);
+printf("Coverage of the plugin's PHP: %.1f%% of lines (%d of %d), %d files; bar: %.0f%%\n", $total, $report->numberOfExecutedLines(), $report->numberOfExecutableLines(), count($files), $min);
 // the lines no test ran, by file (CI logs show them without the HTML report)
 $missing = [];
 foreach ($merged->getData()->lineCoverage() as $file => $lines) {
