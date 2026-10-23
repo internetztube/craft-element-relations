@@ -27,7 +27,7 @@ Craft
 - Scripts that bootstrap Craft without `run()` never fire `EVENT_AFTER_REQUEST`, so the plugin's deferred refresh doesn't run: `php craft element-relations/resave-relations && php craft queue/run`.
 - In site requests `status: null` / `drafts: null` would read as "not given": `RelationsModel` uses an explicit `DEFAULT`.
 - MySQL returns numbers as strings (cast); PostgreSQL returns rows that tie on the sort in any order (sort in PHP before comparing).
-- PostgreSQL binds at most 65,535 parameters per query, and an editor may see 100,000 usages: write long id lists into the SQL with `ElementRelations::idIn()`.
+- PostgreSQL binds at most 65,535 parameters per query, and an editor may see 100,000 usages: write long id lists into the SQL with `ElementRelations::idIn()`, never `['col' => $ids]` / `->id($ids)` for a list that grows with the usages. `dev/smoke/zy-large.php` runs every such path with 70,000 usages on 12 sites (written straight into the database, cleaned up on any exit); add a new path there.
 - A batched queue job can vanish (worker died, reservation lost): operations without progress for 10 min are resumed.
 - Craft Solo has no user management (Authors / Last Edited By hidden, user-photo test uses the admin).
 - Test tricks: `new Entry()` has no field layout; `Craft::$app->edition` can be set in memory; `Craft::$app->set('cache', null)` runs without a data cache; `Event::on()` on a class that isn't installed is harmless (no `class_exists` guard needed).

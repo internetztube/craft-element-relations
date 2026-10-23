@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ### Fixed
 - The field's list of usages (and `usesElement` queries) no longer scans every element: the using elements come from the cache first and are queried by id (from 10 s to 0.1 s for an entry on a site with 2M elements). The ids go into the SQL as text, so an element with 100,000 usages works on PostgreSQL too (at most 65,535 parameters per query).
+- Replacing “all in the list” failed on PostgreSQL for an element with more than about 65,000 usages: the wizard's site list, the plan and the final count bound every usage as a parameter. They go into the SQL as text now.
 
 ## 4.0.2 - 2026-10-22
 

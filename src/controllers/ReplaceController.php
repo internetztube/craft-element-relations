@@ -232,7 +232,9 @@ class ReplaceController extends Controller
      */
     private function wizardUsages(ElementInterface $from, array $ids): array
     {
-        $query = Usage::find()->id($ids)->allSites()->status(null)->drafts(null)->orderBy(['elements.dateUpdated' => SORT_DESC]);
+        // the ids into the SQL as text: PostgreSQL binds at most 65,535 parameters
+        $query = Usage::find()->allSites()->status(null)->drafts(null)->orderBy(['elements.dateUpdated' => SORT_DESC]);
+        $query->andWhere(\internetztube\elementRelations\ElementRelations::idIn('elements.id', $ids));
         Craft::configure($query, ['usesElement' => $from->id]); // behavior param, see ElementQueryBehavior
         $rows = [];
         foreach ($query->all() as $element) { // one per element; its Site column names every site it uses $from in
@@ -260,7 +262,7 @@ class ReplaceController extends Controller
             ->from('{{%elementrelations_cache}}')
             ->where(['targetElementId' => $from->id])
             ->andWhere(['not', ['sourceElementId' => null]])
-            ->andFilterWhere(['sourcePrimaryOwnerId' => $sourceIds])
+            ->andWhere($sourceIds === null ? [] : \internetztube\elementRelations\ElementRelations::idIn('sourcePrimaryOwnerId', $sourceIds)) // as text: at most 65,535 parameters
             ->column();
         $sites = Craft::$app->getSites();
         return array_values(array_filter(array_map(

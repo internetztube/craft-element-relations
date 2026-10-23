@@ -72,7 +72,7 @@ final class ReplaceRun
             ->innerJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
             ->where(['cache.targetElementId' => $from->id, 'sources.dateDeleted' => null])
             ->andWhere(['not', ['cache.sourceElementId' => null]]) // non-element usages are reported at the end
-            ->andFilterWhere(['cache.sourcePrimaryOwnerId' => $onlySourceIds])
+            ->andWhere($onlySourceIds === null ? [] : \internetztube\elementRelations\ElementRelations::idIn('cache.sourcePrimaryOwnerId', $onlySourceIds)) // as text: at most 65,535 parameters
             ->orderBy(['cache.sourcePrimaryOwnerId' => SORT_ASC, 'cache.sourceSiteId' => SORT_ASC, 'cache.sourceElementId' => SORT_ASC])
             ->all();
         /** @var list<array{sourceElementId: int|string, sourceSiteId: int|string, sourcePrimaryOwnerId: int|string|null, fieldId: int|string|null, type: string}> $rows */

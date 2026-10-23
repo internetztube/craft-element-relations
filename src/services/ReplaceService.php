@@ -111,7 +111,7 @@ class ReplaceService
                 ->from('{{%elementrelations_cache}}')
                 ->where(['targetElementId' => $from->id])
                 ->andWhere(['not', ['sourceElementId' => null]])
-                ->andFilterWhere(['sourcePrimaryOwnerId' => $onlySourceIds])
+                ->andWhere($onlySourceIds === null ? [] : \internetztube\elementRelations\ElementRelations::idIn('sourcePrimaryOwnerId', $onlySourceIds)) // as text: at most 65,535 parameters
                 ->exists();
             if (!$anyUsage) {
                 return $nothing; // nothing to queue: tell right away (e.g. the same usages submitted twice)
@@ -386,7 +386,8 @@ class ReplaceService
         return (int)(new Query())
             ->from(['cache' => '{{%elementrelations_cache}}'])
             ->innerJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
-            ->where(['cache.targetElementId' => $targetId, 'cache.sourcePrimaryOwnerId' => $ownerIds, 'sources.dateDeleted' => null])
+            ->where(['cache.targetElementId' => $targetId, 'sources.dateDeleted' => null])
+            ->andWhere(\internetztube\elementRelations\ElementRelations::idIn('cache.sourcePrimaryOwnerId', $ownerIds)) // as text: at most 65,535 parameters
             ->count('DISTINCT [[cache.sourcePrimaryOwnerId]]');
     }
 
@@ -451,7 +452,7 @@ class ReplaceService
     {
         $ids = array_values(array_unique(array_filter(array_map(intval(...), $ids))));
         /** @var array<int, string> */
-        return $ids ? (new Query())->select(['id', 'type'])->from(Table::ELEMENTS)->where(['id' => $ids])->pairs() : [];
+        return $ids ? (new Query())->select(['id', 'type'])->from(Table::ELEMENTS)->where(\internetztube\elementRelations\ElementRelations::idIn('id', $ids))->pairs() : [];
     }
 
     /** @internal for ReplaceRun / RollbackRun */
