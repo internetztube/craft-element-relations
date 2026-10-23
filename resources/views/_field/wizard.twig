@@ -95,6 +95,11 @@
     border-radius: var(--large-border-radius); background: var(--gray-050);
 }
 .element-relations-wizard__arrow { font-size: 18px; color: var(--light-text-color); }
+/* Craft 6 no longer styles the body and footer of classic slideouts (Craft 5's did, like this) */
+.slideout:has(> .so-body .element-relations-wizard) {
+    > .so-body { flex: 1; overflow: hidden auto; padding: 24px var(--padding, 24px); }
+    > .so-footer { display: flex; align-items: center; gap: var(--s); padding: 8px var(--padding, 24px); border-top: 1px solid var(--hairline-color); }
+}
 {% endcss %}
 
 {% js %}

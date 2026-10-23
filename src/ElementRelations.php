@@ -44,6 +44,7 @@ use GraphQL\Type\Definition\Type;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
+use Internetztube\ElementRelations\Elements\Actions\ClientEventElementActions;
 use Internetztube\ElementRelations\Elements\Actions\ReplaceRelations;
 use Internetztube\ElementRelations\Elements\Conditions\UsedConditionRule;
 use Internetztube\ElementRelations\Elements\Queries\UsageQuery;
@@ -90,8 +91,6 @@ class ElementRelations extends Plugin
     public const PRO_ELEMENT_TYPES = [
         Asset::class,
         Entry::class,
-        'craft\\elements\\Category', // Craft's Yii2 adapter
-        'craft\\elements\\Tag',
         'craft\\commerce\\elements\\Product',
     ];
 
@@ -309,10 +308,19 @@ class ElementRelations extends Plugin
      */
     public static function registerClassicUi(): void
     {
+        \CraftCms\Cms\Support\Facades\HtmlStack::css(self::classicUiCss(), [], 'element-relations-classic-css');
+        \CraftCms\Cms\Support\Facades\HtmlStack::js(self::CLASSIC_DIR_JS, \CraftCms\Cms\View\Enums\Position::Ready, 'element-relations-classic-dir');
+    }
+
+    /** The text direction on `<body>`, which the classic CSS expects. */
+    public const CLASSIC_DIR_JS = "document.body.classList.contains('ltr') || document.body.classList.contains('rtl') || document.body.classList.add(document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr');";
+
+    /** The classic control panel CSS and the button reset (registerClassicUi()). */
+    public static function classicUiCss(): string
+    {
         $url = \CraftCms\Cms\craftAsset('legacy/cp/dist/css/cp.css');
-        \CraftCms\Cms\Support\Facades\HtmlStack::css('@import url(' . json_encode($url) . ') layer(base);', [], 'element-relations-classic-css');
-        \CraftCms\Cms\Support\Facades\HtmlStack::css('@layer base { :where(.element-relations, .element-relations-wizard, .element-index-view-menu, .element-relations-menu) button { appearance: none; background: none; border: 0; margin: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; } }', [], 'element-relations-classic-reset');
-        \CraftCms\Cms\Support\Facades\HtmlStack::js("document.body.classList.contains('ltr') || document.body.classList.contains('rtl') || document.body.classList.add(document.documentElement.dir === 'rtl' ? 'rtl' : 'ltr');", \CraftCms\Cms\View\Enums\Position::Ready, 'element-relations-classic-dir');
+        return '@import url(' . json_encode($url) . ') layer(base);'
+            . ' @layer base { :where(.element-relations, .element-relations-wizard, .element-index-view-menu, .element-relations-menu) button { appearance: none; background: none; border: 0; margin: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; } }';
     }
 
     /** The plugin's own log, storage/logs/element-relations-<date>.log: extractor errors, replacements, rollbacks. */
@@ -368,6 +376,8 @@ class ElementRelations extends Plugin
             'days' => 14,
             'replace_placeholders' => true,
         ]]);
+        // "Replace everywhere…" as a browser event on Craft's Vue indexes (see ClientEventElementActions)
+        $this->app->extend(\CraftCms\Cms\Element\ElementActions::class, fn() => new ClientEventElementActions());
     }
 
     public function boot(): void
@@ -424,10 +434,9 @@ class ElementRelations extends Plugin
             }
         });
 
-        // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else).
-        // Craft's hook registry is scoped: a queue worker (or Octane) starts each job (request) with a new one, so the
-        // hook goes on every registry Craft creates, not only on the one of this boot
-        $toolbarHook = function (array &$context): string {
+        // type dropdown in the toolbar of the field's index (Craft's toolbar template offers this hook, nothing else);
+        // Craft's template hooks are scoped (a new set per request in a long-lived worker): registered on every new one
+        $registerToolbar = fn(TemplateHooks $hooks) => $hooks->register('cp.elements.toolbar', function (array &$context): string {
             if (($context['elementType'] ?? null) !== Usage::class) {
                 return '';
             }
@@ -435,9 +444,19 @@ class ElementRelations extends Plugin
                 'menu' => $menu,
                 'id' => 'element-relations-menu-' . mt_rand(),
             ], \CraftCms\Cms\View\TemplateMode::Cp), ElementRelationsField::$toolbarMenus));
-        };
-        // (nothing resolves it before the plugins boot: Craft registers its own hooks in a middleware)
-        app()->afterResolving(TemplateHooks::class, fn(TemplateHooks $hooks) => $hooks->register('cp.elements.toolbar', $toolbarHook));
+        });
+        $this->app->afterResolving(TemplateHooks::class, $registerToolbar);
+        if ($this->app->resolved(TemplateHooks::class)) {
+            $registerToolbar(app(TemplateHooks::class));
+        }
+
+        // "Replace everywhere…" on Craft's Vue indexes: their pages switch without a reload, so its handler comes
+        // with every full control panel page (the root view) of a user who may replace
+        \Illuminate\Support\Facades\View::composer('app', function (): void {
+            if (self::canReplace()) {
+                ReplaceRelations::registerClientEventJs();
+            }
+        });
 
         // "Replace everywhere…" on element indexes, a "Used anywhere" rule for element conditions; decided per call,
         // so switching the edition needs no restart
@@ -472,18 +491,7 @@ class ElementRelations extends Plugin
         /** @var \WeakMap<ElementInterface, array<string>> $changedFields */
         $changedFields = new \WeakMap();
         Event::listen(function (ElementSaving $event) use ($changedFields): void {
-            $element = $event->element;
-            $changed = $element->getDirtyFields();
-            // and an owner's save saves all its nested elements (content blocks, Matrix entries), their fields read as
-            // dirty: one changed only when the owner's field holding it did (Craft 5 saved them only then)
-            if ($element instanceof NestedElementInterface && $element->id && isset($element->touchOwnersOnSave) && $element->touchOwnersOnSave === false) {
-                $owner = $element->getOwner();
-                $ownerChanged = $owner ? ($changedFields[$owner] ?? null) : null;
-                if ($ownerChanged !== null && !in_array($element->getField()?->handle, $ownerChanged, true)) {
-                    $changed = [];
-                }
-            }
-            $changedFields[$element] = $changed;
+            $changedFields[$event->element] = $event->element->getDirtyFields();
         });
         Event::listen(function (ElementSaved $event) use ($forgetIfUsage, $changedFields): void {
             $element = $event->element;
