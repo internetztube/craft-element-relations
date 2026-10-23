@@ -99,6 +99,23 @@ return function (array $ctx): void {
     };
     check($boundParams($viewerA) - $boundParams(null) <= count($app->getSites()->getAllSiteIds()), "viewer A: the elements they may view are written into the SQL, not bound one parameter each (PostgreSQL takes at most 65,535; dev/stress.php lists 100,000)");
     check((int)(new craft\db\Query())->from(craft\db\Table::ELEMENTS)->where(ElementRelations::idIn('id', range(1, 70000)))->count() > 0, 'a list of 70,000 ids runs as one query');
+    // usesElement with 70,000 usages (elements that do not exist): their ids go into the SQL, the query runs
+    $manyOwnersTarget = PHP_INT_MAX >> 33;
+    $now = craft\helpers\Db::prepareDateForDb(new DateTime());
+    foreach (array_chunk(range(1, 70000), 10000) as $chunk) {
+        $app->getDb()->createCommand()->batchInsert('{{%elementrelations_cache}}', ['sourceElementId', 'sourceSiteId', 'sourcePrimaryOwnerId', 'targetElementId', 'targetSiteId', 'type', 'dateCreated', 'dateUpdated', 'uid'],
+            array_map(fn(int $i) => [100000000 + $i, $c->siteId, 100000000 + $i, $manyOwnersTarget, $c->siteId, 'field', $now, $now, craft\helpers\StringHelper::UUID()], $chunk))->execute();
+    }
+    try {
+        $manyCount = (int)Entry::find()->usesElement($manyOwnersTarget)->status(null)->count();
+        $manyError = null;
+    } catch (Throwable $e) {
+        $manyCount = -1;
+        $manyError = $e->getMessage();
+    } finally {
+        $app->getDb()->createCommand()->delete('{{%elementrelations_cache}}', ['targetElementId' => $manyOwnersTarget])->execute();
+    }
+    check($manyCount === 0, 'usesElement with 70,000 using elements runs as one query (ids in the SQL, not 70,000 parameters): ' . substr((string)$manyError, 0, 120));
     check(\internetztube\elementRelations\elements\db\UsageQuery::hiddenCount([$c->id], $viewerA) === $admin['count'] - $a['count'], 'hiddenCount() is exactly what is left out (' . ($admin['count'] - $a['count']) . ')');
 
     // what a user may view is cached; it follows every change

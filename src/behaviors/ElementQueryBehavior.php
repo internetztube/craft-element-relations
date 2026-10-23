@@ -118,7 +118,7 @@ class ElementQueryBehavior extends Behavior
         // The using elements × sites come from the cache first and go into the query as literal ids. A correlated
         // EXISTS (or a join on the cache) behind Craft's 8+ joins makes Postgres scan every element and element site
         // before it looks at the cache: 10 s on 2M elements instead of 0.1 s via the primary key.
-        // ponytail: one id per using element in the SQL; fine into the tens of thousands per target
+        // ponytail: one id per using element in the SQL text (100,000 ids: about 0.7 MB of SQL)
         $sitesByOwner = [];
         foreach ((new Query())
             ->select(['owner' => 'sourcePrimaryOwnerId', 'site' => 'sourceSiteId'])
@@ -136,9 +136,13 @@ class ElementQueryBehavior extends Behavior
                 $ownersBySite[$site][] = $ownerId;
             }
         }
-        $subQuery->andWhere(['elements.id' => array_keys($sitesByOwner)]); // no usages: 0=1
+        if (!$ownersBySite) {
+            $subQuery->andWhere('0=1'); // nothing uses it
+            return;
+        }
+        // literal ids, not one bound parameter each: PostgreSQL takes at most 65,535 (dev/stress.php: 100,000 usages)
         $subQuery->andWhere(['or', ...array_map(
-            fn(int $site) => ['elements_sites.siteId' => $site, 'elements.id' => $ownersBySite[$site]],
+            fn(int $site) => ['and', ['elements_sites.siteId' => $site], \internetztube\elementRelations\ElementRelations::idIn('elements.id', $ownersBySite[$site])],
             array_keys($ownersBySite),
         )]);
     }
