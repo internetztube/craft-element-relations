@@ -15,7 +15,7 @@ use SebastianBergmann\CodeCoverage\Report\Html\Facade as HtmlReport;
 $projectDir = $argv[1] ?? throw new RuntimeException('Usage: php dev/coverage-report.php <craft-project-dir>');
 require $projectDir . '/vendor/autoload.php';
 $dir = $projectDir . '/storage/coverage';
-$min = (float)(getenv('COVERAGE_MIN') ?: 100);
+$min = is_numeric($bar = getenv('COVERAGE_MIN')) ? (float)$bar : 100.0; // 0 is a bar too (report only)
 
 $merged = null;
 foreach (glob($dir . '/*.cov') ?: [] as $file) {
