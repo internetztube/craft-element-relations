@@ -52,7 +52,7 @@ use yii\base\Event;
 class ElementRelations extends Plugin
 {
     public static ElementRelations $plugin;
-    public string $schemaVersion = "1.0.14";
+    public string $schemaVersion = "1.0.15";
 
     /** The one edition while the `editions` flag is off: Craft's default, what 3.1 and its Plugin Store licenses use. */
     public const EDITION_STANDARD = 'standard';

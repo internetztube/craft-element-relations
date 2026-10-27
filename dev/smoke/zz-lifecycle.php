@@ -96,7 +96,7 @@ return function (array $ctx): void {
         return $ok;
     };
     // the plugin's tables are gone (e.g. uninstalled before an update): the migrations that only change them do nothing
-    foreach (['m261021_000000_replacement_revisions', 'm261023_000000_replacement_batches', 'm261024_000000_cache_indexes', 'm261025_000000_replacement_changes', 'm261026_000000_prune_cache'] as $name) {
+    foreach (['m261021_000000_replacement_revisions', 'm261023_000000_replacement_batches', 'm261024_000000_cache_indexes', 'm261025_000000_replacement_changes', 'm261026_000000_prune_cache', 'm261027_000000_prune_left_behind_neo_blocks'] as $name) {
         check($migrate($name) && array_filter($schema()) === [], "without the plugin's tables, $name does nothing");
     }
     $db->createCommand()->createTable('{{%elementrelations}}', ['id' => 'pk'])->execute(); // what 1.x left behind
@@ -104,7 +104,7 @@ return function (array $ctx): void {
         'm240601_132533_drop', 'm240616_122033_create_elementrelations_cache_table', 'm241004_144031_optimize_index_elementrelations_table',
         'm261019_120000_global_usages', 'm261020_000000_replacements', 'm261021_000000_replacement_revisions',
         'm261023_000000_replacement_batches', 'm261024_000000_cache_indexes', 'm261025_000000_replacement_changes',
-        'm261026_000000_prune_cache',
+        'm261026_000000_prune_cache', 'm261027_000000_prune_left_behind_neo_blocks',
     ];
     $twoX = null;
     foreach ($migrations as $name) {
