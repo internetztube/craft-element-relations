@@ -44,9 +44,13 @@ return function (array $ctx): void {
 
     // the filter's "Element Type" rule: the list's types as options, matching an element (also one hidden from the user)
     Usage::$listedTypes = [Entry::class, craft\elements\Asset::class];
-    $rule = new internetztube\elementRelations\elements\conditions\ElementTypeConditionRule(['operator' => 'in', 'values' => [Entry::class]]);
+    $condition = Usage::createCondition();
+    Usage::$listedTypes = null; // what Craft's condition builder knows when it re-renders the filter (adding a rule)
+    $rebuilt = Usage::createCondition();
+    Craft::configure($rebuilt, $condition->getBuilderConfig()); // the builder carries the condition's config along
+    $rule = $rebuilt->createConditionRule(['class' => internetztube\elementRelations\elements\conditions\ElementTypeConditionRule::class, 'operator' => 'in', 'values' => [Entry::class]]);
     $html = withWebRequest(fn() => $rule->getHtml());
     $asset = craft\elements\Asset::find()->one();
-    check(str_contains($html, 'Entry') && str_contains($html, 'Asset') && $rule->matchElement($b) && !$rule->matchElement($asset) && $rule->matchElement(internetztube\elementRelations\elements\RestrictedUsage::fromElement($b)), 'the Element Type rule offers the list\'s types and matches by type, also an element hidden from the user');
-    Usage::$listedTypes = null;
+    check(str_contains($html, 'Entry') && str_contains($html, 'Asset') && !str_contains($html, 'Category'), 'the Element Type rule offers only the list\'s types, also after the filter is re-rendered by Craft\'s condition builder');
+    check($rule->matchElement($b) && !$rule->matchElement($asset) && $rule->matchElement(internetztube\elementRelations\elements\RestrictedUsage::fromElement($b)), 'it matches by type, also an element hidden from the user');
 };

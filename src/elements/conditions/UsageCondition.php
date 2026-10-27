@@ -48,6 +48,32 @@ class UsageCondition extends ElementCondition
         ],
     ];
 
+    /**
+     * The element types of the list (Usage::listedTypes() when the filter is first built). Kept in the condition's config,
+     * which Craft's condition builder carries through its own requests (adding a rule re-renders the filter without the
+     * list's parameters), so the rules offered and the Element Type options stay the list's.
+     * @var list<class-string<\craft\base\ElementInterface>>|null
+     */
+    public ?array $listedTypes = null;
+
+    public function init(): void
+    {
+        parent::init();
+        $this->listedTypes ??= Usage::listedTypes(); // when built; the builder's requests configure it from the config
+    }
+
+    /** @return list<class-string<\craft\base\ElementInterface>> */
+    public function getListedTypes(): array
+    {
+        return $this->listedTypes ?? [];
+    }
+
+    /** @return array<string, mixed> */
+    protected function config(): array
+    {
+        return parent::config() + ['listedTypes' => $this->getListedTypes()];
+    }
+
     /** Craft's group rules of categories and tags both set groupId; category and tag group ids overlap, so each goes to its own type. */
     public function modifyQuery(\craft\elements\db\ElementQueryInterface $query): void
     {
@@ -74,7 +100,7 @@ class UsageCondition extends ElementCondition
     {
         // the list's own base rule, and the element type (also when the list has only one)
         $rules = [UsesElementConditionRule::class, ElementTypeConditionRule::class, ...parent::selectableConditionRules()];
-        foreach (Usage::listedTypes() as $type) {
+        foreach ($this->getListedTypes() as $type) {
             foreach (self::RULES[$type] ?? [] as $rule) {
                 if (class_exists($rule) && !in_array($rule, $rules, true)) {
                     $rules[] = $rule;

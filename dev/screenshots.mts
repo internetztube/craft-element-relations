@@ -297,15 +297,35 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'type-menu',
-        points: ['A count per element type', 'With Craft’s search, sorting and status menu'],
-        focus: `[inPane(document.querySelector('.element-relations')), typeMenu()]`,
-        highlight: `[[typeMenu()]]`,
+        points: ['Filter by element type', 'Next to Craft’s own filters: section, entry type, author, …'],
+        focus: `[inPane(document.querySelector('.element-relations')), ...$$('.hud').filter((h) => h.querySelector('.condition-container'))]`,
+        highlight: `[$$('.hud .condition-rule')]`,
         title: 'Filter by element type',
-        text: 'Counts per type, plus Craft’s own search, sorting, status menu and pagination.',
+        text: 'The “Element Type” filter, next to Craft’s own filters, search, sorting, status menu and pagination.',
         path: demo.guide.path,
         act: `
             await indexReady(fieldIndex(), 'the usage list');
-            $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn').showMenu();
+            const index = fieldIndex();
+            index.showFilterHud();
+            const hud = () => index.filterHuds[index.siteId][index.sourceKey];
+            await until(() => hud()?.$body?.find('button.add').data('menubtn'), 'the Add a filter menu');
+            // picked too early, the condition builder sometimes ignores it: pick again
+            for (let attempt = 1; !hud().$body.find('.condition-rule').length; attempt++) {
+                await sleep(500);
+                const addButton = hud().$body.find('button.add').data('menubtn');
+                const option = addButton.menu.$options.filter((i, o) => o.textContent.trim() === 'Element Type')[0];
+                if (!option) throw new Error('No "Element Type" in: ' + addButton.menu.$options.map((i, o) => o.textContent.trim()).get().join(', '));
+                addButton.menu.selectOption(option);
+                await until(() => hud().$body.find('.condition-rule').length, 'the Element Type rule', attempt < 3 ? 8000 : 30000).catch((error) => {
+                    if (attempt >= 3) throw error;
+                });
+            }
+            await sleep(700);
+            // pick the first type, as an author would
+            const select = hud().$body.find('.condition-rule select[multiple]')[0];
+            select?.selectize?.setValue([Object.keys(select.selectize.options)[0]]);
+            select?.selectize?.blur();
+            $$('.hud-shade').forEach((shade) => { shade.style.background = 'transparent'; });
             await sleep(500);
         `,
     },

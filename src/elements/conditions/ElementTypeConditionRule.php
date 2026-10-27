@@ -32,13 +32,23 @@ class ElementTypeConditionRule extends BaseMultiSelectConditionRule implements E
     /** @return list<array{value: string, label: string}> */
     protected function options(): array
     {
-        return array_map(fn(string $type): array => ['value' => $type, 'label' => $type::displayName()], Usage::listedTypes());
+        return array_map(fn(string $type): array => ['value' => $type, 'label' => $type::displayName()], $this->listedTypes());
+    }
+
+    /**
+     * The list's types, from its filter (they survive the condition builder's own requests, see UsageCondition).
+     * @return list<class-string<ElementInterface>>
+     */
+    private function listedTypes(): array
+    {
+        $condition = $this->getCondition();
+        return $condition instanceof UsageCondition ? $condition->getListedTypes() : Usage::listedTypes();
     }
 
     public function modifyQuery(ElementQueryInterface $query): void
     {
         $values = $this->getValues();
-        $types = $this->operator === self::OPERATOR_NOT_IN ? array_values(array_diff(Usage::listedTypes(), $values)) : $values;
+        $types = $this->operator === self::OPERATOR_NOT_IN ? array_values(array_diff($this->listedTypes(), $values)) : $values;
         // no type left: nothing (an empty param would not filter at all)
         Craft::configure($query, ['elementTypes' => $types ?: ['-']]);
     }
