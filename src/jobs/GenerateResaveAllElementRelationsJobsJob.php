@@ -21,16 +21,7 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
     {
         RelationsModel::refreshGlobalUsages();
 
-        $query = (new Query())
-            ->select([
-                'elements_sites.elementId',
-                'elements_sites.siteId',
-            ])
-            ->from(['elements_sites' => Table::ELEMENTS_SITES])
-            ->innerJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elements_sites.elementId]]")
-            // trashed elements too: they keep their usages (restoring one needs no refresh); ResaveElementRelationsJob
-            // leaves out the nested ones that were removed on their own (a Matrix block taken out of its field)
-            ->where(['is', 'elements.revisionId', null]);
+        $query = self::query();
 
         $batchSize = ElementRelations::$plugin->getSettings()->bulkRefreshBatchSize;
 
@@ -48,6 +39,26 @@ class GenerateResaveAllElementRelationsJobsJob extends BaseJob
             Craft::$app->getQueue()->push($job);
             $this->setProgress($queue, $index / $totalBatches, "$index/$totalBatches");
         }
+    }
+
+    /**
+     * Every element in every site a full rebuild goes through. Trashed elements too: they keep their usages (restoring
+     * one needs no refresh); ResaveElementRelationsJob leaves out the nested ones that were removed on their own (a
+     * Matrix block taken out of its field). Not revisions, nor the Neo blocks a field converted to Matrix left behind
+     * (millions on a large site), whose rows prune removes anyway.
+     * @return Query<array-key, mixed> rows of elementId and siteId
+     */
+    public static function query(): Query
+    {
+        return (new Query())
+            ->select([
+                'elements_sites.elementId',
+                'elements_sites.siteId',
+            ])
+            ->from(['elements_sites' => Table::ELEMENTS_SITES])
+            ->innerJoin(['elements' => Table::ELEMENTS], "[[elements.id]] = [[elements_sites.elementId]]")
+            ->where(['is', 'elements.revisionId', null])
+            ->andWhere(\internetztube\elementRelations\services\PruneService::notLeftBehindByNeo('elements_sites.elementId'));
     }
 
     protected function defaultDescription(): ?string

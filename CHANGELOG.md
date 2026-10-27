@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ### Fixed
 - The update removes the cache rows of Neo blocks left behind by a field converted to Matrix right away, instead of at the next garbage collection.
+- A full rebuild of the cache skips the Neo blocks left behind by a field converted to Matrix (and entries nested in them) instead of loading each of them; on a large site that was millions of elements.
 
 ## 4.0.3 - 2026-10-27
 

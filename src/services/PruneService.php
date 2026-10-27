@@ -64,19 +64,21 @@ class PruneService
 
     /**
      * Not a Neo block of a field converted to Matrix, nor an entry nested in one: the conversion keeps the blocks,
-     * owned as before, but nothing shows them (ExtractorService::primaryOwner()). As a condition on the cache table
-     * aliased `c`; NOT EXISTS, which databases run as an anti join, also over a whole table.
+     * owned as before, but nothing shows them (ExtractorService::primaryOwner()). As a condition on an element id column
+     * (the cache's source here, the elements a full rebuild goes through in GenerateResaveAllElementRelationsJobsJob);
+     * NOT EXISTS, which databases run as an anti join, also over a whole table.
      * @return array<int|string, mixed>
+     * @internal
      */
-    private static function notLeftBehindByNeo(): array
+    public static function notLeftBehindByNeo(string $column = 'c.sourceElementId'): array
     {
         $leftBehind = fn(Query $query): array => ['not exists', $query
             ->select(new Expression('1'))
             ->innerJoin(['f' => Table::FIELDS], '[[f.id]] = [[b.fieldId]]')
             ->andWhere(['not', ['f.type' => \benf\neo\Field::class]])];
         return Craft::$app->getDb()->tableExists('{{%neoblocks}}') ? ['and',
-            $leftBehind((new Query())->from(['b' => '{{%neoblocks}}'])->where(['b.id' => new Expression('[[c.sourceElementId]]')])),
-            $leftBehind((new Query())->from(['n' => Table::ENTRIES])->innerJoin(['b' => '{{%neoblocks}}'], '[[b.id]] = [[n.primaryOwnerId]]')->where(['n.id' => new Expression('[[c.sourceElementId]]')])),
+            $leftBehind((new Query())->from(['b' => '{{%neoblocks}}'])->where(['b.id' => new Expression("[[$column]]")])),
+            $leftBehind((new Query())->from(['n' => Table::ENTRIES])->innerJoin(['b' => '{{%neoblocks}}'], '[[b.id]] = [[n.primaryOwnerId]]')->where(['n.id' => new Expression("[[$column]]")])),
         ] : [];
     }
 

@@ -3,6 +3,7 @@
 use benf\neo\elements\Block;
 use craft\elements\Entry;
 use craft\db\Query;
+use internetztube\elementRelations\jobs\GenerateResaveAllElementRelationsJobsJob;
 use internetztube\elementRelations\models\RelationsModel;
 use internetztube\elementRelations\services\ExtractorService;
 use internetztube\elementRelations\services\PruneService;
@@ -34,6 +35,8 @@ return function (array $ctx): void {
         PruneService::prune(rebuild: $rebuild);
         check(!(new Query())->from('{{%elementrelations_cache}}')->where(['sourceElementId' => $block->id])->exists(), 'prune (' . ($rebuild ? 'rebuild' : 'batched deletes') . ') removes the rows of such a block');
     }
+    $inRebuild = fn(): bool => GenerateResaveAllElementRelationsJobsJob::query()->andWhere(['elements_sites.elementId' => $block->id])->exists();
+    check(!$inRebuild() && GenerateResaveAllElementRelationsJobsJob::query()->andWhere(['elements_sites.elementId' => $owner->id])->exists(), 'a full rebuild leaves such a block out (its owner stays in)');
     $convert($neoFieldId);
-    check($refresh() && in_array('Page via Neo', relatingTitles($ctx['target']), true), 'back on its Neo field, the block is a usage again');
+    check($refresh() && in_array('Page via Neo', relatingTitles($ctx['target']), true) && $inRebuild(), 'back on its Neo field, the block is a usage again, and a full rebuild goes through it');
 };
