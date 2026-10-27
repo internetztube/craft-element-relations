@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+## 4.0.3.1 - 2026-10-27
 
 ### Fixed
 - The update removes the cache rows of Neo blocks left behind by a field converted to Matrix right away, instead of at the next garbage collection.
