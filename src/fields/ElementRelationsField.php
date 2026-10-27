@@ -485,18 +485,28 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             if (!$count) {
                 continue;
             }
-            // Craft's site chip: the site's name (linking to the element in that site) over the number of usages
-            $name = Html::encode(Craft::t('site', $site->getName()));
-            if (!$viewer || $viewer->can("editSite:$site->uid")) {
-                $name = Html::a($name, \craft\helpers\UrlHelper::urlWithParams((string)$element->getCpEditUrl(), ['site' => $site->handle]) . ($tab ? "#$tab" : ''));
-            }
-            $items[] = Cp::chipHtml($site, ['autoReload' => false, 'labelHtml' => Html::tag('div', Html::tag('div', $name)
-                . Html::tag('div', Html::encode(Craft::t('element-relations', 'field-other-site-count', ['count' => $count])), ['class' => ['smalltext', 'light']]), ['class' => 'chip-label'])]);
+            // a tile per site: its name and, right-aligned so the counts line up down the grid, the number of usages;
+            // the whole tile links to the element in that site (a plain tile for a site the user may not edit)
+            $content = Html::tag('span', Html::encode(Craft::t('site', $site->getName())), ['class' => 'element-relations-site__name'])
+                . Html::tag('span', Html::encode(Craft::t('element-relations', 'field-other-site-count', ['count' => $count])), ['class' => ['element-relations-site__count', 'smalltext', 'light']]);
+            $items[] = !$viewer || $viewer->can("editSite:$site->uid")
+                ? Html::a($content, \craft\helpers\UrlHelper::urlWithParams((string)$element->getCpEditUrl(), ['site' => $site->handle]) . ($tab ? "#$tab" : ''), ['class' => 'element-relations-site'])
+                : Html::tag('div', $content, ['class' => 'element-relations-site']);
         }
         if (!$items) {
             return '';
         }
-        $chips = Html::tag('div', implode('', $items), ['class' => 'flex flex-wrap gap-xs', 'data-element-relations-other-sites' => true]);
+        // an even grid, however many sites: same-width tiles that wrap into columns, not a ragged row
+        Craft::$app->getView()->registerCss(<<<CSS
+            .element-relations-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: var(--xs); }
+            .element-relations-site { display: flex; align-items: baseline; gap: var(--s); min-width: 0; padding: 7px 10px; border: 1px solid var(--hairline-color); border-radius: var(--large-border-radius); background: var(--gray-050); color: var(--text-color); }
+            a.element-relations-site:hover { background: var(--gray-100); text-decoration: none; }
+            a.element-relations-site:focus-visible { box-shadow: var(--focus-ring); }
+            a.element-relations-site .element-relations-site__name { color: var(--link-color); }
+            .element-relations-site__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .element-relations-site__count { margin-inline-start: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+            CSS);
+        $chips = Html::tag('div', implode('', $items), ['class' => 'element-relations-sites', 'data-element-relations-other-sites' => true]);
         if (!$usedHere) {
             // in place of the red "Unused" label: the same kind of label, then the sites
             return (string)Cp::statusLabelHtml(['color' => Color::Sky, 'icon' => 'globe', 'label' => Craft::t('element-relations', 'preview-other-sites')])

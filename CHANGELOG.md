@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - The update removes the cache rows of Neo blocks left behind by a field converted to Matrix right away, instead of at the next garbage collection.
 - A full rebuild of the cache skips the Neo blocks left behind by a field converted to Matrix (and entries nested in them) instead of loading each of them; on a large site that was millions of elements.
 - An element index sorted by the field could show an order up to an hour old: Craft caches index queries until an element of the listed type is saved, but the usage counts also change when other elements are saved, a queued refresh runs or the cache is rebuilt. Such indexes are no longer served from that cache.
+- “Also used in these other sites” is an even grid of tiles, each linking to the element in that site as a whole, with the number of usages lined up; with many sites the chips wrapped into a ragged row.
 
 ## 4.0.3 - 2026-10-27
 
