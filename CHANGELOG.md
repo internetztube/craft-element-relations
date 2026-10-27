@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ### Fixed
 - With “Live” picked in the status menu, the list no longer shows drafts.
 - Sorting an element index by the field shows the current order right away (it could be up to an hour old).
-- A full cache rebuild skips the Neo blocks left behind by a Neo-to-Matrix conversion (millions of elements on a large site).
+- A full cache rebuild puts far fewer jobs into the queue: it skips the Neo blocks left behind by a Neo-to-Matrix conversion (millions of elements on a large site).
 - The update removes the cache rows of those Neo blocks right away.
 
 ## 4.0.3 - 2026-10-27
