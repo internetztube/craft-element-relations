@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Wie viele Elemente eine Queue-Aufgabe beim Neuaufbau des Caches verarbeitet.',
     'filter-element-type' => 'Elementtyp',
     'settings-default-status-instructions' => 'Der Status, mit dem die Liste startet, wenn das Statusmenü angezeigt wird, z. B. nur Live-Elemente. Autoren können ihn wechseln.',
+    'settings-parallel-jobs-label' => 'Parallele Neuaufbau-Aufgaben',
+    'settings-parallel-jobs-instructions' => 'Wie viele Queue-Aufgaben ein vollständiger Neuaufbau des Caches gleichzeitig ausführt. Höchstens so viele wie Queue-Worker; weniger lässt Worker für andere Aufgaben frei.',
 ];

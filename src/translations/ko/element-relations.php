@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => '캐시를 다시 빌드할 때 큐 작업 하나가 처리하는 요소 수.',
     'filter-element-type' => '요소 유형',
     'settings-default-status-instructions' => '상태 메뉴가 표시될 때 목록이 처음 보여 주는 상태(예: 게시된 요소만). 작성자가 바꿀 수 있습니다.',
+    'settings-parallel-jobs-label' => '병렬 재구축 작업',
+    'settings-parallel-jobs-instructions' => '캐시 전체 재구축이 동시에 실행하는 큐 작업 수. 최대 워커 수까지이며, 적게 하면 다른 작업을 위해 워커가 남습니다.',
 ];

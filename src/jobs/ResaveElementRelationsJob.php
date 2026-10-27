@@ -10,7 +10,7 @@ use craft\base\ElementInterface;
 use craft\queue\BaseJob;
 use internetztube\elementRelations\services\ExtractorService;
 
-/** Refreshes the relations cache of a batch of elements (QueueElementsForRefreshService, full rebuilds). */
+/** Refreshes the relations cache of a batch of elements (QueueElementsForRefreshService; full rebuilds: RebuildRelationsJob). */
 class ResaveElementRelationsJob extends BaseJob
 {
     /** @var list<array{elementId: int|string, siteId: int|string}> ids are strings when they come from a MySQL query */
@@ -22,9 +22,19 @@ class ResaveElementRelationsJob extends BaseJob
     public function execute($queue): void
     {
         $total = count($this->items);
+        self::refresh($this->items, fn(int $done) => $this->setProgress($queue, $done / $total, "$done/$total"));
+    }
+
+    /**
+     * Refreshes the items' elements in every one of their sites given.
+     * @param list<array{elementId: int|string, siteId: int|string}> $items
+     * @param callable(int): void $progress called with the number of items done so far
+     */
+    public static function refresh(array $items, callable $progress): void
+    {
         $done = 0;
-        ExtractorService::inBatch(function () use ($queue, $total, &$done): void {
-            foreach (array_chunk($this->items, self::LOAD_CHUNK) as $chunk) {
+        ExtractorService::inBatch(function () use ($items, $progress, &$done): void {
+            foreach (array_chunk($items, self::LOAD_CHUNK) as $chunk) {
                 $loaded = self::load($chunk);
                 foreach ($chunk as $item) {
                     $element = $loaded[(int)$item['elementId'] . ':' . (int)$item['siteId']]
@@ -32,8 +42,7 @@ class ResaveElementRelationsJob extends BaseJob
                     if ($element) {
                         ExtractorService::refreshRelationsForElement($element);
                     }
-                    $done++;
-                    $this->setProgress($queue, $done / $total, "$done/$total");
+                    $progress(++$done);
                 }
             }
         });

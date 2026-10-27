@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Hvor mange elementer én køjobb håndterer når bufferen gjenoppbygges.',
     'filter-element-type' => 'Elementtype',
     'settings-default-status-instructions' => 'Statusen listen starter med når statusmenyen vises, f.eks. bare publiserte elementer. Forfattere kan bytte den.',
+    'settings-parallel-jobs-label' => 'Parallelle gjenoppbyggingsjobber',
+    'settings-parallel-jobs-instructions' => 'Hvor mange køjobber en full gjenoppbygging av hurtigbufferen kjører samtidig. Høyst antall workers; færre lar workers være ledige for andre jobber.',
 ];

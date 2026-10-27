@@ -21,6 +21,19 @@
     warning: _self.overrideWarning('bulkRefreshBatchSize', overrides),
 }) }}
 
+{{ forms.textField({
+    type: 'number',
+    min: 1,
+    max: 100,
+    label: 'settings-parallel-jobs-label'|t('element-relations'),
+    instructions: 'settings-parallel-jobs-instructions'|t('element-relations'),
+    name: 'rebuildParallelJobs',
+    value: settings.rebuildParallelJobs,
+    errors: settings.getErrors('rebuildParallelJobs'),
+    disabled: 'rebuildParallelJobs' in overrides|keys,
+    warning: _self.overrideWarning('rebuildParallelJobs', overrides),
+}) }}
+
 {# behind the editions flag only: what the other edition adds, and where to get it (admins only, see ElementRelations::upsells()) #}
 {% set plugin = craft.app.plugins.getPlugin('element-relations') %}
 {% if plugin.upsells() %}

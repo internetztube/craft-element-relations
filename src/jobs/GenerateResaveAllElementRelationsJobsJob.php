@@ -7,38 +7,45 @@ namespace internetztube\elementRelations\jobs;
 use Craft;
 use craft\db\Query;
 use craft\db\Table;
-use craft\helpers\Db;
 use craft\queue\BaseJob;
 use internetztube\elementRelations\ElementRelations;
 use internetztube\elementRelations\models\RelationsModel;
 
 /**
- * Splits a full rebuild of the relations cache into ResaveElementRelationsJob batches of every element in every site.
+ * Starts a full rebuild of the relations cache: plugin settings right away, every element in every site in
+ * `rebuildParallelJobs` lanes (RebuildRelationsJob), each working through its slice batch by batch.
  */
 class GenerateResaveAllElementRelationsJobsJob extends BaseJob
 {
     public function execute($queue): void
     {
         RelationsModel::refreshGlobalUsages();
-
-        $query = self::query();
-
-        $batchSize = ElementRelations::$plugin->getSettings()->bulkRefreshBatchSize;
-
-        $totalCount = (int)$query->count();
-        $totalBatches = ceil($totalCount / $batchSize);
-        $index = 0;
-
-        /** @var list<array{elementId: int|string, siteId: int|string}> $items */
-        foreach (Db::batch($query, $batchSize) as $items) {
-            $index += 1;
-            $job = new ResaveElementRelationsJob([
-                'items' => $items,
-                'description' => "Resave Element Relations ($index/$totalBatches)"
-            ]);
-            Craft::$app->getQueue()->push($job);
-            $this->setProgress($queue, $index / $totalBatches, "$index/$totalBatches");
+        $lanes = self::lanes(ElementRelations::$plugin->getSettings()->rebuildParallelJobs);
+        foreach ($lanes as $i => $lane) {
+            Craft::$app->getQueue()->push(new RebuildRelationsJob(['lane' => $i + 1, 'lanes' => count($lanes), 'fromId' => $lane['fromId'], 'toId' => $lane['toId'], 'total' => $lane['total']]));
         }
+    }
+
+    /**
+     * The elements of query() in at most `$count` slices of about the same size, by element id (an element is never
+     * split, so all its sites are in one slice). Together they cover every element exactly once.
+     * @return list<array{fromId: int, toId: int, total: int}> element ids above `fromId`, up to and including `toId`
+     */
+    public static function lanes(int $count): array
+    {
+        $total = (int)self::query()->count();
+        $order = ['elements_sites.elementId' => SORT_ASC, 'elements_sites.siteId' => SORT_ASC];
+        // the element at every count-th position; the last one closes the last slice
+        $bounds = [0];
+        foreach (range(1, max(1, $count)) as $k) {
+            $bounds[] = (int)self::query()->select(['elements_sites.elementId'])->orderBy($order)->offset(min($total, intdiv($total * $k, max(1, $count))) - 1)->limit(1)->scalar();
+        }
+        $bounds = array_values(array_unique($bounds));
+        $lanes = [];
+        foreach (array_slice($bounds, 1) as $i => $toId) {
+            $lanes[] = ['fromId' => $bounds[$i], 'toId' => $toId, 'total' => (int)self::query()->andWhere(['>', 'elements_sites.elementId', $bounds[$i]])->andWhere(['<=', 'elements_sites.elementId', $toId])->count()];
+        }
+        return array_values(array_filter($lanes, fn(array $lane): bool => $lane['total'] > 0));
     }
 
     /**

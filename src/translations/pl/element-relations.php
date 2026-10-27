@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Ile elementów obsługuje jedno zadanie kolejki podczas ponownego budowania pamięci podręcznej.',
     'filter-element-type' => 'Typ elementu',
     'settings-default-status-instructions' => 'Status, od którego zaczyna się lista, gdy widoczne jest menu statusów, np. tylko opublikowane elementy. Autorzy mogą go zmienić.',
+    'settings-parallel-jobs-label' => 'Równoległe zadania przebudowy',
+    'settings-parallel-jobs-instructions' => 'Ile zadań kolejki pełna przebudowa pamięci podręcznej uruchamia jednocześnie. Najwyżej tyle, ile workerów; mniej zostawia workery wolne dla innych zadań.',
 ];

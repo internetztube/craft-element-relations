@@ -17,7 +17,7 @@ Every Craft project asks the same questions. Can I delete this asset? Which page
 - **One list for every element type.** Entries, Matrix and other nested content, assets, categories, tags, users, products, global sets, Navigation menus, Formie forms. The list shows the site you are editing; each row shows where the element lives and which field holds the link. An element used through two fields is one row and counts once. Other sites that use their version are listed below, so nothing used elsewhere looks unused.
 - **Everything that can link.** Anything in Craft's relations table works out of the box. Rich text, link fields and plugins that store links elsewhere are read by their own extractors. 13 plugins today, see [Supported fields and plugins](#supported-fields-and-plugins).
 - **Plugin settings count too.** Usages that are not elements, like SEOmatic's global SEO image, are listed below the field.
-- **Native.** Craft's search, sorting, status and drafts filter, table or card view, the columns of the View menu, and Craft's own filter rules and sort options (Section, Post Date, Author, Filename, Group, …). Plus a dropdown for element type, with counts. The list shows what uses the element in the site you are editing; the other sites whose version is used are listed below it, with a link each. An index column shows the first usages and the total, and you can sort by it.
+- **Native.** Craft's search, sorting, status and drafts filter, table or card view, the columns of the View menu, and Craft's own filter rules and sort options (Section, Post Date, Author, Filename, Group, …). Plus an “Element Type” filter rule, and a dropdown for element type with counts when the list mixes types. The list shows what uses the element in the site you are editing; the other sites whose version is used are listed below it, with a link each. An index column shows the first usages and the total, and you can sort by it.
 - **Follows permissions.** Users only see usages they may view. A line says how many are hidden, so nobody takes an element for unused.
 - **In code too.** `isInUse`, counts and the related elements in Twig and GraphQL. `usesElement` on any element query.
 - **Built for scale.** Relations are read on save and stored in one indexed table. Saves that change no custom field skip the work. Lists and counts are paged SQL queries. The load test uses one asset in 100,000 entries ([`dev/stress.php`](dev/stress.php)); its list opens in under a second.
@@ -52,12 +52,24 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to set
 
 | Setting | Default | Description |
 |---|---|---|
-| `bulkRefreshBatchSize` | `2000` | Elements per queue job when the whole cache is rebuilt. |
+| `bulkRefreshBatchSize` | `2000` | Elements one queue job handles per batch when the whole cache is rebuilt. |
+| `rebuildParallelJobs` | `4` | Queue jobs a full rebuild runs at the same time (see [Queue](#queue)). At most your number of queue workers. |
 | `protectInUse` | `true` | Elements that live content uses can't be deleted or taken offline (see [Protection](#protect-what-is-in-use)). |
 
-Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Elements per page, Elements in index columns (default 5).
+Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Default Status (the status the list starts with, e.g. only live elements), Elements per page, Elements in index columns (default 5).
 
 You can rebuild the cache any time under Utilities → Element Relations, or with `php craft element-relations/resave-relations`. `php craft element-relations/prune` removes rows of elements that no longer exist; garbage collection does that by itself.
+
+### Queue
+
+The cache works like Craft's search index: kept up to date as you work, rebuilt in full only as a repair.
+
+- **When something is saved,** one small queue job refreshes just the saved elements, at the end of the request. It runs ahead of Craft's default jobs (priority 1022). Deleting an element removes its rows right away.
+- **A full rebuild** (plugin install, the utility, `resave-relations`) splits all elements into `rebuildParallelJobs` parts of about the same size and queues one job per part. Each job refreshes `bulkRefreshBatchSize` elements, then queues itself again for the rest of its part. So the queue holds at most `rebuildParallelJobs` rebuild jobs (“Rebuild Element Relations (part 2 of 4)”, each with its progress), and other jobs get in between. Releasing a part's job in the queue screen stops that part; a part whose worker died starts again where it was.
+- **More than one queue worker is fine.** The parts never share elements, and every job only rewrites the rows of the elements it handles. A save that races a rebuild for the same element can leave duplicate rows for a moment; counts and lists ignore them, and the element's next refresh replaces them. Garbage collection's cleanup only deletes rows that nothing can read, so two of them at once are harmless. Replacements and rollbacks run one batch at a time, whatever the number of workers.
+- **Choosing `rebuildParallelJobs`:** with one queue worker, leave it at any value; the parts simply run one after another. With several workers, set it to at most their number, minus a few to keep workers free for editors' jobs while a rebuild runs (for example 4 to 8 with 16 workers). More parts finish sooner, but load the database more.
+
+Elements Craft no longer shows, like the Neo blocks a field converted to Matrix leaves behind, are left out of a rebuild altogether.
 
 ## Supported fields and plugins
 

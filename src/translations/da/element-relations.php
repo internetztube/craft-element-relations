@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Hvor mange elementer ét køjob håndterer, når cachen genopbygges.',
     'filter-element-type' => 'Elementtype',
     'settings-default-status-instructions' => 'Den status, listen starter med, når statusmenuen vises, f.eks. kun live elementer. Forfattere kan skifte den.',
+    'settings-parallel-jobs-label' => 'Parallelle genopbygningsjob',
+    'settings-parallel-jobs-instructions' => 'Hvor mange køjob en fuld genopbygning af cachen kører samtidig. Højst antallet af workers; færre lader workers være frie til andre job.',
 ];

@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Combien d’éléments une tâche de file d’attente traite lors de la reconstruction du cache.',
     'filter-element-type' => 'Type d’élément',
     'settings-default-status-instructions' => 'Le statut avec lequel la liste démarre quand le menu des statuts est affiché, par ex. uniquement les éléments en ligne. Les auteurs peuvent le changer.',
+    'settings-parallel-jobs-label' => 'Tâches de reconstruction en parallèle',
+    'settings-parallel-jobs-instructions' => 'Combien de tâches de file d’attente une reconstruction complète du cache exécute en même temps. Au plus le nombre de workers ; moins laisse des workers libres pour les autres tâches.',
 ];

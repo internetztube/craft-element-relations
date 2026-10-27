@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Hur många element ett köjobb hanterar när cachen återuppbyggs.',
     'filter-element-type' => 'Elementtyp',
     'settings-default-status-instructions' => 'Statusen listan börjar med när statusmenyn visas, t.ex. bara publicerade element. Författare kan byta den.',
+    'settings-parallel-jobs-label' => 'Parallella ombyggnadsjobb',
+    'settings-parallel-jobs-instructions' => 'Hur många köjobb en fullständig ombyggnad av cachen kör samtidigt. Högst antalet workers; färre lämnar workers lediga för andra jobb.',
 ];

@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'จำนวนองค์ประกอบที่งานในคิวหนึ่งงานจัดการเมื่อสร้างแคชใหม่',
     'filter-element-type' => 'ประเภทองค์ประกอบ',
     'settings-default-status-instructions' => 'สถานะเริ่มต้นของรายการเมื่อแสดงเมนูสถานะ เช่น เฉพาะองค์ประกอบที่เผยแพร่ ผู้เขียนเปลี่ยนได้',
+    'settings-parallel-jobs-label' => 'งานสร้างใหม่แบบขนาน',
+    'settings-parallel-jobs-instructions' => 'จำนวนงานในคิวที่การสร้างแคชใหม่ทั้งหมดรันพร้อมกัน ไม่เกินจำนวน worker ถ้าน้อยกว่าจะเหลือ worker ไว้ทำงานอื่น',
 ];

@@ -10,6 +10,12 @@ class SettingsModel extends Model
 {
     public int $bulkRefreshBatchSize = 2000;
 
+    /**
+     * Queue jobs a full rebuild of the cache runs at the same time (RebuildRelationsJob lanes). At most the number of queue
+     * workers; fewer leaves workers free for other jobs while it runs.
+     */
+    public int $rebuildParallelJobs = 4;
+
     /** Pro: elements that live content uses can't be deleted or taken offline in the control panel (services/InUseGuard). */
     public bool $protectInUse = true;
 
@@ -25,6 +31,8 @@ class SettingsModel extends Model
         return [
             [['bulkRefreshBatchSize'], 'required'],
             [['bulkRefreshBatchSize'], 'integer', 'min' => 1],
+            [['rebuildParallelJobs'], 'required'],
+            [['rebuildParallelJobs'], 'integer', 'min' => 1, 'max' => 100],
         ];
     }
 }

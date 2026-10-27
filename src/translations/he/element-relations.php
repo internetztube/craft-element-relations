@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'כמה רכיבים עבודת תור אחת מטפלת בהם כשהמטמון נבנה מחדש.',
     'filter-element-type' => 'סוג רכיב',
     'settings-default-status-instructions' => 'הסטטוס שבו הרשימה נפתחת כשתפריט הסטטוסים מוצג, למשל רק רכיבים חיים. מחברים יכולים להחליף אותו.',
+    'settings-parallel-jobs-label' => 'משימות בנייה מחדש מקבילות',
+    'settings-parallel-jobs-instructions' => 'כמה משימות תור מריצה בנייה מחדש מלאה של המטמון בו־זמנית. לכל היותר כמספר ה־workers; פחות משאיר workers פנויים למשימות אחרות.',
 ];

@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Cuántos elementos procesa un trabajo de la cola al reconstruir la caché.',
     'filter-element-type' => 'Tipo de elemento',
     'settings-default-status-instructions' => 'El estado con el que empieza la lista cuando se muestra el menú de estados, p. ej. solo elementos publicados. Los autores pueden cambiarlo.',
+    'settings-parallel-jobs-label' => 'Tareas de reconstrucción en paralelo',
+    'settings-parallel-jobs-instructions' => 'Cuántas tareas de cola ejecuta a la vez una reconstrucción completa de la caché. Como máximo el número de workers; menos deja workers libres para otras tareas.',
 ];

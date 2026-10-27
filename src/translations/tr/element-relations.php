@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Önbellek yeniden oluşturulurken tek bir kuyruk işinin kaç öge işlediği.',
     'filter-element-type' => 'Öge türü',
     'settings-default-status-instructions' => 'Durum menüsü gösterildiğinde listenin başladığı durum, ör. yalnızca yayındaki ögeler. Yazarlar değiştirebilir.',
+    'settings-parallel-jobs-label' => 'Paralel yeniden oluşturma işleri',
+    'settings-parallel-jobs-instructions' => 'Önbelleğin tam yeniden oluşturulması aynı anda kaç kuyruk işi çalıştırır. En fazla worker sayısı kadar; daha azı diğer işler için worker bırakır.',
 ];

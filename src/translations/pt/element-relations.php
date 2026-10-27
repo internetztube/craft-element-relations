@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Quantos elementos um trabalho da fila processa ao reconstruir a cache.',
     'filter-element-type' => 'Tipo de elemento',
     'settings-default-status-instructions' => 'O estado com que a lista começa quando o menu de estados é mostrado, p. ex. apenas elementos publicados. Os autores podem alterá-lo.',
+    'settings-parallel-jobs-label' => 'Tarefas de reconstrução em paralelo',
+    'settings-parallel-jobs-instructions' => 'Quantas tarefas de fila uma reconstrução completa da cache executa ao mesmo tempo. No máximo o número de workers; menos deixa workers livres para outras tarefas.',
 ];

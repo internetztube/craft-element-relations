@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => '重建缓存时，一个队列作业处理的元素数量。',
     'filter-element-type' => '元素类型',
     'settings-default-status-instructions' => '显示状态菜单时列表的初始状态，例如仅显示已发布的元素。作者可以切换。',
+    'settings-parallel-jobs-label' => '并行重建任务',
+    'settings-parallel-jobs-instructions' => '完整重建缓存时同时运行的队列任务数。最多为队列 worker 的数量；更少可为其他任务留出 worker。',
 ];

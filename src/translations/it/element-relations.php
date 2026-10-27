@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Quanti elementi gestisce un’attività della coda quando la cache viene ricostruita.',
     'filter-element-type' => 'Tipo di elemento',
     'settings-default-status-instructions' => 'Lo stato con cui inizia l’elenco quando è visibile il menu degli stati, ad es. solo gli elementi pubblicati. Gli autori possono cambiarlo.',
+    'settings-parallel-jobs-label' => 'Processi di ricostruzione in parallelo',
+    'settings-parallel-jobs-instructions' => 'Quanti processi della coda esegue contemporaneamente una ricostruzione completa della cache. Al massimo il numero di worker; meno lascia worker liberi per altri processi.',
 ];

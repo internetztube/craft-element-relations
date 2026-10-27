@@ -9,8 +9,10 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ### Added
 - Field setting “Default Status”: the status the list starts with, e.g. only live elements.
 - “Element Type” filter in the list's filter menu.
+- Setting “Parallel rebuild jobs” (`rebuildParallelJobs`, default 4): how many queue jobs a full rebuild runs at once. See “Queue” in the README.
 
 ### Changed
+- A full rebuild no longer fills the queue with one job per batch. It queues one job per part, and each job queues itself again until its part is done. Other jobs get in between, and you can stop a part in the queue screen.
 - “Also used in these other sites” is a tidy grid. Each site is one clickable tile.
 
 ### Fixed

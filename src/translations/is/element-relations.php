@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Hve mörg frumefni eitt biðraðarverk meðhöndlar þegar skyndiminnið er endurbyggt.',
     'filter-element-type' => 'Tegund frumefnis',
     'settings-default-status-instructions' => 'Staðan sem listinn byrjar með þegar stöðuvalmyndin er sýnd, t.d. aðeins birt frumefni. Höfundar geta breytt henni.',
+    'settings-parallel-jobs-label' => 'Samhliða endurbyggingarverk',
+    'settings-parallel-jobs-instructions' => 'Hversu mörg biðraðaverk full endurbygging skyndiminnisins keyrir í einu. Mest fjöldi workera; færri skilur workera eftir lausa fyrir önnur verk.',
 ];

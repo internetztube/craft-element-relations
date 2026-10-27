@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Berapa banyak elemen yang ditangani satu pekerjaan antrean saat cache dibangun ulang.',
     'filter-element-type' => 'Jenis elemen',
     'settings-default-status-instructions' => 'Status awal daftar saat menu status ditampilkan, misalnya hanya elemen yang tayang. Penulis dapat menggantinya.',
+    'settings-parallel-jobs-label' => 'Tugas pembangunan ulang paralel',
+    'settings-parallel-jobs-instructions' => 'Berapa banyak tugas antrean yang dijalankan bersamaan saat cache dibangun ulang sepenuhnya. Paling banyak sejumlah worker; lebih sedikit menyisakan worker untuk tugas lain.',
 ];

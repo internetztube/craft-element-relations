@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Hány elemet dolgoz fel egy várakozási sor feladat a gyorsítótár újraépítésekor.',
     'filter-element-type' => 'Elemtípus',
     'settings-default-status-instructions' => 'Az az állapot, amellyel a lista indul, ha az állapotmenü látható, pl. csak az élő elemek. A szerzők átválthatják.',
+    'settings-parallel-jobs-label' => 'Párhuzamos újraépítési feladatok',
+    'settings-parallel-jobs-instructions' => 'Hány sorfeladatot futtat egyszerre a gyorsítótár teljes újraépítése. Legfeljebb a workerek száma; kevesebb szabadon hagy workereket más feladatokra.',
 ];

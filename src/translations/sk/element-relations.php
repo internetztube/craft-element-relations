@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Koľko prvkov spracuje jedna úloha frontu pri novom zostavení vyrovnávacej pamäte.',
     'filter-element-type' => 'Typ prvku',
     'settings-default-status-instructions' => 'Stav, s ktorým zoznam začína, keď je zobrazená ponuka stavov, napr. len publikované prvky. Autori ho môžu zmeniť.',
+    'settings-parallel-jobs-label' => 'Paralelné úlohy obnovy',
+    'settings-parallel-jobs-instructions' => 'Koľko úloh frontu spúšťa úplná obnova vyrovnávacej pamäte súčasne. Najviac počet workerov; menej nechá workery voľné pre iné úlohy.',
 ];

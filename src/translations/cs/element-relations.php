@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Kolik prvků zpracuje jedna úloha fronty při novém sestavení mezipaměti.',
     'filter-element-type' => 'Typ prvku',
     'settings-default-status-instructions' => 'Stav, se kterým seznam začíná, když je zobrazena nabídka stavů, např. jen publikované prvky. Autoři ho mohou změnit.',
+    'settings-parallel-jobs-label' => 'Paralelní úlohy obnovy',
+    'settings-parallel-jobs-instructions' => 'Kolik úloh fronty spouští úplná obnova mezipaměti současně. Nejvýše počet workerů; méně nechá workery volné pro jiné úlohy.',
 ];

@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Hoeveel elementen één wachtrijtaak verwerkt als de cache wordt herbouwd.',
     'filter-element-type' => 'Elementtype',
     'settings-default-status-instructions' => 'De status waarmee de lijst begint als het statusmenu wordt getoond, bijv. alleen live elementen. Auteurs kunnen hem wijzigen.',
+    'settings-parallel-jobs-label' => 'Parallelle herbouwtaken',
+    'settings-parallel-jobs-instructions' => 'Hoeveel wachtrijtaken een volledige herbouw van de cache tegelijk uitvoert. Hoogstens het aantal workers; minder laat workers vrij voor andere taken.',
 ];

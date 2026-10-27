@@ -41,4 +41,12 @@ return function (array $ctx): void {
     check(!$menu('inSites'), 'no site dropdown: the field lists the element in the site it is edited in');
     $b = Entry::find()->title('Page B')->one();
     check(!str_contains(withWebRequest(fn() => $field->getInputHtml($b->getFieldValue('relations'), $b)), 'data-param="elementTypes"'), 'Page B (entries only): no type dropdown');
+
+    // the filter's "Element Type" rule: the list's types as options, matching an element (also one hidden from the user)
+    Usage::$listedTypes = [Entry::class, craft\elements\Asset::class];
+    $rule = new internetztube\elementRelations\elements\conditions\ElementTypeConditionRule(['operator' => 'in', 'values' => [Entry::class]]);
+    $html = withWebRequest(fn() => $rule->getHtml());
+    $asset = craft\elements\Asset::find()->one();
+    check(str_contains($html, 'Entry') && str_contains($html, 'Asset') && $rule->matchElement($b) && !$rule->matchElement($asset) && $rule->matchElement(internetztube\elementRelations\elements\RestrictedUsage::fromElement($b)), 'the Element Type rule offers the list\'s types and matches by type, also an element hidden from the user');
+    Usage::$listedTypes = null;
 };

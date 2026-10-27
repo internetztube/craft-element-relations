@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'キャッシュの再構築時に 1 つのキュージョブが処理するエレメント数。',
     'filter-element-type' => 'エレメントの種類',
     'settings-default-status-instructions' => 'ステータスメニューを表示する場合に、リストが最初に表示するステータス（例: 公開中のエレメントのみ）。作成者は切り替えられます。',
+    'settings-parallel-jobs-label' => '並列の再構築ジョブ',
+    'settings-parallel-jobs-instructions' => 'キャッシュの完全な再構築が同時に実行するキュージョブの数。最大でキューワーカーの数まで。少なくすると他のジョブ用にワーカーが空きます。',
 ];

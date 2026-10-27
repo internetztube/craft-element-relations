@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Faint o elfennau y mae un dasg giw yn eu trin pan gaiff y storfa ei hailadeiladu.',
     'filter-element-type' => 'Math o elfen',
     'settings-default-status-instructions' => 'Y statws y mae’r rhestr yn dechrau ag ef pan fydd y ddewislen statws i’w gweld, e.e. elfennau byw yn unig. Gall awduron ei newid.',
+    'settings-parallel-jobs-label' => 'Swyddi ailadeiladu cyfochrog',
+    'settings-parallel-jobs-instructions' => 'Faint o swyddi ciw y mae ailadeiladu’r storfa’n llawn yn eu rhedeg ar yr un pryd. Dim mwy na nifer y gweithwyr; mae llai yn gadael gweithwyr yn rhydd ar gyfer swyddi eraill.',
 ];

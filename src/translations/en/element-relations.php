@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'How many elements one queue job handles when the cache is rebuilt.',
     'filter-element-type' => 'Element Type',
     'settings-default-status-instructions' => 'The status the list starts with when the status menu is shown, e.g. only live elements. Authors can switch it.',
+    'settings-parallel-jobs-label' => 'Parallel rebuild jobs',
+    'settings-parallel-jobs-instructions' => 'How many queue jobs a full rebuild of the cache runs at the same time. At most the number of queue workers; fewer leaves workers free for other jobs.',
 ];

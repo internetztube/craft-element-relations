@@ -156,4 +156,6 @@ return [
     'settings-batch-size-instructions' => 'Kor mange element éin køjobb handterer når bufferen blir bygd opp att.',
     'filter-element-type' => 'Elementtype',
     'settings-default-status-instructions' => 'Statusen lista startar med når statusmenyen vert vist, t.d. berre publiserte element. Forfattarar kan byte han.',
+    'settings-parallel-jobs-label' => 'Parallelle gjenoppbyggingsjobbar',
+    'settings-parallel-jobs-instructions' => 'Kor mange køjobbar ei full gjenoppbygging av mellomlageret køyrer samstundes. Høgst talet på workers; færre lèt workers vere ledige for andre jobbar.',
 ];
