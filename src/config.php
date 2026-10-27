@@ -17,7 +17,7 @@ return [
 
     // Queue jobs a full rebuild runs at the same time, each working through its share of the elements batch by batch.
     // Set it to at most the number of queue workers; fewer leaves workers free for other jobs during a rebuild.
-    'rebuildParallelJobs' => 4,
+    'rebuildParallelJobs' => 1,
 
     // Elements that live content uses can't be deleted, disabled, expired or scheduled in the control panel
     // without the "Delete or disable elements that are in use" permission. false: Craft's usual behaviour.

@@ -53,7 +53,7 @@ Copy [`src/config.php`](src/config.php) to `config/element-relations.php` to set
 | Setting | Default | Description |
 |---|---|---|
 | `bulkRefreshBatchSize` | `2000` | Elements one queue job handles per batch when the whole cache is rebuilt. |
-| `rebuildParallelJobs` | `4` | Queue jobs a full rebuild runs at the same time (see [Queue](#queue)). At most your number of queue workers. |
+| `rebuildParallelJobs` | `1` | Queue jobs a full rebuild runs at the same time (see [Queue](#queue)). At most your number of queue workers. |
 | `protectInUse` | `true` | Elements that live content uses can't be deleted or taken offline (see [Protection](#protect-what-is-in-use)). |
 
 Field settings (per field): View mode (table or cards; authors can switch it in the View menu), Show the status menu, Default Status (the status the list starts with, e.g. only live elements), Elements per page, Elements in index columns (default 5).
@@ -67,7 +67,7 @@ The cache works like Craft's search index: kept up to date as you work, rebuilt 
 - **When something is saved,** one small queue job refreshes just the saved elements, at the end of the request. It runs ahead of Craft's default jobs (priority 1022). Deleting an element removes its rows right away.
 - **A full rebuild** (plugin install, the utility, `resave-relations`) splits all elements into `rebuildParallelJobs` parts of about the same size and queues one job per part. Each job refreshes `bulkRefreshBatchSize` elements, then queues itself again for the rest of its part. So the queue holds at most `rebuildParallelJobs` rebuild jobs (“Rebuild Element Relations (part 2 of 4)”, each with its progress), and other jobs get in between. Releasing a part's job in the queue screen stops that part; a part whose worker died starts again where it was.
 - **More than one queue worker is fine.** The parts never share elements, and every job only rewrites the rows of the elements it handles. A save that races a rebuild for the same element can leave duplicate rows for a moment; counts and lists ignore them, and the element's next refresh replaces them. Garbage collection's cleanup only deletes rows that nothing can read, so two of them at once are harmless. Replacements and rollbacks run one batch at a time, whatever the number of workers.
-- **Choosing `rebuildParallelJobs`:** with one queue worker, leave it at any value; the parts simply run one after another. With several workers, set it to at most their number, minus a few to keep workers free for editors' jobs while a rebuild runs (for example 4 to 8 with 16 workers). More parts finish sooner, but load the database more.
+- **Choosing `rebuildParallelJobs`:** the default 1 rebuilds in one part, one batch after another, and never takes more than one worker. With several workers you can raise it: set it to at most their number, minus a few to keep workers free for editors' jobs while a rebuild runs (for example 4 to 8 with 16 workers). More parts finish sooner, but load the database more.
 
 Elements Craft no longer shows, like the Neo blocks a field converted to Matrix leaves behind, are left out of a rebuild altogether.
 

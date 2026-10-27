@@ -14,7 +14,7 @@ class SettingsModel extends Model
      * Queue jobs a full rebuild of the cache runs at the same time (RebuildRelationsJob lanes). At most the number of queue
      * workers; fewer leaves workers free for other jobs while it runs.
      */
-    public int $rebuildParallelJobs = 4;
+    public int $rebuildParallelJobs = 1;
 
     /** Pro: elements that live content uses can't be deleted or taken offline in the control panel (services/InUseGuard). */
     public bool $protectInUse = true;
