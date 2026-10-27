@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Ersätt från kommandoraden och i migreringar, även från en CSV',
     'settings-protect-instructions' => 'Redaktörer kan inte ta bort eller avpublicera det som publicerat innehåll använder, om de inte har behörigheten “Ta bort eller avaktivera element som används”. Av: Crafts vanliga beteende.',
     'settings-batch-size-instructions' => 'Hur många element ett köjobb hanterar när cachen återuppbyggs.',
+    'filter-element-type' => 'Elementtyp',
+    'settings-default-status-instructions' => 'Statusen listan börjar med när statusmenyn visas, t.ex. bara publicerade element. Författare kan byta den.',
 ];

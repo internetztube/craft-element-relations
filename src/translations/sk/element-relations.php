@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Vymieňajte z príkazového riadka a v migráciách, aj z CSV',
     'settings-protect-instructions' => 'Editori nemôžu mazať ani vypínať to, čo publikovaný obsah používa, pokiaľ nemajú oprávnenie „Mazať alebo zakazovať používané prvky“. Vypnuté: bežné správanie Craftu.',
     'settings-batch-size-instructions' => 'Koľko prvkov spracuje jedna úloha frontu pri novom zostavení vyrovnávacej pamäte.',
+    'filter-element-type' => 'Typ prvku',
+    'settings-default-status-instructions' => 'Stav, s ktorým zoznam začína, keď je zobrazená ponuka stavov, napr. len publikované prvky. Autori ho môžu zmeniť.',
 ];

@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Erstatt frå kommandolinja og i migrasjonar, også frå ei CSV-fil',
     'settings-protect-instructions' => 'Redaktørar kan ikkje slette eller avpublisere det publisert innhald bruker, med mindre dei har løyvet “Slett eller deaktiver element som er i bruk”. Av: den vanlege åtferda til Craft.',
     'settings-batch-size-instructions' => 'Kor mange element éin køjobb handterer når bufferen blir bygd opp att.',
+    'filter-element-type' => 'Elementtype',
+    'settings-default-status-instructions' => 'Statusen lista startar med når statusmenyen vert vist, t.d. berre publiserte element. Forfattarar kan byte han.',
 ];

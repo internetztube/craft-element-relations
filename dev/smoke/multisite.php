@@ -35,7 +35,10 @@ return function (array $ctx): void {
 
     $viaEn = Usage::find()->usesElement($target)->siteId($en)->one()->getAttributeHtml(Usage::ATTR_FIELD);
     $viaDe = Usage::find()->usesElement($target)->siteId($de)->one()->getAttributeHtml(Usage::ATTR_FIELD);
-    check($viaEn === 'Related Entries' && str_contains($viaDe, 'Related Entries (per site)') && str_contains($viaDe, 'Related Entries,'), 'Field column lists the fields of that site');
+    // in either order: PostgreSQL returns the rows of one element in any order
+    $fieldsDe = array_map('trim', explode(',', html_entity_decode(strip_tags($viaDe))));
+    sort($fieldsDe);
+    check($viaEn === 'Related Entries' && $fieldsDe === ['Related Entries', 'Related Entries (per site)'], 'Field column lists the fields of that site (' . $viaDe . ')');
     check(Usage::find()->usesElement($target)->siteId($de)->one()->getAttributeHtml(Usage::ATTR_SITE) === 'German', 'Site column names the site');
     check(!in_array(Usage::ATTR_SITE, Usage::defaultTableAttributes('*'), true) && isset(Usage::tableAttributes()[Usage::ATTR_SITE]), 'no Site column by default (the list is the element in its own site); the View menu offers it');
 
@@ -53,6 +56,15 @@ return function (array $ctx): void {
     $js = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
     check(!str_contains($input, 'sitemenubtn') && str_contains($js, '"allSites":true') && str_contains($js, '"usesElementSite":' . $en), 'the field lists the English version\'s usages, from every site (no site menu, allSites and usesElementSite criteria)');
     check(str_contains($js, '"siteId":' . $en) && !str_contains($input, 'data-param="inSites"'), 'the list\'s base condition names the site; no site dropdown');
+    check(!str_contains($js, 'setStatus('), 'no default status: the list starts with all statuses');
+    // the field setting "Default Status": the list starts on that status of its status menu
+    $field->defaultStatus = 'live';
+    Craft::$app->getView()->clear();
+    withWebRequest(fn() => $field->getInputHtml($target->getFieldValue('relations'), $target));
+    $jsLive = implode("\n", array_merge(...array_values(Craft::$app->getView()->js ?: [[]])));
+    $field->defaultStatus = 'nonsense';
+    check(str_contains($jsLive, 'index.setStatus("live")') && !$field->validate(['defaultStatus']), 'Default Status "Live": the list starts on Live in its status menu; an unknown status does not validate');
+    $field->defaultStatus = null;
     check(str_contains($input, 'data-element-relations-other-sites') && str_contains($input, 'German') && str_contains($input, '1 usage') && str_contains(html_entity_decode($input), 'site=de'), 'below the list: the other sites whose version is used, linking to the element there');
     check(str_contains(html_entity_decode($input), '"attr":"elementRelationsSite"'), 'the index can sort by site');
 

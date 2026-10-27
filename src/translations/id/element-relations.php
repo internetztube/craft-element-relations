@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Mengganti dari baris perintah dan dalam migrasi, juga dari CSV',
     'settings-protect-instructions' => 'Editor tidak dapat menghapus atau menonaktifkan yang dipakai konten tayang, kecuali punya izin “Menghapus atau menonaktifkan elemen yang sedang digunakan”. Mati: perilaku Craft seperti biasa.',
     'settings-batch-size-instructions' => 'Berapa banyak elemen yang ditangani satu pekerjaan antrean saat cache dibangun ulang.',
+    'filter-element-type' => 'Jenis elemen',
+    'settings-default-status-instructions' => 'Status awal daftar saat menu status ditampilkan, misalnya hanya elemen yang tayang. Penulis dapat menggantinya.',
 ];

@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'コマンドラインとマイグレーションから置き換え。CSV からも可能',
     'settings-protect-instructions' => '編集者は、「使用中のエレメントを削除または無効にする」権限がない限り、ライブコンテンツが使用しているものを削除またはオフラインにできません。オフ: Craft の通常の動作。',
     'settings-batch-size-instructions' => 'キャッシュの再構築時に 1 つのキュージョブが処理するエレメント数。',
+    'filter-element-type' => 'エレメントの種類',
+    'settings-default-status-instructions' => 'ステータスメニューを表示する場合に、リストが最初に表示するステータス（例: 公開中のエレメントのみ）。作成者は切り替えられます。',
 ];

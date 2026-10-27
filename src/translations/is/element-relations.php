@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Skipta um úr skipanalínu og í yfirfærslum, einnig úr CSV',
     'settings-protect-instructions' => 'Ritstjórar geta ekki eytt eða tekið úr birtingu það sem virkt efni notar, nema þeir hafi heimildina „Eyða eða óvirkja frumefni sem eru í notkun“. Slökkt: venjuleg hegðun Craft.',
     'settings-batch-size-instructions' => 'Hve mörg frumefni eitt biðraðarverk meðhöndlar þegar skyndiminnið er endurbyggt.',
+    'filter-element-type' => 'Tegund frumefnis',
+    'settings-default-status-instructions' => 'Staðan sem listinn byrjar með þegar stöðuvalmyndin er sýnd, t.d. aðeins birt frumefni. Höfundar geta breytt henni.',
 ];

@@ -214,6 +214,21 @@ check($status === 200 && count(array_unique($m[1])) === count($rows), "index: Cr
     'viewState' => ['mode' => 'table', 'static' => false],
 ]);
 check($status === 200 && !str_contains($json['html'] ?? '', '<tr data-id='), "index: a Section rule for another section matches nothing (HTTP $status)");
+// the plugin's own "Element type" rule (every source here is an entry)
+$byType = function (string $operator, string $type) use ($http, $from): array {
+    [$status, , $json] = $http->action('element-indexes/get-elements', [
+        'elementType' => Usage::class, 'context' => 'embedded-index', 'source' => '*',
+        'criteria' => ['usesElement' => $from->id, 'allSites' => 1, 'siteId' => $from->siteId],
+        'condition' => ['class' => internetztube\elementRelations\elements\conditions\UsageCondition::class, 'elementType' => Usage::class, 'conditionRules' => [
+            ['class' => internetztube\elementRelations\elements\conditions\ElementTypeConditionRule::class, 'operator' => $operator, 'values' => [$type]],
+        ]],
+        'viewState' => ['mode' => 'table', 'static' => false],
+    ]);
+    preg_match_all('/<tr data-id="(\d+)"/', $json['html'] ?? '', $m);
+    return [$status, count(array_unique($m[1]))];
+};
+check($byType('in', Entry::class) === [200, count($rows)], 'index: the "Element type is Entry" rule keeps every entry');
+check($byType('in', craft\elements\Asset::class) === [200, 0] && $byType('ni', Entry::class) === [200, 0], 'index: "Element type is Asset" and "is not Entry" match nothing in a list of entries');
 
 // --- the index must never serve stale results: Craft caches index queries per element type, and these lists
 // change when *other* elements are saved
@@ -317,6 +332,26 @@ check($sortedIds() === [$second->id, $first->id], 'the usage moved to the other 
 foreach ([$sorter, $first, $second] as $entry) {
     $elements->deleteElement($entry, true);
 }
+
+// the status menu: an unpublished draft that is enabled and posted counts as "Live" to Craft; the list leaves drafts
+// out once a status is picked, as Craft's own index does (the parameters are what the field's index sends)
+$unpublished = new Entry(['sectionId' => $section->id, 'typeId' => $typeId, 'title' => 'E2E unpublished draft', 'postDate' => new DateTime('-1 day')]);
+$unpublished->setFieldValue('relatedEntries', [$from->id]);
+Craft::$app->getDrafts()->saveElementAsDraft($unpublished, Craft::$app->getUsers()->getUserByUsernameOrEmail('admin')?->id) or throw new RuntimeException(json_encode($unpublished->getErrors()));
+$flush();
+$withStatus = function (?string $status) use ($http, $from): array {
+    [, , $json] = $http->action('element-indexes/get-elements', [
+        'elementType' => Usage::class, 'context' => 'embedded-index', 'source' => '*', 'canHaveDrafts' => true,
+        'baseCriteria' => ['status' => null, 'drafts' => null, 'draftOf' => false, 'savedDraftsOnly' => true, 'usesElement' => $from->id, 'usesElementSite' => $from->siteId, 'allSites' => true, 'siteId' => $from->siteId],
+        'criteria' => ['status' => $status, 'offset' => 0, 'limit' => 100],
+        'viewState' => ['mode' => 'table', 'static' => false],
+    ]);
+    preg_match_all('/<tr data-id="(\d+)"/', $json['html'] ?? '', $m);
+    return array_map('intval', $m[1]);
+};
+check(in_array($unpublished->id, $withStatus(null), true), 'the list (All) shows an unpublished draft that uses the element');
+check(!in_array($unpublished->id, $withStatus('live'), true) && count($withStatus('live')) > 0, 'with "Live" picked, the live entries only: no drafts, though the draft is enabled and posted');
+$elements->deleteElement($unpublished, true);
 
 // --- replacements and rollbacks run as queue jobs: post like the browser, then run exactly that job (as Craft's queue
 // would; other queued work, like the save-event refreshes, stays queued for the checks below) and ask for its status

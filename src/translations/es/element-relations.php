@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Reemplazar desde la línea de comandos y en migraciones, también desde un CSV',
     'settings-protect-instructions' => 'Los editores no pueden eliminar ni retirar lo que usa el contenido en vivo, salvo que tengan el permiso “Eliminar o desactivar elementos en uso”. Desactivado: el comportamiento habitual de Craft.',
     'settings-batch-size-instructions' => 'Cuántos elementos procesa un trabajo de la cola al reconstruir la caché.',
+    'filter-element-type' => 'Tipo de elemento',
+    'settings-default-status-instructions' => 'El estado con el que empieza la lista cuando se muestra el menú de estados, p. ej. solo elementos publicados. Los autores pueden cambiarlo.',
 ];

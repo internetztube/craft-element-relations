@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Ersetzen über die Kommandozeile und in Migrationen, auch aus einer CSV',
     'settings-protect-instructions' => 'Redakteure können nicht löschen oder offline nehmen, was aktive Inhalte verwenden, außer sie haben die Berechtigung „Verwendete Elemente löschen oder deaktivieren“. Aus: das übliche Verhalten von Craft.',
     'settings-batch-size-instructions' => 'Wie viele Elemente eine Queue-Aufgabe beim Neuaufbau des Caches verarbeitet.',
+    'filter-element-type' => 'Elementtyp',
+    'settings-default-status-instructions' => 'Der Status, mit dem die Liste startet, wenn das Statusmenü angezeigt wird, z. B. nur Live-Elemente. Autoren können ihn wechseln.',
 ];

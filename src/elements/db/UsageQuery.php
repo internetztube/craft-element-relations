@@ -191,6 +191,12 @@ class UsageQuery extends ElementQuery
 
     protected function beforePrepare(): bool
     {
+        // the index's "any drafts, only unpublished ones" (drafts null, draftOf false): once a status is picked, no
+        // drafts, or "Live" lists unpublished drafts that are enabled and posted. Craft's index JS does so itself only in
+        // the "index" context; the field's list is an embedded index.
+        if ($this->status !== null && $this->drafts === null && $this->draftOf === false) {
+            $this->drafts = false;
+        }
         if ($this->allSites) {
             $this->preferredSiteId ??= is_numeric($this->siteId) ? (int)$this->siteId : (int)Craft::$app->getSites()->getCurrentSite()->id;
             $all = Craft::$app->getSites()->getAllSiteIds();

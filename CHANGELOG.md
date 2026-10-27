@@ -4,13 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## 4.0.3.1 - 2026-10-27
+## Unreleased
+
+### Added
+- Field setting “Default Status”: the status the list starts with, e.g. only live elements.
+- “Element Type” filter in the list's filter menu.
+
+### Changed
+- “Also used in these other sites” is a tidy grid. Each site is one clickable tile.
 
 ### Fixed
-- The update removes the cache rows of Neo blocks left behind by a field converted to Matrix right away, instead of at the next garbage collection.
-- A full rebuild of the cache skips the Neo blocks left behind by a field converted to Matrix (and entries nested in them) instead of loading each of them; on a large site that was millions of elements.
-- An element index sorted by the field could show an order up to an hour old: Craft caches index queries until an element of the listed type is saved, but the usage counts also change when other elements are saved, a queued refresh runs or the cache is rebuilt. Such indexes are no longer served from that cache.
-- “Also used in these other sites” is an even grid of tiles, each linking to the element in that site as a whole, with the number of usages lined up; with many sites the chips wrapped into a ragged row.
+- With “Live” picked in the status menu, the list no longer shows drafts.
+- Sorting an element index by the field shows the current order right away (it could be up to an hour old).
+- A full cache rebuild skips the Neo blocks left behind by a Neo-to-Matrix conversion (millions of elements on a large site).
+- The update removes the cache rows of those Neo blocks right away.
 
 ## 4.0.3 - 2026-10-27
 

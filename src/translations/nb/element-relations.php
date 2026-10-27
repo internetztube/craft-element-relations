@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Erstatt fra kommandolinjen og i migrasjoner, også fra en CSV',
     'settings-protect-instructions' => 'Redaktører kan ikke slette eller avpublisere det publisert innhold bruker, med mindre de har tillatelsen «Slett eller deaktiver elementer som er i bruk». Av: Crafts vanlige oppførsel.',
     'settings-batch-size-instructions' => 'Hvor mange elementer én køjobb håndterer når bufferen gjenoppbygges.',
+    'filter-element-type' => 'Elementtype',
+    'settings-default-status-instructions' => 'Statusen listen starter med når statusmenyen vises, f.eks. bare publiserte elementer. Forfattere kan bytte den.',
 ];

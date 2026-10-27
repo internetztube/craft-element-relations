@@ -149,6 +149,7 @@ try {
             return options;
         `);
         check(facts.includes('Section') && facts.includes('Entry Type') && facts.includes('Post Date'), `"Add a filter" offers Section, Entry Type and Post Date (${facts.length} rules)`);
+        check(facts.includes('Element Type'), `and the element type, though every usage here is an entry (${facts.join(', ')})`);
         check(!facts.includes('Filename') && !facts.includes('Email'), 'and no rules of types not in the list (Filename, Email)');
     });
 

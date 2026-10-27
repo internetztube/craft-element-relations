@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Erstat fra kommandolinjen og i migreringer, også fra en CSV',
     'settings-protect-instructions' => 'Redaktører kan ikke slette eller tage det offline, som live indhold bruger, medmindre de har tilladelsen “Slet eller deaktiver elementer, der er i brug”. Fra: Crafts sædvanlige adfærd.',
     'settings-batch-size-instructions' => 'Hvor mange elementer ét køjob håndterer, når cachen genopbygges.',
+    'filter-element-type' => 'Elementtype',
+    'settings-default-status-instructions' => 'Den status, listen starter med, når statusmenuen vises, f.eks. kun live elementer. Forfattere kan skifte den.',
 ];

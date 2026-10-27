@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Nahrazujte z příkazové řádky a v migracích, i z CSV',
     'settings-protect-instructions' => 'Editoři nemohou mazat ani vypínat to, co zveřejněný obsah používá, pokud nemají oprávnění „Mazat nebo vypínat používané prvky“. Vypnuto: běžné chování Craftu.',
     'settings-batch-size-instructions' => 'Kolik prvků zpracuje jedna úloha fronty při novém sestavení mezipaměti.',
+    'filter-element-type' => 'Typ prvku',
+    'settings-default-status-instructions' => 'Stav, se kterým seznam začíná, když je zobrazena nabídka stavů, např. jen publikované prvky. Autoři ho mohou změnit.',
 ];

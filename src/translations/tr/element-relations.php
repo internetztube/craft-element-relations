@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Komut satırından ve geçişlerde değiştirin, bir CSV dosyasından da',
     'settings-protect-instructions' => 'Editörler, “Kullanımdaki ögeleri sil veya devre dışı bırak” iznine sahip değillerse canlı içeriğin kullandığı şeyleri silemez veya yayından kaldıramaz. Kapalı: Craft\'ın olağan davranışı.',
     'settings-batch-size-instructions' => 'Önbellek yeniden oluşturulurken tek bir kuyruk işinin kaç öge işlediği.',
+    'filter-element-type' => 'Öge türü',
+    'settings-default-status-instructions' => 'Durum menüsü gösterildiğinde listenin başladığı durum, ör. yalnızca yayındaki ögeler. Yazarlar değiştirebilir.',
 ];

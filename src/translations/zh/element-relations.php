@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => '从命令行和迁移中替换，也可以从 CSV 替换',
     'settings-protect-instructions' => '编辑者不能删除或下线上线内容所使用的元素，除非拥有“删除或禁用正在使用的元素”权限。关闭：Craft 的默认行为。',
     'settings-batch-size-instructions' => '重建缓存时，一个队列作业处理的元素数量。',
+    'filter-element-type' => '元素类型',
+    'settings-default-status-instructions' => '显示状态菜单时列表的初始状态，例如仅显示已发布的元素。作者可以切换。',
 ];

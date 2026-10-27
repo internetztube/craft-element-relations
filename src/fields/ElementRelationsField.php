@@ -49,6 +49,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     /** Initial view mode of the index; authors can switch it and Craft remembers their choice. */
     public string $viewMode = self::VIEW_MODE_TABLE;
     public bool $showStatusMenu = true;
+    /** The status the list starts with when the status menu is shown (e.g. only live elements); null: all */
+    public ?string $defaultStatus = null;
     /** Elements per page */
     public ?int $pageSize = 20;
     /** Chips shown in element index columns before the link to the total; each one is an element to load per row */
@@ -88,6 +90,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $rules[] = [['pageSize'], 'integer', 'min' => 1, 'max' => 500];
         $rules[] = [['previewLimit'], 'default', 'value' => 5];
         $rules[] = [['previewLimit'], 'integer', 'min' => 1, 'max' => 50];
+        $rules[] = [['defaultStatus'], 'filter', 'filter' => fn(mixed $value): mixed => $value === '' ? null : $value];
+        $rules[] = [['defaultStatus'], 'in', 'range' => array_keys(Usage::statuses())];
         return $rules;
     }
 
@@ -113,6 +117,18 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             'id' => 'showStatusMenu',
             'name' => 'showStatusMenu',
             'on' => $this->showStatusMenu,
+        ]);
+        $html .= Cp::selectFieldHtml([
+            'label' => Craft::t('app', 'Default Status'),
+            'instructions' => Craft::t('element-relations', 'settings-default-status-instructions'),
+            'id' => 'defaultStatus',
+            'name' => 'defaultStatus',
+            'options' => [
+                ['label' => Craft::t('app', 'All'), 'value' => ''],
+                ...array_map(fn(string $status, array|string $info): array => ['label' => is_array($info) ? $info['label'] : $info, 'value' => $status], array_keys(Usage::statuses()), Usage::statuses()),
+            ],
+            'value' => $this->defaultStatus ?? '',
+            'errors' => $this->getErrors('defaultStatus'),
         ]);
         $html .= Cp::textFieldHtml([
             'label' => Craft::t('element-relations', 'settings-page-size'),
@@ -337,9 +353,18 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         if ($hasElements) {
             self::$toolbarMenus = self::toolbarMenus($value);
             Usage::$listedTypes = $value->getElementTypes(); // the View menu offers these types' columns
+            $indexId = 'element-relations-' . StringHelper::randomString(8);
+            if ($this->showStatusMenu && $this->defaultStatus !== null) {
+                // Craft's index has no initial status; its own setStatus() picks the menu option, as a click would
+                Craft::$app->getView()->registerJs(sprintf(
+                    '(() => { const $c = $("#%s"); let tries = 0; const go = () => { const index = $c.data("elementIndex"); if (!index || !index.statusMenu) { if (tries++ < 100) { setTimeout(go, 50); } return; } index.setStatus(%s); }; go(); })();',
+                    Craft::$app->getView()->namespaceInputId($indexId),
+                    \craft\helpers\Json::encode($this->defaultStatus),
+                ));
+            }
             $html .= Cp::elementIndexHtml(Usage::class, [
                 'context' => 'embedded-index',
-                'id' => 'element-relations-' . StringHelper::randomString(8),
+                'id' => $indexId,
                 'sources' => false,
                 'showStatusMenu' => $this->showStatusMenu,
                 // Craft's index is per site (its JS always sends a siteId); the relating elements can be in any site

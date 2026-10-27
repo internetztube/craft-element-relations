@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Zastępuj z wiersza poleceń i w migracjach, także z pliku CSV',
     'settings-protect-instructions' => 'Redaktorzy nie mogą usuwać ani wyłączać tego, czego używa opublikowana treść, chyba że mają uprawnienie „Usuwanie lub wyłączanie używanych elementów”. Wyłączone: zwykłe zachowanie Craft.',
     'settings-batch-size-instructions' => 'Ile elementów obsługuje jedno zadanie kolejki podczas ponownego budowania pamięci podręcznej.',
+    'filter-element-type' => 'Typ elementu',
+    'settings-default-status-instructions' => 'Status, od którego zaczyna się lista, gdy widoczne jest menu statusów, np. tylko opublikowane elementy. Autorzy mogą go zmienić.',
 ];

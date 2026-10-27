@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Replace from the command line and in migrations, also from a CSV',
     'settings-protect-instructions' => 'Editors can’t delete or take offline what live content uses, unless they have the permission “Delete or disable elements that are in use”. Off: Craft’s usual behaviour.',
     'settings-batch-size-instructions' => 'How many elements one queue job handles when the cache is rebuilt.',
+    'filter-element-type' => 'Element Type',
+    'settings-default-status-instructions' => 'The status the list starts with when the status menu is shown, e.g. only live elements. Authors can switch it.',
 ];

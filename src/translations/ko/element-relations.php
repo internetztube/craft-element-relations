@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => '명령줄과 마이그레이션에서 바꾸기, CSV로도 가능',
     'settings-protect-instructions' => '편집자는 “사용 중인 요소 삭제 또는 비활성화” 권한이 없으면 실시간 콘텐츠가 사용하는 것을 삭제하거나 오프라인으로 전환할 수 없습니다. 끄면 Craft의 기본 동작을 따릅니다.',
     'settings-batch-size-instructions' => '캐시를 다시 빌드할 때 큐 작업 하나가 처리하는 요소 수.',
+    'filter-element-type' => '요소 유형',
+    'settings-default-status-instructions' => '상태 메뉴가 표시될 때 목록이 처음 보여 주는 상태(예: 게시된 요소만). 작성자가 바꿀 수 있습니다.',
 ];

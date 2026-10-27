@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Sostituire dalla riga di comando e nelle migrazioni, anche da un CSV',
     'settings-protect-instructions' => 'Gli editor non possono eliminare né mettere offline ciò che i contenuti pubblicati usano, a meno che abbiano il permesso “Eliminare o disabilitare elementi in uso”. Disattivato: il comportamento abituale di Craft.',
     'settings-batch-size-instructions' => 'Quanti elementi gestisce un’attività della coda quando la cache viene ricostruita.',
+    'filter-element-type' => 'Tipo di elemento',
+    'settings-default-status-instructions' => 'Lo stato con cui inizia l’elenco quando è visibile il menu degli stati, ad es. solo gli elementi pubblicati. Gli autori possono cambiarlo.',
 ];

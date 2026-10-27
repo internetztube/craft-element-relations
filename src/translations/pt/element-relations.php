@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Substituir a partir da linha de comandos e em migrações, também a partir de um CSV',
     'settings-protect-instructions' => 'Os editores não podem excluir nem despublicar o que o conteúdo publicado usa, a menos que tenham a permissão “Excluir ou desativar elementos em uso”. Desligado: o comportamento habitual do Craft.',
     'settings-batch-size-instructions' => 'Quantos elementos um trabalho da fila processa ao reconstruir a cache.',
+    'filter-element-type' => 'Tipo de elemento',
+    'settings-default-status-instructions' => 'O estado com que a lista começa quando o menu de estados é mostrado, p. ex. apenas elementos publicados. Os autores podem alterá-lo.',
 ];

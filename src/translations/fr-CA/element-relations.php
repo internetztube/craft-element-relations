@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Remplacer depuis la ligne de commande et dans les migrations, aussi depuis un CSV',
     'settings-protect-instructions' => 'Les éditeurs ne peuvent pas supprimer ni mettre hors ligne ce que le contenu en ligne utilise, sauf s’ils ont le droit “Supprimer ou désactiver des éléments en cours d’utilisation”. Désactivé : comportement habituel de Craft.',
     'settings-batch-size-instructions' => 'Combien d’éléments une tâche de file d’attente traite lors de la reconstruction du cache.',
+    'filter-element-type' => 'Type d’élément',
+    'settings-default-status-instructions' => 'Le statut avec lequel la liste démarre quand le menu des statuts est affiché, par ex. uniquement les éléments en ligne. Les auteurs peuvent le changer.',
 ];

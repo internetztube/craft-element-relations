@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Amnewid o’r llinell orchymyn ac mewn mudiadau, hefyd o CSV',
     'settings-protect-instructions' => 'Ni all golygyddion ddileu na thynnu all-lein yr hyn y mae cynnwys byw yn ei ddefnyddio, oni bai bod ganddynt y caniatâd “Dileu neu analluogi elfennau sy’n cael eu defnyddio”. I ffwrdd: ymddygiad arferol Craft.',
     'settings-batch-size-instructions' => 'Faint o elfennau y mae un dasg giw yn eu trin pan gaiff y storfa ei hailadeiladu.',
+    'filter-element-type' => 'Math o elfen',
+    'settings-default-status-instructions' => 'Y statws y mae’r rhestr yn dechrau ag ef pan fydd y ddewislen statws i’w gweld, e.e. elfennau byw yn unig. Gall awduron ei newid.',
 ];

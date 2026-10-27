@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Csere parancssorból és migrációkban, akár CSV-ből is',
     'settings-protect-instructions' => 'A szerkesztők nem törölhetik és nem vehetik le, amit élő tartalom használ, hacsak nincs „Használatban lévő elemek törlése vagy kikapcsolása” engedélyük. Kikapcsolva: a Craft szokásos viselkedése.',
     'settings-batch-size-instructions' => 'Hány elemet dolgoz fel egy várakozási sor feladat a gyorsítótár újraépítésekor.',
+    'filter-element-type' => 'Elemtípus',
+    'settings-default-status-instructions' => 'Az az állapot, amellyel a lista indul, ha az állapotmenü látható, pl. csak az élő elemek. A szerzők átválthatják.',
 ];

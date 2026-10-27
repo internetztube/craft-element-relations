@@ -154,4 +154,6 @@ return [
     'upsell-settings-cli' => 'Vervangen vanaf de opdrachtregel en in migraties, ook vanuit een CSV',
     'settings-protect-instructions' => 'Redacteuren kunnen niet verwijderen of offline halen wat live inhoud gebruikt, tenzij ze het recht “Elementen die in gebruik zijn verwijderen of uitschakelen” hebben. Uit: het gewone gedrag van Craft.',
     'settings-batch-size-instructions' => 'Hoeveel elementen één wachtrijtaak verwerkt als de cache wordt herbouwd.',
+    'filter-element-type' => 'Elementtype',
+    'settings-default-status-instructions' => 'De status waarmee de lijst begint als het statusmenu wordt getoond, bijv. alleen live elementen. Auteurs kunnen hem wijzigen.',
 ];

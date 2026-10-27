@@ -72,7 +72,8 @@ class UsageCondition extends ElementCondition
 
     protected function selectableConditionRules(): array
     {
-        $rules = [UsesElementConditionRule::class, ...parent::selectableConditionRules()]; // the list's own base rule
+        // the list's own base rule, and the element type (also when the list has only one)
+        $rules = [UsesElementConditionRule::class, ElementTypeConditionRule::class, ...parent::selectableConditionRules()];
         foreach (Usage::listedTypes() as $type) {
             foreach (self::RULES[$type] ?? [] as $rule) {
                 if (class_exists($rule) && !in_array($rule, $rules, true)) {
