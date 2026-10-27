@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Fixed
+- Converting a Neo field to Matrix keeps the field's old Neo blocks, still owned by their entries but shown nowhere (Neo can no longer load them). A cache rebuild listed their relations as usages of those entries, so an element showed up as used by an entry whose editor doesn't link to it. Such blocks, and entries nested in them, no longer count as usages, and prune (run after every garbage collection, or `php craft element-relations/prune`) removes the rows already cached for them.
+
 ## 4.0.2.1 - 2026-10-23
 
 ### Fixed

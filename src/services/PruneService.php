@@ -11,7 +11,8 @@ use yii\db\Expression;
 
 /**
  * Removes cache rows nothing can ever read: their source element, owner or target is gone (Craft's garbage collection
- * hard-deletes trashed elements in SQL, nested ones by cascade, without element events), or their owner is a revision.
+ * hard-deletes trashed elements in SQL, nested ones by cascade, without element events), their owner is a revision,
+ * or their source is a Neo block a field converted to Matrix left behind.
  * Every read skips such rows, but they still cost: on a large site they were 98 % of the table.
  *
  * Runs on every garbage collection (ElementRelations::init()), once as a migration, and via
@@ -57,8 +58,26 @@ class PruneService
         // plugin settings rows stay whatever they point at: their provider writes them from the settings (refresh())
         return ['or',
             ['c.sourceElementId' => null],
-            ['and', $exists('targetElementId'), $exists('sourceElementId'), $exists('sourcePrimaryOwnerId', ['e.revisionId' => null])],
+            ['and', $exists('targetElementId'), $exists('sourceElementId'), $exists('sourcePrimaryOwnerId', ['e.revisionId' => null]), self::notLeftBehindByNeo()],
         ];
+    }
+
+    /**
+     * Not a Neo block of a field converted to Matrix, nor an entry nested in one: the conversion keeps the blocks,
+     * owned as before, but nothing shows them (ExtractorService::primaryOwner()). As a condition on the cache table
+     * aliased `c`; NOT EXISTS, which databases run as an anti join, also over a whole table.
+     * @return array<int|string, mixed>
+     */
+    private static function notLeftBehindByNeo(): array
+    {
+        $leftBehind = fn(Query $query): array => ['not exists', $query
+            ->select(new Expression('1'))
+            ->innerJoin(['f' => Table::FIELDS], '[[f.id]] = [[b.fieldId]]')
+            ->andWhere(['not', ['f.type' => \benf\neo\Field::class]])];
+        return Craft::$app->getDb()->tableExists('{{%neoblocks}}') ? ['and',
+            $leftBehind((new Query())->from(['b' => '{{%neoblocks}}'])->where(['b.id' => new Expression('[[c.sourceElementId]]')])),
+            $leftBehind((new Query())->from(['n' => Table::ENTRIES])->innerJoin(['b' => '{{%neoblocks}}'], '[[b.id]] = [[n.primaryOwnerId]]')->where(['n.id' => new Expression('[[c.sourceElementId]]')])),
+        ] : [];
     }
 
     /** Deletes junk rows id range by id range: no long locks, any database, any size (slow on huge tables). */
@@ -111,7 +130,7 @@ class PruneService
                 ->leftJoin(['o' => Table::ELEMENTS], '[[o.id]] = [[c.sourcePrimaryOwnerId]]')
                 ->where(['or',
                     ['c.sourceElementId' => null],
-                    ['and', ['not', ['t.id' => null]], ['not', ['s.id' => null]], ['not', ['o.id' => null]], ['o.revisionId' => null]],
+                    ['and', ['not', ['t.id' => null]], ['not', ['s.id' => null]], ['not', ['o.id' => null]], ['o.revisionId' => null], self::notLeftBehindByNeo()],
                 ]);
             [$sql, $params] = $db->getQueryBuilder()->build($select);
             $db->createCommand("DROP TABLE IF EXISTS $keep")->execute();

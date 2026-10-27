@@ -115,10 +115,11 @@ class ExtractorService
     public static function refreshRelationsForElement(ElementInterface $element): bool
     {
         self::$owners = self::$inBatch ? self::$owners : [];
-        [$ownerId, $ofRevision] = self::primaryOwner($element);
+        [$ownerId, $hidden] = self::primaryOwner($element);
         // revisions are never shown as usages, and neither are the nested elements (Matrix entries, Neo blocks) Craft
-        // keeps for them, which reach this through other paths than the save event (owner trees, full rebuilds)
-        if ($element->getIsRevision() || $ofRevision) {
+        // keeps for them, nor the Neo blocks a field converted to Matrix left behind, which reach this through other
+        // paths than the save event (owner trees, full rebuilds)
+        if ($element->getIsRevision() || $hidden) {
             \internetztube\elementRelations\models\RelationsModel::forgetPrefetched();
             return ElementRelationsCacheRecord::deleteAll(['sourceElementId' => $element->id, 'sourceSiteId' => $element->siteId]) > 0;
         }
@@ -263,11 +264,16 @@ class ExtractorService
      * The element an editor should see as "where it's used": nested elements (Matrix entries, Neo blocks, content
      * blocks, addresses, variants) resolve to their top-level owner; navigation nodes to their menu, wishlist items to
      * their list (a node or item is titled like the element it links to, so showing it would say nothing). With
-     * whether that element is a revision.
+     * whether nothing shows it: a revision, or a Neo block left behind (with what it owns).
      * @return array{int, bool}
      */
     private static function primaryOwner(ElementInterface $element): array
     {
+        // converting a Neo field to Matrix keeps its blocks, owned as before, but no editor or page shows them any more
+        // (Neo itself fails to load them: their field is no Neo field)
+        if ($element instanceof \benf\neo\elements\Block && !(Craft::$app->getFields()->getFieldById((int)$element->fieldId) instanceof \benf\neo\Field)) {
+            return [(int)$element->id, true];
+        }
         if (property_exists($element, 'primaryOwnerId') && $element->primaryOwnerId) {
             // the blocks of one owner share it: load it once per batch (see inBatch())
             $key = $element->primaryOwnerId . ':' . $element->siteId;
