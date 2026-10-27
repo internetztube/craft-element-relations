@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+## 4.0.3 - 2026-10-27
 
 ### Added
 - The replace wizard asks for the sites on a multi-site install: only the site you are editing (the default) or all of them. Its review shows “What changes”: how many elements change in each site. Content that is the same in several sites (a field not translated per site, on an entry or a Matrix block that exists in more than one site) can't change in one site alone; the review names those elements, the other sites they change in, and why. `ReplaceService::replace()` takes `onlySiteId`, and `ReplaceService::sharedWithOtherSites()` tells which usages in a site change in other sites as well.
