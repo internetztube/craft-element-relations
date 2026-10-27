@@ -75,10 +75,14 @@ class ElementQueryBehavior extends Behavior
     {
         /** @var Query<array-key, mixed> $subQuery created by prepare() before this event */
         $subQuery = $this->owner->subQuery;
-        if ($this->usesElement !== null || $this->unused !== null) {
+        // an index sorted by the field: its order is the usage count (ElementRelationsField::getSortOption())
+        $order = (array)$this->owner->orderBy;
+        $sortsByUsages = str_contains(implode(' ', [...array_keys($order), ...array_map(fn(mixed $value): string => is_scalar($value) || $value instanceof \Stringable ? (string)$value : '', $order)]), 'elementrelations_cache');
+        if ($this->usesElement !== null || $this->unused !== null || $sortsByUsages) {
             // Craft caches element index queries for an hour, invalidated by the element type's cache tags. These
-            // results also change when *other* elements are saved (a relation added somewhere, a source renamed or
-            // disabled), which those tags never cover, so never serve them from the query cache.
+            // results (and the order by usage count) also change when *other* elements are saved (a relation added
+            // somewhere, a source renamed or disabled) or the cache is refreshed by a queue job, which those tags never
+            // cover, so never serve them from the query cache.
             $this->owner->queryCacheDuration = null;
             $this->owner->queryCacheDependency = null;
         }

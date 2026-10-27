@@ -292,6 +292,32 @@ if ($assetsField) {
 $elements->deleteElement($user, true);
 $elements->deleteElement($probeAsset, true);
 
+// an entry index sorted by the field (most used first): the order follows the usages at once, also when they change
+// without a save of an entry (a queued refresh, a rebuild, a relating element of another type), which Craft's index
+// query cache never hears of. Here a cache row moves from one entry to the other, as a refresh would move it.
+$first = $make('E2E sort: first');
+$second = $make('E2E sort: second');
+$sorter = $make('E2E sort: user');
+$sorter->setFieldValue('relatedEntries', [$first->id]);
+$elements->saveElement($sorter) or throw new RuntimeException(json_encode($sorter->getErrors()));
+$flush();
+$sortedIds = function () use ($http, $first, $second): array {
+    [, , $json] = $http->action('element-indexes/get-elements', [
+        'context' => 'index', 'elementType' => Entry::class, 'source' => 'section:' . $first->getSection()->uid,
+        'criteria' => ['id' => [$first->id, $second->id], 'siteId' => $first->siteId, 'status' => null, 'limit' => 10],
+        'viewState' => ['mode' => 'table', 'showHeaderColumn' => true, 'inlineEditing' => false, 'static' => false, 'order' => 'field:' . Craft::$app->getFields()->getFieldByHandle('relations')->uid, 'sort' => 'desc'],
+        'paginated' => true, 'selectable' => true, 'sortable' => false,
+    ]);
+    preg_match_all('/data-id="(\d+)"/', $json['html'] ?? '', $m);
+    return array_values(array_intersect(array_map('intval', array_unique($m[1])), [$first->id, $second->id]));
+};
+check($sortedIds() === [$first->id, $second->id], 'an entry index sorted by the field: the used entry first');
+Craft::$app->getDb()->createCommand()->update('{{%elementrelations_cache}}', ['targetElementId' => $second->id], ['targetElementId' => $first->id, 'sourceElementId' => $sorter->id])->execute();
+check($sortedIds() === [$second->id, $first->id], 'the usage moved to the other entry without an entry being saved: the order follows at once (no stale index cache)');
+foreach ([$sorter, $first, $second] as $entry) {
+    $elements->deleteElement($entry, true);
+}
+
 // --- replacements and rollbacks run as queue jobs: post like the browser, then run exactly that job (as Craft's queue
 // would; other queued work, like the save-event refreshes, stays queued for the checks below) and ask for its status
 // like the field's script does
