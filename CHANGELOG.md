@@ -7,27 +7,27 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## Unreleased
 
 ### Added
-- Field setting “Default Status”: the status the list starts with, e.g. only live elements.
-- “Element Type” filter in the list's filter menu.
-- Setting “Parallel rebuild jobs” (`rebuildParallelJobs`, default 1): how many queue jobs a full rebuild runs at once. See “Queue” in the README.
+- Field setting “Default Status”, e.g. to show only live elements.
+- “Element Type” filter.
+- Setting “Parallel rebuild jobs” (default 1).
 
 ### Changed
-- A full rebuild no longer fills the queue with one job per batch. It queues one job per part, and each job queues itself again until its part is done. Other jobs get in between, and you can stop a part in the queue screen.
-- “Also used in these other sites” is a tidy grid. Each site is one clickable tile.
+- A full rebuild keeps only a few jobs in the queue instead of one per batch.
+- “Also used in these other sites” is a grid of clickable tiles.
 
 ### Fixed
-- With “Live” picked in the status menu, the list no longer shows drafts.
-- Sorting an element index by the field shows the current order right away (it could be up to an hour old).
-- A full cache rebuild puts far fewer jobs into the queue: it skips the Neo blocks left behind by a Neo-to-Matrix conversion (millions of elements on a large site).
-- The update removes the cache rows of those Neo blocks right away.
+- “Live” no longer shows drafts.
+- Sorting by the field is always up to date.
+- A full rebuild skips Neo blocks left over from a Neo-to-Matrix conversion.
+- The update removes the cache rows of those Neo blocks.
 
 ## 4.0.3 - 2026-10-27
 
 ### Added
-- The replace wizard asks for the sites on a multi-site install: only the site you are editing (the default) or all of them. Its review shows “What changes”: how many elements change in each site. Content that is the same in several sites (a field not translated per site, on an entry or a Matrix block that exists in more than one site) can't change in one site alone; the review names those elements, the other sites they change in, and why. `ReplaceService::replace()` takes `onlySiteId`, and `ReplaceService::sharedWithOtherSites()` tells which usages in a site change in other sites as well.
+- Replace only in the current site or in all sites. The review shows what changes in which site.
 
 ### Fixed
-- Converting a Neo field to Matrix keeps the field's old Neo blocks, still owned by their entries but shown nowhere (Neo can no longer load them). A cache rebuild listed their relations as usages of those entries, so an element showed up as used by an entry whose editor doesn't link to it. Such blocks, and entries nested in them, no longer count as usages, and prune (run after every garbage collection, or `php craft element-relations/prune`) removes the rows already cached for them.
+- Neo blocks left over from a Neo-to-Matrix conversion no longer count as usages.
 
 ## 4.0.2.1 - 2026-10-23
 
