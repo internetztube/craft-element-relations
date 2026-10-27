@@ -365,6 +365,21 @@ class RelationsModel
         return array_map(intval(...), $query->column());
     }
 
+    /**
+     * getSourceElementIds() for every site at once: the (primary owner) elements that relate to this element, per site
+     * of theirs. One query.
+     * @return array<int, list<int>> owner ids by site id
+     */
+    public function getSourceElementIdsBySite(): array
+    {
+        $bySite = [];
+        foreach ($this->fastSubQuery()->select(['owner' => '[[elementrelations_cache.sourcePrimaryOwnerId]]', 'site' => '[[elementrelations_cache.sourceSiteId]]'])->distinct()->all() as $row) {
+            /** @var array{owner: int|string, site: int|string} $row */
+            $bySite[(int)$row['site']][] = (int)$row['owner'];
+        }
+        return $bySite;
+    }
+
     /** How many (primary owner) elements relate to this element, in any site. One COUNT query. */
     public function getSourceOwnerCount(): int
     {

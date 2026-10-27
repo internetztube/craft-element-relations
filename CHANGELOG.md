@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## Unreleased
 
+### Added
+- The replace wizard asks for the sites on a multi-site install: only the site you are editing (the default) or all of them. Its review shows “What changes”: how many elements change in each site. Content that is the same in several sites (a field not translated per site, on an entry or a Matrix block that exists in more than one site) can't change in one site alone; the review names those elements, the other sites they change in, and why. `ReplaceService::replace()` takes `onlySiteId`, and `ReplaceService::sharedWithOtherSites()` tells which usages in a site change in other sites as well.
+
 ### Fixed
 - Converting a Neo field to Matrix keeps the field's old Neo blocks, still owned by their entries but shown nowhere (Neo can no longer load them). A cache rebuild listed their relations as usages of those entries, so an element showed up as used by an entry whose editor doesn't link to it. Such blocks, and entries nested in them, no longer count as usages, and prune (run after every garbage collection, or `php craft element-relations/prune`) removes the rows already cached for them.
 

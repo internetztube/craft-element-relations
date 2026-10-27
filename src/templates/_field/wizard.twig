@@ -48,11 +48,21 @@
                 {% endif %}
                 {% for usage in usages %}
                     <label class="element-relations-wizard__usage">
-                        <input type="checkbox" name="sourceIds[]" value="{{ usage.id }}" data-usage checked>
+                        {# its sites and the other sites that change with the edited one feed the review's "What changes" #}
+                        <input type="checkbox" name="sourceIds[]" value="{{ usage.id }}" data-usage data-site-ids="{{ usage.siteIds|json_encode }}" data-shared="{{ usage.shared|json_encode }}" data-title="{{ usage.element.title ?? usage.element|string }}" checked>
                         {{ elementChip(usage.element, {hyperlink: false, showStatus: true}) }}
                         <span class="light">{{ [usage.where, usage.field, usage.sites|join(', ')]|filter|join(' · ') }}</span>
                     </label>
                 {% endfor %}
+            </div>
+        {% endif %}
+        {% if chooseSites %}
+            {# the usages in the site the element is edited in, or in every site; content that is the same in other sites
+               changes there too, which the review shows #}
+            <div class="element-relations-wizard__scope element-relations-wizard__sites">
+                <h3>{{ 'Sites'|t('app') }}</h3>
+                <label><input type="radio" name="sites" value="current" data-sites checked> {{ 'wizard-sites-current'|t('element-relations', {site: siteName}) }}</label>
+                <label><input type="radio" name="sites" value="all" data-sites> {{ 'wizard-sites-all'|t('element-relations', {sites: sites|join(', ')}) }}</label>
             </div>
         {% endif %}
     </section>
@@ -65,8 +75,17 @@
             <span data-review-to><span class="light">{{ 'wizard-review-not-chosen'|t('element-relations') }}</span></span>
         </div>
         <p data-summary></p>
-        {% if sites|length > 1 %}
-            <p class="light">{{ 'wizard-every-site'|t('element-relations', {sites: sites|join(', ')}) }}</p>
+        {% if chooseSites %}
+            {# per site, how many elements change; then the ones that change in other sites as well, and why #}
+            <div class="element-relations-wizard__changes" data-changes>
+                <h3>{{ 'wizard-changes'|t('element-relations') }}</h3>
+                <dl data-changes-sites></dl>
+                <div class="element-relations-wizard__linked" data-linked hidden>
+                    <p class="warning with-icon" data-linked-title></p>
+                    <p data-linked-why></p>
+                    <p class="light" data-linked-names></p>
+                </div>
+            </div>
         {% endif %}
         {% if revisionHint %}
             <p class="light">{{ revisionHint }}</p>
@@ -90,6 +109,17 @@
 .element-relations-wizard__usage--all { font-weight: 600; border-bottom: 1px solid var(--hairline-color); border-radius: 0; margin-bottom: 4px; }
 .element-relations-wizard__usage .light { margin-left: auto; text-align: right; }
 .element-relations-wizard__scope { display: flex; flex-direction: column; gap: var(--xs); margin-bottom: var(--s); }
+.element-relations-wizard__sites { margin-top: var(--l); margin-bottom: 0; }
+.element-relations-wizard__sites h3 { margin: 0 0 var(--xs); }
+.element-relations-wizard__usage--elsewhere { opacity: .5; }
+.element-relations-wizard__changes { margin-bottom: var(--m); }
+.element-relations-wizard__changes h3 { margin-bottom: var(--xs); }
+.element-relations-wizard__changes dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px var(--m); margin: 0 0 var(--s); }
+.element-relations-wizard__changes dt { font-weight: 600; }
+.element-relations-wizard__changes dd { margin: 0; font-variant-numeric: tabular-nums; }
+.element-relations-wizard__linked { padding: var(--s) var(--m); border-radius: var(--large-border-radius); background: var(--gray-050); }
+.element-relations-wizard__linked p { margin: 0 0 var(--xs); }
+.element-relations-wizard__linked p:last-child { margin-bottom: 0; }
 .element-relations-wizard__review {
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--s); padding: var(--m); margin-bottom: var(--m);
     border-radius: var(--large-border-radius); background: var(--gray-050);
@@ -108,10 +138,23 @@
         submitOne: 'wizard-submit-one'|t('element-relations'),
         submitMany: 'wizard-submit-many'|t('element-relations'),
         notChosen: 'wizard-review-not-chosen'|t('element-relations'),
+        changesOne: 'wizard-changes-one'|t('element-relations'),
+        changesMany: 'wizard-changes-many'|t('element-relations'),
+        changesNone: 'wizard-changes-none'|t('element-relations'),
+        linkedOne: 'wizard-linked-one'|t('element-relations'),
+        linkedMany: 'wizard-linked-many'|t('element-relations'),
+        linkedWhy: 'wizard-linked-why'|t('element-relations'),
+        linkedMore: 'wizard-linked-more'|t('element-relations'),
         from: fromTitle,
         total: total,
         listTotal: listTotal,
         everywhere: everywhere,
+        site: from.siteId,
+        siteName: siteName,
+        siteOrder: siteOrder,
+        siteNames: siteNames,
+        changesEverywhere: changesEverywhere,
+        changesList: changesList,
     }|json_encode|raw }};
     const $usages = $wizard.find('[data-usage]'); // names are namespaced inside the slideout
     const $selectAll = $wizard.find('[data-select-all]');
@@ -121,10 +164,80 @@
 
     const $scope = $wizard.find('[data-scope]');
     const wholeList = () => $scope.filter(':checked').val() === 'list';
+    const onlyHere = () => $wizard.find('[data-sites]:checked').val() === 'current';
+
+    /**
+     * Elements that change in other sites as well: their content there is the same as in the edited site.
+     * @typedef {Object} LinkedElements
+     * @property {number} count
+     * @property {number[]} sites ids of those other sites
+     * @property {string[]} names the first few (those the user may view)
+     */
+    /**
+     * What a replacement changes, per site id: for "Only in <site>" and for "In all sites".
+     * @typedef {Object} Changes
+     * @property {Object<string, number>} here
+     * @property {Object<string, number>} all
+     * @property {LinkedElements} linked
+     */
+    /** @returns {Changes} the ticked rows' (the whole list and everywhere as the server counted them) */
+    const changesNow = () => {
+        if (texts.everywhere || wholeList()) {
+            return texts.everywhere ? texts.changesEverywhere : texts.changesList;
+        }
+        const changes = { here: { [texts.site]: 0 }, all: {}, linked: { count: 0, sites: [], names: [] } };
+        const add = (counts, site) => { counts[site] = (counts[site] || 0) + 1; };
+        $usages.filter(':checked').each((i, el) => {
+            const siteIds = $(el).data('siteIds');
+            const shared = $(el).data('shared');
+            siteIds.forEach((site) => add(changes.all, site));
+            if (!siteIds.includes(texts.site)) {
+                return;
+            }
+            add(changes.here, texts.site);
+            shared.forEach((site) => add(changes.here, site));
+            if (shared.length) {
+                changes.linked.count++;
+                changes.linked.sites = [...new Set([...changes.linked.sites, ...shared])];
+                if (changes.linked.names.length < 5) {
+                    changes.linked.names.push(String($(el).data('title')));
+                }
+            }
+        });
+        return changes;
+    };
+
+    /** The review's "What changes": a line per site, then the elements that change in other sites as well. */
+    const showChanges = (changes, here) => {
+        const perSite = here ? changes.here : changes.all;
+        const name = (site) => texts.siteNames[site];
+        $wizard.find('[data-changes-sites]').empty().append(texts.siteOrder.flatMap((site) => {
+            const count = perSite[site] || 0;
+            return [
+                $('<dt/>').text(name(site)),
+                $('<dd/>').toggleClass('light', !count).text(count ? (count === 1 ? texts.changesOne : texts.changesMany.replace('{count}', String(count))) : texts.changesNone),
+            ];
+        }));
+        const linked = changes.linked;
+        $wizard.find('[data-linked]').prop('hidden', !here || !linked.count);
+        const sites = linked.sites.map(name).filter(Boolean).join(', ');
+        $wizard.find('[data-linked-title]').text((linked.count === 1 ? texts.linkedOne : texts.linkedMany).replace('{count}', String(linked.count)).replace('{sites}', sites));
+        $wizard.find('[data-linked-why]').text(texts.linkedWhy.replaceAll('{site}', texts.siteName));
+        const more = linked.count - linked.names.length;
+        $wizard.find('[data-linked-names]').text(linked.names.join(' · ') + (more > 0 ? ' ' + texts.linkedMore.replace('{count}', String(more)) : ''));
+    };
 
     const update = () => {
         $wizard.find('[data-ticked]').prop('hidden', wholeList());
-        const count = texts.everywhere ? texts.total : (wholeList() ? texts.listTotal : $usages.filter(':checked').length);
+        const here = onlyHere();
+        $usages.each((i, el) => $(el).closest('.element-relations-wizard__usage').toggleClass('element-relations-wizard__usage--elsewhere', here && !$(el).data('siteIds').includes(texts.site)));
+        const changes = changesNow();
+        const count = here
+            ? (changes.here[texts.site] || 0)
+            : (texts.everywhere ? texts.total : (wholeList() ? texts.listTotal : $usages.filter(':checked').length));
+        if ($wizard.find('[data-changes]').length) {
+            showChanges(changes, here);
+        }
         const $chip = replacementChip();
         const replacement = $chip.length ? ($chip.data('label') || $chip.find('.label').text().trim() || $chip.text().trim()) : null;
         const checked = $usages.filter(':checked').length;
@@ -150,6 +263,7 @@
     });
     $usages.on('change', update);
     $scope.on('change', update);
+    $wizard.find('[data-sites]').on('change', update);
     // the element select renders its chip asynchronously; follow what it shows
     const $selection = $wizard.find('.elementselect');
     if ($selection.length) {

@@ -181,13 +181,16 @@ return function (array $ctx): void {
         [$value, $error] = $try(fn() => [count($private('listRows', [$target, []])), count($private('wizardSites', [$target, $ownerIds])), strlen(ElementRelationsField::revisionHintFor($target, $ownerIds)) >= 0]);
         check(is_array($value) && $value[0] === $owners && $value[1] === count($allSiteIds) && $value[2], 'large site: the wizard for all 70,000 in the list: rows, sites, revision hint (' . json_encode($value) . ') ' . $error);
         $lastJob = (int)(new Query())->from('{{%queue}}')->max('id');
-        [$value, $error] = $try(fn() => [ReplaceService::replace($target, $replacement, $ownerIds, queue: true)['operationId'] !== null, ReplaceService::replace($target, $replacement, null, queue: true)['operationId'] !== null]);
-        check($value === [true, true], 'large site: replacing in all 70,000 and everywhere is planned and queued (' . json_encode($value) . ') ' . $error);
+        $oneSite = (int)array_values($allSiteIds)[0];
+        [$value, $error] = $try(fn() => [ReplaceService::replace($target, $replacement, $ownerIds, queue: true)['operationId'] !== null, ReplaceService::replace($target, $replacement, null, queue: true)['operationId'] !== null, ReplaceService::replace($target, $replacement, $ownerIds, queue: true, onlySiteId: $oneSite)['operationId'] !== null]);
+        check($value === [true, true, true], 'large site: replacing in all 70,000, everywhere, and in one site only is planned and queued (' . json_encode($value) . ') ' . $error);
         foreach ((new Query())->select(['id'])->from('{{%queue}}')->where(['>', 'id', $lastJob])->column() as $jobId) {
             Craft::$app->getQueue()->release((string)$jobId); // planned only: running 70,000 saves is not the point here
         }
         [$value, $error] = $try(fn() => [ReplaceService::elementCount((int)$target->id, $ownerIds), count(ReplaceService::types($ownerIds))]);
         check($value === [$owners, $owners], 'large site: counting what a replacement changed, and the types of 70,000 elements (' . json_encode($value) . ') ' . $error);
+        [$value, $error] = $try(fn() => [ReplaceService::elementCount((int)$target->id, $ownerIds, [$oneSite]) <= $owners, is_array(ReplaceService::sharedWithOtherSites($target, $oneSite, $ownerIds)), is_array(ReplaceService::sharedWithOtherSites($target, $oneSite))]);
+        check($value === [true, true, true], 'large site: the count in one site, and which of 70,000 usages in one site are shared with other sites, for the list and everywhere (' . json_encode($value) . ') ' . $error);
         echo sprintf("  (every path ran in %.1f s)\n", microtime(true) - $fileStarted);
     } finally {
         $cleanup();

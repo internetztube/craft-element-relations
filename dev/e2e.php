@@ -416,7 +416,9 @@ if ($notes && $notesTo) {
     [, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}', 'allTicked' => 1]));
     check(preg_match('/value="list" data-scope checked>/', $wizardHtml) === 1, 'the whole page ticked: "all in the list" is preselected');
     if (Craft::$app->getIsMultiSite()) {
-        check(str_contains($wizardHtml, 'In every site they use it'), 'the review says the replacement covers every site the elements use it in');
+        $siteName = (string)$notes->getSite()->getName();
+        check(preg_match('/name="sites" value="current" data-sites checked>/', $wizardHtml) === 1 && str_contains($wizardHtml, "Only in $siteName") && str_contains($wizardHtml, 'In all sites ('), "the usages reach other sites: it asks “Only in $siteName” (preselected) or “In all sites”");
+        check(str_contains($wizardHtml, 'data-changes') && str_contains($wizardHtml, '"changesList":{"here":') && str_contains($wizardHtml, '"changesEverywhere":{"here":'), 'and carries the review\'s "What changes": elements per site for both choices, and the ones that change in other sites as well');
     }
     [$status, $body, $json] = $replaceAndRun(['fromId' => $notes->id, 'toId' => $notesTo->id, 'siteId' => $notes->siteId, 'scope' => 'list', 'criteria' => '{}']);
     check($status === 200 && ($json['replaced'] ?? 0) === $all && $all > 20, "all in the list: $all replaced, not just the ticked page (" . substr($body, 0, 160) . ')');

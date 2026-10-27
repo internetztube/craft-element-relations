@@ -67,7 +67,9 @@ class ReplaceController extends Controller
             return $this->asFailure(Craft::t('element-relations', 'replace-nothing-selected'));
         }
 
-        $result = ReplaceService::replace($from, $to, $everywhere ? null : $sourceIds, queue: true);
+        // the wizard's "Only in <site>": the usages in the site the element is edited in; without the param every site
+        $onlySiteId = $this->request->getBodyParam('sites') === 'current' ? (int)$from->siteId : null;
+        $result = ReplaceService::replace($from, $to, $everywhere ? null : $sourceIds, queue: true, onlySiteId: $onlySiteId);
         if ($result['denied']) {
             throw new ForbiddenHttpException('User is not permitted to view one of the elements.');
         }
@@ -157,6 +159,23 @@ class ReplaceController extends Controller
         $listRows = $sourceIds ? $this->listRows($from, $criteria) : [];
         $listIds = array_values(array_unique($listRows));
         $usages = $sourceIds ? $this->wizardUsages($from, $sourceIds) : [];
+        $scopeIds = $everywhere ? null : (count($listIds) > count($usages) ? $listIds : $sourceIds);
+        $sites = $this->wizardSites($from, $scopeIds);
+        // "Only in <site>" or "In all sites", when the usages reach other sites than the one the element is edited in;
+        // the review then shows what changes in which site
+        $siteName = (string)$from->getSite()->getName();
+        $chooseSites = array_diff($sites, [$siteName]) !== [];
+        $bySite = $chooseSites ? (new RelationsModel((int)$from->id, (int)$from->siteId))->getSourceElementIdsBySite() : [];
+        $shared = $chooseSites ? ReplaceService::sharedWithOtherSites($from, (int)$from->siteId, $scopeIds) : [];
+        $ownerSets = array_map(array_flip(...), $bySite);
+        foreach ($usages as &$usage) {
+            $usage['siteIds'] = array_keys(array_filter($ownerSets, fn(array $owners): bool => isset($owners[$usage['id']])));
+            $usage['shared'] = $shared[$usage['id']] ?? [];
+        }
+        unset($usage);
+        // the edited site first, then the others in the order of the site settings
+        $siteOrder = array_values(array_filter(array_map(fn(\craft\models\Site $site): int => (int)$site->id, Craft::$app->getSites()->getAllSites(true)), fn(int $id): bool => $id === (int)$from->siteId || isset($bySite[$id])));
+        usort($siteOrder, fn(int $a, int $b): int => ($b === (int)$from->siteId) <=> ($a === (int)$from->siteId));
         return $this->asCpScreen()
             ->title(Craft::t('element-relations', 'wizard-title', ['element' => (string)$from]))
             ->action('element-relations/replace/replace')
@@ -167,11 +186,16 @@ class ReplaceController extends Controller
                 'everywhere' => $everywhere,
                 'usages' => $usages,
                 'total' => $everywhere ? (new RelationsModel((int)$from->id, (int)$from->siteId))->getSourceOwnerCount() : count($usages),
-                // every site the elements use it in is replaced (a page in English and German, both); for the whole
-                // list, the list's elements
-                'sites' => $this->wizardSites($from, count($listIds) > count($usages) ? $listIds : $sourceIds),
+                // the sites the elements use it in (for the whole list, the list's elements)
+                'sites' => $sites,
+                'siteName' => $siteName,
+                'chooseSites' => $chooseSites,
+                'siteOrder' => $siteOrder,
+                'siteNames' => array_combine($siteOrder, array_map(fn(int $id): string => (string)Craft::$app->getSites()->getSiteById($id, true)?->getName(), $siteOrder)),
                 // more in the list than ticked (other pages): offer all of them; preselected when the whole page was ticked
                 'listTotal' => count($listIds) > count($usages) ? count($listIds) : 0,
+                'changesEverywhere' => $this->changes($from, $bySite, $shared, null),
+                'changesList' => $this->changes($from, $bySite, $shared, $listIds),
                 'allTicked' => $this->request->getQueryParam('allTicked') === '1',
                 'criteria' => $criteria,
                 'revisionHint' => \internetztube\elementRelations\fields\ElementRelationsField::revisionHintFor($from, count($listIds) > count($usages) ? $listIds : $sourceIds),
@@ -247,6 +271,34 @@ class ReplaceController extends Controller
             ];
         }
         return $rows;
+    }
+
+    /**
+     * What a replacement changes in which site, for the wizard's review ("What changes"), among some owners (null: all):
+     * the elements per site for "Only in <site>" (that site, and the other sites whose content is the same there) and
+     * for "In all sites", and the elements that change in other sites as well, named when the user may view them.
+     * @param array<int, list<int>> $bySite owners per site
+     * @param array<int, list<int>> $shared per owner, the other sites that change with the edited one
+     * @param list<int>|null $ids
+     * @return array{here: array<int, int>, all: array<int, int>, linked: array{count: int, sites: list<int>, names: list<string>}}
+     */
+    private function changes(ElementInterface $from, array $bySite, array $shared, ?array $ids): array
+    {
+        $in = $ids === null ? null : array_flip($ids);
+        $among = fn(array $owners): array => $in === null ? $owners : array_values(array_filter($owners, fn(int $id): bool => isset($in[$id])));
+        $here = $among($bySite[(int)$from->siteId] ?? []);
+        $linked = array_intersect_key($shared, array_flip($here));
+        $perSite = [(int)$from->siteId => count($here)];
+        foreach (array_merge([], ...array_values($linked)) as $site) {
+            $perSite[$site] = ($perSite[$site] ?? 0) + 1;
+        }
+        $elements = Craft::$app->getElements();
+        $names = array_map(fn(int $id): ?string => ($element = $elements->getElementById($id, null, (int)$from->siteId)) && $elements->canView($element) ? (string)$element : null, array_slice(array_keys($linked), 0, 5));
+        return [
+            'here' => $perSite,
+            'all' => array_filter(array_map(fn(array $owners): int => count($among($owners)), $bySite)),
+            'linked' => ['count' => count($linked), 'sites' => array_values(array_unique(array_merge([], ...array_values($linked)))), 'names' => array_values(array_filter($names))],
+        ];
     }
 
     /**

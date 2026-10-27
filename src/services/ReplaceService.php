@@ -72,6 +72,8 @@ class ReplaceService
      * @param (callable(float): void)|null $progress called with 0..1 while running (queue job progress)
      * @param bool $queue run as a queue job (ReplaceElementJob) as the current user; the control panel always does,
      * console commands and migrations run right away
+     * @param int|null $onlySiteId restrict to the usages in this site (of the relating elements); null = every site.
+     * A field shared between sites still changes in all of them (sharedWithOtherSites() names them beforehand)
      * @return ReplaceResult
      */
     public static function replace(
@@ -81,6 +83,7 @@ class ReplaceService
         ?ReplacementRecord $operation = null,
         ?callable $progress = null,
         bool $queue = false,
+        ?int $onlySiteId = null,
     ): array {
         $nothing = ['replaced' => 0, 'skipped' => [], 'operationId' => null, 'queued' => false, 'withoutRevision' => 0, 'denied' => false];
         if ($from::class !== $to::class || $from->id === $to->id) {
@@ -112,12 +115,13 @@ class ReplaceService
                 ->where(['targetElementId' => $from->id])
                 ->andWhere(['not', ['sourceElementId' => null]])
                 ->andWhere($onlySourceIds === null ? [] : \internetztube\elementRelations\ElementRelations::idIn('sourcePrimaryOwnerId', $onlySourceIds)) // as text: at most 65,535 parameters
+                ->andFilterWhere(['sourceSiteId' => $onlySiteId])
                 ->exists();
             if (!$anyUsage) {
                 return $nothing; // nothing to queue: tell right away (e.g. the same usages submitted twice)
             }
             $operation = self::newOperation($from, $to, $onlySourceIds, $userId, ReplacementRecord::STATUS_QUEUED);
-            ReplaceRun::plan($operation, $from, $to, $onlySourceIds);
+            ReplaceRun::plan($operation, $from, $to, $onlySourceIds, $onlySiteId);
             Craft::$app->getQueue()->push(new ReplaceElementJob(['operationId' => (int)$operation->id]));
             Craft::info(sprintf('Replacement #%d of #%d by #%d queued', $operation->id, $from->id, $to->id), 'element-relations');
             return [...$nothing, 'operationId' => (int)$operation->id, 'queued' => true];
@@ -126,7 +130,7 @@ class ReplaceService
         // right away (console, migrations, or a queued operation run by an older job): every owner group in one go
         $createdHere = $operation === null;
         $operation ??= self::newOperation($from, $to, $onlySourceIds, $userId, ReplacementRecord::STATUS_QUEUED);
-        $run = $operation->plan ? ReplaceRun::resume($operation, $from, $to) : ReplaceRun::plan($operation, $from, $to, $onlySourceIds);
+        $run = $operation->plan ? ReplaceRun::resume($operation, $from, $to) : ReplaceRun::plan($operation, $from, $to, $onlySourceIds, $onlySiteId);
         $groups = ReplaceRun::groups($operation);
         foreach ($groups as $i => $group) {
             if ($progress) {
@@ -376,9 +380,10 @@ class ReplaceService
      * rollback measure what they did by this, among the owners they changed, so their numbers match the list: a shared
      * field swapped by one site's save takes the other sites' usages with it, without a change row of its own.
      * @param list<int> $ownerIds
+     * @param list<int>|null $siteIds only usages in these sites (a replacement in one site); null = any site
      * @internal used by ReplaceRun / RollbackRun
      */
-    public static function elementCount(int $targetId, array $ownerIds): int
+    public static function elementCount(int $targetId, array $ownerIds, ?array $siteIds = null): int
     {
         if (!$ownerIds) {
             return 0;
@@ -388,7 +393,63 @@ class ReplaceService
             ->innerJoin(['sources' => Table::ELEMENTS], '[[sources.id]] = [[cache.sourceElementId]]')
             ->where(['cache.targetElementId' => $targetId, 'sources.dateDeleted' => null])
             ->andWhere(\internetztube\elementRelations\ElementRelations::idIn('cache.sourcePrimaryOwnerId', $ownerIds)) // as text: at most 65,535 parameters
+            ->andFilterWhere(['cache.sourceSiteId' => $siteIds])
             ->count('DISTINCT [[cache.sourcePrimaryOwnerId]]');
+    }
+
+    /**
+     * The usages of an element in one site whose value is shared with other sites: replacing them in that site changes
+     * them in those sites too. A relation field that doesn't manage its relations per site keeps one list for every
+     * site its element exists in, a field translated per language or site group shares it within that language or
+     * group, and an element in several sites (an entry, a Matrix block that propagates) carries it to all of them;
+     * element-level references (a navigation node's element, a user photo) are shared too. Custom translation keys
+     * can't be told apart without rendering them per site, so they count as shared: rather a warning too many.
+     * @param list<int>|null $onlySourceIds top-level owners as listed in the field; null = every usage
+     * @return array<int, list<int>> per top-level owner, the ids of the other sites that change with it
+     */
+    public static function sharedWithOtherSites(ElementInterface $from, int $siteId, ?array $onlySourceIds = null): array
+    {
+        $rows = (new Query())
+            ->select(['sourceElementId', 'sourcePrimaryOwnerId', 'fieldId'])
+            ->distinct()
+            ->from('{{%elementrelations_cache}}')
+            ->where(['targetElementId' => $from->id, 'sourceSiteId' => $siteId])
+            ->andWhere(['not', ['sourceElementId' => null]])
+            ->andWhere($onlySourceIds === null ? [] : ElementRelations::idIn('sourcePrimaryOwnerId', $onlySourceIds)) // as text: at most 65,535 parameters
+            ->all();
+        /** @var list<array{sourceElementId: int|string, sourcePrimaryOwnerId: int|string|null, fieldId: int|string|null}> $rows */
+        $otherSites = [];
+        foreach ((new Query())
+            ->select(['elementId', 'siteId'])
+            ->from(Table::ELEMENTS_SITES)
+            ->where(ElementRelations::idIn('elementId', array_map(fn(array $row): int => (int)$row['sourceElementId'], $rows)))
+            ->andWhere(['not', ['siteId' => $siteId]])
+            ->all() as $site) {
+            /** @var array{elementId: int|string, siteId: int|string} $site */
+            $otherSites[(int)$site['elementId']][] = (int)$site['siteId'];
+        }
+        $sites = Craft::$app->getSites();
+        $here = $sites->getSiteById($siteId, true);
+        $shared = [];
+        foreach ($rows as $row) {
+            $field = $row['fieldId'] !== null ? Craft::$app->getFields()->getFieldById((int)$row['fieldId']) : null;
+            $method = match (true) {
+                $field instanceof \craft\fields\BaseRelationField => $field->localizeRelations ? Field::TRANSLATION_METHOD_SITE : Field::TRANSLATION_METHOD_NONE,
+                $field instanceof Field => $field->translationMethod,
+                default => Field::TRANSLATION_METHOD_NONE, // element-level, or a field that is gone
+            };
+            $with = array_filter($otherSites[(int)$row['sourceElementId']] ?? [], fn(int $id): bool => match ($method) {
+                Field::TRANSLATION_METHOD_SITE => false,
+                Field::TRANSLATION_METHOD_LANGUAGE => $sites->getSiteById($id, true)?->language === $here?->language,
+                Field::TRANSLATION_METHOD_SITE_GROUP => $sites->getSiteById($id, true)?->groupId === $here?->groupId,
+                default => true,
+            });
+            $owner = $row['sourcePrimaryOwnerId'] !== null ? (int)$row['sourcePrimaryOwnerId'] : (int)$row['sourceElementId'];
+            if ($with) {
+                $shared[$owner] = array_values(array_unique([...$shared[$owner] ?? [], ...$with]));
+            }
+        }
+        return $shared;
     }
 
     /**

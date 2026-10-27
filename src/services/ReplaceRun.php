@@ -61,8 +61,9 @@ final class ReplaceRun
     /**
      * Plans a new replacement: the usages of `$from` (optionally only in some relating elements), grouped by owner.
      * @param list<int>|null $onlySourceIds top-level owners as listed in the field; null = everywhere
+     * @param int|null $onlySiteId only the usages in this site; null = every site
      */
-    public static function plan(ReplacementRecord $operation, ElementInterface $from, ElementInterface $to, ?array $onlySourceIds): self
+    public static function plan(ReplacementRecord $operation, ElementInterface $from, ElementInterface $to, ?array $onlySourceIds, ?int $onlySiteId = null): self
     {
         $rows = (new Query())
             ->select(['sourceElementId' => 'cache.sourceElementId', 'sourceSiteId' => 'cache.sourceSiteId', 'sourcePrimaryOwnerId' => 'cache.sourcePrimaryOwnerId', 'fieldId' => 'cache.fieldId', 'type' => 'cache.type'])
@@ -73,6 +74,7 @@ final class ReplaceRun
             ->where(['cache.targetElementId' => $from->id, 'sources.dateDeleted' => null])
             ->andWhere(['not', ['cache.sourceElementId' => null]]) // non-element usages are reported at the end
             ->andWhere($onlySourceIds === null ? [] : \internetztube\elementRelations\ElementRelations::idIn('cache.sourcePrimaryOwnerId', $onlySourceIds)) // as text: at most 65,535 parameters
+            ->andFilterWhere(['cache.sourceSiteId' => $onlySiteId])
             ->orderBy(['cache.sourcePrimaryOwnerId' => SORT_ASC, 'cache.sourceSiteId' => SORT_ASC, 'cache.sourceElementId' => SORT_ASC])
             ->all();
         /** @var list<array{sourceElementId: int|string, sourceSiteId: int|string, sourcePrimaryOwnerId: int|string|null, fieldId: int|string|null, type: string}> $rows */
@@ -236,10 +238,12 @@ final class ReplaceRun
      */
     public function finish(?array $onlySourceIds): array
     {
-        // measured, not tallied per site: the owners this run changed that the list no longer shows (see
-        // ReplaceService::elementCount()); a source deleted or edited by someone else meanwhile is not among them
+        // measured, not tallied per site: the owners this run changed that no longer use it in the planned sites (see
+        // ReplaceService::elementCount(); every site with a usage, or the one site of a replacement in one site); a
+        // source deleted or edited by someone else meanwhile is not among them
         $done = array_keys($this->doneOwners);
-        $this->replaced = count($done) - ReplaceService::elementCount((int)$this->from->id, $done);
+        $sites = array_values(array_unique(array_map(fn(array $group): int => $group['siteId'], self::groups($this->operation))));
+        $this->replaced = count($done) - ReplaceService::elementCount((int)$this->from->id, $done, $sites);
         // Data shared across sites (non-translatable fields, Formie forms) is swapped by whichever site got saved first;
         // the other sites then hold no reference anymore. So only elements saved in no site count as skipped.
         foreach ($this->pending as $id => $labels) {

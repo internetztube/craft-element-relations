@@ -375,13 +375,13 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'wizard',
-        points: ['Pick the replacement with Craft’s own picker', 'Untick what should keep the element', 'A summary before anything changes'],
+        points: ['Pick the replacement with Craft’s own picker', 'Only in this site, or in all of them', 'See what changes in which site'],
         focus: `wizardSlideout()`,
-        highlight: `[[document.querySelector('.element-relations-wizard__review')], [wizardSlideout().querySelector('button[type="submit"]')]]`,
+        highlight: `[[document.querySelector('.element-relations-wizard__sites')], [document.querySelector('.element-relations-wizard__changes')]]`,
         cover: `wizardSlideout()`,
         caption: 'Replace, with a review first',
         title: 'Review, then replace',
-        text: 'Pick the replacement, check the usages, read the summary. Then it runs in the background.',
+        text: 'Pick the replacement, choose the usages and the sites, see what changes where. Then it runs in the background.',
         act: `${OPEN_WIZARD_ACT}`,
     },
     {

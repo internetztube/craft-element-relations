@@ -4,6 +4,7 @@
 use craft\elements\Entry;
 use internetztube\elementRelations\elements\Usage;
 use internetztube\elementRelations\models\RelationsModel;
+use internetztube\elementRelations\services\ReplaceService;
 
 return function (array $ctx): void {
     $en = Craft::$app->getSites()->getPrimarySite()->id;
@@ -115,4 +116,60 @@ return function (array $ctx): void {
     check($rowsOf($halved->id, $de) === 0 && $rowsOf($halved->id, $en) > 0, 'deleted for German only: its German rows go, the English ones stay');
     Craft::$app->getElements()->deleteElement($halved, true);
     check($rowsOf($halved->id) === 0, 'and deleted for good: none left');
+
+    // replacing in one site: the per-site field changes there only; the shared field (one list for every site) changes
+    // in both, which sharedWithOtherSites() tells the wizard beforehand
+    $elements = Craft::$app->getElements();
+    $make = function (string $title, array $values = []) use ($source, $elements): Entry {
+        $entry = new Entry(['sectionId' => $source->sectionId, 'typeId' => $source->typeId, 'title' => "Site replace: $title"]);
+        $entry->setFieldValues($values);
+        $elements->saveElement($entry) or throw new RuntimeException(json_encode($entry->getErrors()));
+        return $entry;
+    };
+    $in = fn(Entry $entry, int $siteId): Entry => Entry::find()->id($entry->id)->siteId($siteId)->status(null)->one();
+    $ids = fn(Entry $entry, int $siteId, string $field): array => array_map(intval(...), $in($entry, $siteId)->getFieldValue($field)->status(null)->ids());
+    $from = $make('from');
+    $to = $make('to');
+    $shared = $make('shared field', ['relatedEntries' => [$from->id]]);
+    $perSite = $make('per-site field', ['relatedEntriesLocalized' => [$from->id]]);
+    $perSiteDe = $in($perSite, $de);
+    $perSiteDe->setFieldValue('relatedEntriesLocalized', [$from->id]);
+    $elements->saveElement($perSiteDe) or throw new RuntimeException(json_encode($perSiteDe->getErrors()));
+    flushQueue();
+    try {
+        check(ReplaceService::sharedWithOtherSites($in($from, $de), $de) === [(int)$shared->id => [$en]], 'in German: the usage in the shared field also changes in English, the per-site one does not');
+        check(ReplaceService::sharedWithOtherSites($in($from, $de), $de, [(int)$perSite->id]) === [], 'limited to the per-site usage: nothing shared');
+        $result = ReplaceService::replace($in($from, $de), $in($to, $de), [(int)$shared->id, (int)$perSite->id], onlySiteId: $de);
+        flushQueue();
+        check($result['replaced'] === 2, 'only in German: both elements count as replaced, though the per-site one still uses it in English (' . json_encode($result) . ')');
+        check($ids($perSite, $de, 'relatedEntriesLocalized') === [(int)$to->id] && $ids($perSite, $en, 'relatedEntriesLocalized') === [(int)$from->id], 'the per-site field changed in German only');
+        check($ids($shared, $de, 'relatedEntries') === [(int)$to->id] && $ids($shared, $en, 'relatedEntries') === [(int)$to->id], 'the shared field changed in both sites, as the warning said');
+        check(ReplaceService::replace($in($from, $de), $in($to, $de), [(int)$perSite->id], onlySiteId: $de)['replaced'] === 0, 'nothing left in German: a second run replaces nothing (English keeps its usage)');
+
+        // the translation methods, on rows of a stand-in target: a per-language field shares only within the language,
+        // a site group's within the group, a custom key and element-level references (no field) always count as shared
+        $field = collect(Craft::$app->getFields()->getAllFields())->first(fn($f) => $f instanceof craft\base\Field && !$f instanceof craft\fields\BaseRelationField);
+        $standIn = new Entry(['id' => 999999903]);
+        $now = craft\helpers\Db::prepareDateForDb(new DateTime());
+        $row = fn(?int $fieldId) => Craft::$app->getDb()->createCommand()->insert('{{%elementrelations_cache}}', ['sourceElementId' => $perSite->id, 'sourceSiteId' => $de, 'sourcePrimaryOwnerId' => $perSite->id, 'targetElementId' => $standIn->id, 'targetSiteId' => $de, 'fieldId' => $fieldId, 'type' => 'field', 'dateCreated' => $now, 'dateUpdated' => $now, 'uid' => craft\helpers\StringHelper::UUID()])->execute();
+        $row((int)$field->id);
+        $sites = Craft::$app->getSites();
+        $original = $field->translationMethod;
+        $seen = [];
+        foreach (['site', 'language', 'siteGroup', 'custom', 'none'] as $method) {
+            $field->translationMethod = $method;
+            $seen[$method] = ReplaceService::sharedWithOtherSites($standIn, $de) === [(int)$perSite->id => [$en]];
+        }
+        $field->translationMethod = $original;
+        $expected = ['site' => false, 'language' => $sites->getSiteById($en)->language === $sites->getSiteById($de)->language, 'siteGroup' => $sites->getSiteById($en)->groupId === $sites->getSiteById($de)->groupId, 'custom' => true, 'none' => true];
+        check($seen === $expected, 'per site never shared; per language only within the language, per site group only within the group; custom keys and none always (' . json_encode($seen) . ')');
+        Craft::$app->getDb()->createCommand()->delete('{{%elementrelations_cache}}', ['targetElementId' => $standIn->id])->execute();
+        $row(null);
+        check(ReplaceService::sharedWithOtherSites($standIn, $de) === [(int)$perSite->id => [$en]], 'an element-level reference (no field) is shared with every site of its element');
+    } finally {
+        Craft::$app->getDb()->createCommand()->delete('{{%elementrelations_cache}}', ['targetElementId' => 999999903])->execute();
+        foreach ([$shared, $perSite, $from, $to] as $entry) {
+            $elements->deleteElement($entry, true);
+        }
+    }
 };

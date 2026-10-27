@@ -163,7 +163,7 @@ Craft's own queries take a `usesElement` argument. So any query with any of Craf
 In detail:
 
 - **Unused:** a “Used anywhere” rule in Craft's index filter. It works on any source, with Craft's bulk actions, and in custom sources (make a custom source with it for a fixed “Unused” entry in the sidebar). In code: the `unused()` query param. Plugin settings (SEOmatic) count as a usage.
-- **Replace:** tick usages in the field's list and choose “Replace…”, or choose “Replace everywhere…” in an element index. A slideout opens: pick the replacement, untick usages or take all in the filtered list (across pages), and read a summary before anything changes. Plugin settings are listed for a manual change. Only elements the user may save are touched.
+- **Replace:** tick usages in the field's list and choose “Replace…”, or choose “Replace everywhere…” in an element index. A slideout opens: pick the replacement, untick usages or take all in the filtered list (across pages), and read a summary before anything changes. On a multi-site install it asks for the sites too: only the one you are editing (the default) or all of them. Its review shows how many elements change in each site. Content that is the same in several sites (a field that isn't translated per site, on an entry or a Matrix block that exists in more than one site) can't change in one site alone; the review names those elements and the other sites they change in. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button. Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the link back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them. So saving many or large entries never blocks the page. The notice shows the progress and offers Undo when the job is done. If a job gets lost (a worker stopped), it resumes where it was: by itself while the notice waits, with Resume in the history, or on the command line.
 - **Command line:** `php craft element-relations/replace` for scripts and migrations, see [Command line](#command-line).
@@ -228,7 +228,7 @@ public function safeUp(): bool
 }
 ```
 
-`ReplaceService::replace($from, $to, $onlySourceIds)` returns `replaced`, `skipped` (usages that need a manual change), `operationId` and `withoutRevision`. `ReplaceService::rollback()` undoes an operation.
+`ReplaceService::replace($from, $to, $onlySourceIds)` returns `replaced`, `skipped` (usages that need a manual change), `operationId` and `withoutRevision`. `onlySiteId: 3` limits it to the usages in one site; `ReplaceService::sharedWithOtherSites($from, 3)` tells beforehand which of them change in other sites as well. `ReplaceService::rollback()` undoes an operation.
 
 ## Events
 

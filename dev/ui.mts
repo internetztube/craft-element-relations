@@ -157,7 +157,7 @@ try {
     // ---------------------------------------------------------------------------------------------------------------
     await scenario('wizard counts: a ticked page of a multi-site list', async () => {
         await visit(demo.taipei.path);
-        const facts: { ticked: number, radios: { value: string, checked: boolean, label: string }[], summary: string, boxes: number, submit: string, sites: string } = await run(`
+        const facts: { ticked: number, radios: { value: string, checked: boolean, label: string }[], summary: string, boxes: number, submit: string, sites: { value: string, checked: boolean, label: string }[] } = await run(`
             clickTab('Used in');
             await indexReady(fieldIndex(), 'the usage list');
             const index = fieldIndex();
@@ -171,7 +171,7 @@ try {
             const summary = document.querySelector('.element-relations-wizard [data-summary]').textContent.trim();
             const boxes = document.querySelectorAll('.element-relations-wizard [data-usage]').length;
             const submit = wizardSlideout().querySelector('button[type="submit"]').textContent.trim();
-            const sites = [...document.querySelectorAll('.element-relations-wizard p')].map((p) => p.textContent.trim()).find((t) => t.startsWith('In every site')) ?? '';
+            const sites = $$('.element-relations-wizard [data-sites]').map((r) => ({ value: r.value, checked: r.checked, label: r.parentElement.textContent.replace(/\\s+/g, ' ').trim() }));
             return { ticked, radios, summary, boxes, submit, sites };
         `);
         check(facts.ticked === 20 && facts.boxes === 20, `select all ticks the page: 20 rows, 20 elements in the wizard (${facts.ticked} / ${facts.boxes})`);
@@ -181,7 +181,7 @@ try {
         check(list?.label === 'All 32 elements in the list, ticked or not', `"${list?.label}"`);
         check(list?.checked === true, 'the whole page was ticked, so "all in the list" is preselected');
         check(facts.summary.includes('Choose a replacement'), `without a replacement the summary asks for one: "${facts.summary}"`);
-        check(facts.sites === 'In every site they use it: English, German.', `"${facts.sites}"`);
+        check(facts.sites[0]?.label === 'Only in English' && facts.sites[0]?.checked && facts.sites[1]?.label === 'In all sites (English, German)', `the usages reach German too: "Only in English" (preselected) or "In all sites" (${JSON.stringify(facts.sites)})`);
         await run(`wizardSlideout().querySelector('button.btn:not([type="submit"])')?.click(); await sleep(300);`);
     });
 
@@ -208,6 +208,16 @@ try {
             const places = $$('.element-relations-wizard [data-usage]').length;
             const labels = $$('.element-relations-wizard [data-usage]').map((box) => box.parentElement.textContent.replace(/\\s+/g, ' ').trim());
             const sites = labels.every((t) => /English, German/.test(t));
+            // "Only in English" (preselected): the demo's relation fields keep one value for both sites, so the review's
+            // "What changes" shows German changing too, and why
+            const review = () => ({
+                sites: $$('.element-relations-wizard [data-changes-sites] dt').map((dt) => dt.textContent.trim() + ': ' + dt.nextElementSibling.textContent.trim()),
+                linked: document.querySelector('.element-relations-wizard [data-linked]:not([hidden])') ? $$('.element-relations-wizard [data-linked] p').map((p) => p.textContent.trim()) : [],
+            });
+            const onlyEnglish = review();
+            $('.element-relations-wizard [data-sites][value="all"]').prop('checked', true).trigger('change');
+            const allSites = review();
+            $('.element-relations-wizard [data-sites][value="current"]').prop('checked', true).trigger('change');
             wizardSlideout().querySelector('button[type="submit"]').click();
             await until(() => notices().some((n) => /background/.test(n)), 'the running notice');
             await until(() => document.querySelector('[data-element-relations-undo]'), 'the result with Undo', 90000);
@@ -219,9 +229,13 @@ try {
             const undone = notices().find((n) => /Rolled back/.test(n)) ?? '';
             await indexReady(fieldIndex(), 'the restored list');
             const rowsRestored = $$('.element-relations tbody tr[data-id]').map((r) => r.dataset.id);
-            return { summary, submit, places, sites, labels, result, rowsBefore, rowsAfter, undone, rowsRestored };
+            return { summary, submit, places, sites, labels, onlyEnglish, allSites, result, rowsBefore, rowsAfter, undone, rowsRestored };
         `);
         check(facts.places === 2 && facts.sites && facts.summary.endsWith('in 2 elements.') && facts.submit === 'Replace in 2 elements', `two elements, each listed once with "English, German": "${facts.summary}" / "${facts.submit}" / ${JSON.stringify(facts.labels)}`);
+        // the article uses it in its Body, translated per site; the homepage in its Hero image, one value for both sites
+        check(JSON.stringify(facts.onlyEnglish.sites) === JSON.stringify(['English: 2 elements', 'German: one element']), `"Only in English", What changes: English 2, German 1 as well (${JSON.stringify(facts.onlyEnglish.sites)})`);
+        check(facts.onlyEnglish.linked[0] === 'One of these changes in German as well:' && facts.onlyEnglish.linked[1] === 'The content there is the same as in English, so it can’t be changed in English alone.' && facts.onlyEnglish.linked[2] === 'Homepage', `and says which (the homepage, not the per-site Body) and why (${JSON.stringify(facts.onlyEnglish.linked)})`);
+        check(JSON.stringify(facts.allSites.sites) === JSON.stringify(['English: 2 elements', 'German: 2 elements']) && facts.allSites.linked.length === 0, `"In all sites": the same per site, no explanation needed (${JSON.stringify(facts.allSites)})`);
         const replaced = Number(/in (\d+) elements/.exec(facts.result)?.[1] ?? 0);
         check(replaced === 2, `the notice counts the same 2 elements: "${facts.result}"`);
         check(facts.rowsAfter.length === facts.rowsBefore.length - 2, `the list lost those 2 rows (${facts.rowsBefore.length} → ${facts.rowsAfter.length})`);
