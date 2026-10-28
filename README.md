@@ -21,7 +21,7 @@ Every Craft project asks the same questions. Can I delete this asset? Which page
 - **Follows permissions.** Users only see usages they may view. A line says how many are hidden, so nobody takes an element for unused.
 - **In code too.** `isInUse`, counts and the related elements in Twig and GraphQL. `usesElement` on any element query.
 - **Built for scale.** Relations are read on save and stored in one indexed table. Saves that change no custom field skip the work. Lists and counts are paged SQL queries. The load test uses one asset in 100,000 entries ([`dev/stress.php`](dev/stress.php)); its list opens in under a second.
-- **Find what nobody uses.** A “Used anywhere” rule in Craft's filter. It works on any source, with Craft's bulk actions. In code: `craft.assets().unused()`.
+- **Find what nobody uses.** A “Usage” rule in Craft's filter: used live, used in any status, not used live (only drafts or disabled, pending or expired entries use it), or unused. It works on any source, with Craft's bulk actions. In code: `craft.assets().usage('none')`.
 - **Replace anywhere.** Swap one element for another, everywhere or only in the usages you tick. From the field, or from the command line (also with a CSV file, for migrations). Every supported field and plugin is rewritten the same way it was read.
 - **Undo, roll back, revisions.** Undo in the notice. A history with Roll back under Utilities. Entries get a revision with a note. Revert to revisions.
 - **Keep what is in use.** Editors can't delete or take offline what live content uses. Craft's delete dialog lists the usages, with “Replace…” right there.
@@ -131,9 +131,13 @@ Statuses depend on the element type: `live` for entries and products, `enabled` 
 
 ```twig
 {% set pages = craft.entries().usesElement(asset).all() %}
-{% set unusedAssets = craft.assets().unused().all() %}
-{% set usedAssets = craft.assets().unused(false).all() %}
+{% set unusedAssets = craft.assets().usage('none').all() %}      {# also: unused() #}
+{% set usedAssets = craft.assets().usage('any').all() %}         {# also: unused(false) #}
+{% set liveAssets = craft.assets().usage('live').all() %}         {# used by live entries, enabled elements or plugin settings #}
+{% set offlineAssets = craft.assets().usage('notLive').all() %}   {# only drafts, disabled, pending or expired elements use them #}
 ```
+
+“Live” is what visitors see: no drafts, enabled in the site, and for entries and Commerce products posted and not expired. Plugin settings count as live.
 
 All element types at once (entries, products, menus, …, each as its real class), with any of Craft's query params:
 
@@ -174,7 +178,8 @@ Craft's own queries take a `usesElement` argument. So any query with any of Craf
 
 In detail:
 
-- **Unused:** a “Used anywhere” rule in Craft's index filter. It works on any source, with Craft's bulk actions, and in custom sources (make a custom source with it for a fixed “Unused” entry in the sidebar). In code: the `unused()` query param. Plugin settings (SEOmatic) count as a usage.
+- **Usage filter:** a “Usage” rule in Craft's index filter: Used live, Used (any status), Not used live, Unused. It works on any source, with Craft's bulk actions, and in custom sources (make one for a fixed “Not used live” or “Unused” entry in the sidebar). In code: the `usage()` query param. Plugin settings (SEOmatic) count as a usage. Rules saved with the earlier “Used anywhere” switch keep working.
+- **Live column:** next to the field's own column, every element index offers “<field> (live)” in its View menu, so each author picks what they want to see: all usages, only the live ones, or both. It shows the live usages and “Not used live” when only drafts or disabled, pending or expired entries use the element, and you can sort by it.
 - **Replace:** tick usages in the field's list and choose “Replace…”, or choose “Replace everywhere…” in an element index. A slideout opens: pick the replacement, untick usages or take all in the filtered list (across pages), and read a summary before anything changes. On a multi-site install it asks for the sites too: only the one you are editing (the default) or all of them. Its review shows how many elements change in each site. Content that is the same in several sites (a field that isn't translated per site, on an entry or a Matrix block that exists in more than one site) can't change in one site alone; the review names those elements and the other sites they change in. Plugin settings are listed for a manual change. Only elements the user may save are touched.
 - **Undo and rollback:** the success notice has an Undo button. Utilities → Element Relations lists every replacement with Roll back. Rolling back swaps the link back and keeps later edits. Entries get a revision with a note for each step.
 - **Background:** replacements and rollbacks from the control panel run as queue jobs, in batches, as the user who started them. So saving many or large entries never blocks the page. The notice shows the progress and offers Undo when the job is done. If a job gets lost (a worker stopped), it resumes where it was: by itself while the notice waits, with Resume in the history, or on the command line.

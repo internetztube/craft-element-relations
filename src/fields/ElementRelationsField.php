@@ -213,9 +213,10 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
      * is used in another site, so "used in other sites" (0.5) ranks above unused (0) and below used here (1 and more).
      * Craft only takes a string here (it appends the direction), so the subqueries are built with the query builder
      * and passed as their SQL.
-     * @return array{label: string, orderBy: string, attribute: string, defaultDir: string}
+     * @param bool $live only live usages (RelationsModel::liveOwnerCondition()): the "Used in (live)" column's sort
+     * @return array{label: string, orderBy: string|callable(int): \yii\db\Expression, attribute: string, defaultDir: string}
      */
-    public function getSortOption(): array
+    public function getSortOption(bool $live = false): array
     {
         // elements as the list counts them: the usages of the element in the index's site, a relating element once
         // (whatever its sites and however many fields point at the target), no trashed elements, revisions or
@@ -229,7 +230,8 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ->leftJoin(['drafts' => \craft\db\Table::DRAFTS], '[[drafts.id]] = [[sources.draftId]]')
             ->where(['sources.id' => new \yii\db\Expression('[[elementrelations_cache.sourcePrimaryOwnerId]]')])
             ->andWhere(['sources.dateDeleted' => null, 'sources.revisionId' => null])
-            ->andWhere(['or', ['drafts.id' => null], ['<>', 'drafts.provisional', true]]);
+            ->andWhere(['or', ['drafts.id' => null], ['<>', 'drafts.provisional', true]])
+            ->andWhere($live ? RelationsModel::liveOwnerCondition('sources') : []);
         $usages = (new \craft\db\Query())
             ->select(['elementrelations_cache.sourcePrimaryOwnerId', 'elementrelations_cache.globalKey'])
             ->from(['elementrelations_cache' => '{{%elementrelations_cache}}'])
@@ -244,12 +246,64 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             ->where(['elementrelations_cache.targetElementId' => new \yii\db\Expression('[[elements.id]]')])
             ->andWhere(['<>', 'elementrelations_cache.targetSiteId', new \yii\db\Expression('[[elements_sites.siteId]]')])
             ->andWhere(['or', ['elementrelations_cache.sourceElementId' => null], ['exists', $liveSource]]);
+        $sql = '((' . $count->createCommand()->getRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->createCommand()->getRawSql() . ') THEN 0.5 ELSE 0 END)';
         return [
-            'label' => Craft::t('site', (string)$this->name),
-            'orderBy' => '((' . $count->createCommand()->getRawSql() . ') + CASE WHEN EXISTS (' . $elsewhere->createCommand()->getRawSql() . ') THEN 0.5 ELSE 0 END)',
-            'attribute' => "field:$this->uid",
+            'label' => $live ? $this->getLiveLabel() : Craft::t('site', (string)$this->name),
+            // the live column's option is registered as an element type's own (ElementRelations::init()); Craft splits
+            // those at every comma unless they come as an expression
+            'orderBy' => $live ? fn(int $dir): \yii\db\Expression => new \yii\db\Expression($sql . ($dir === SORT_DESC ? ' DESC' : ' ASC')) : $sql,
+            'attribute' => $live ? $this->getLiveAttribute() : "field:$this->uid",
             'defaultDir' => 'desc',
         ];
+    }
+
+    /**
+     * The field's second element index column, "<field> (live)": only the live usages. Craft gives a field one column,
+     * so the plugin adds this one (`elementRelationsLive:<field uid>`, like Craft's `field:<uid>`) to the element types
+     * that have the field (ElementRelations::init()); authors pick either, or both, in the View menu.
+     */
+    public const ATTR_LIVE = 'elementRelationsLive';
+
+    /** @var array<string, list<self>> forType() per element type */
+    private static array $byType = [];
+
+    /**
+     * The fields in this element type's field layouts (a layout holds one at most; entry types may hold different ones).
+     * @param class-string<ElementInterface> $elementType
+     * @return list<self>
+     */
+    public static function forType(string $elementType): array
+    {
+        if (!isset(self::$byType[$elementType])) {
+            $fields = [];
+            foreach (Craft::$app->getFields()->getLayoutsByType($elementType) as $layout) {
+                foreach ($layout->getCustomFields() as $field) {
+                    if ($field instanceof self) {
+                        $fields[(int)$field->id] = $field;
+                    }
+                }
+            }
+            self::$byType[$elementType] = array_values($fields);
+        }
+        return self::$byType[$elementType];
+    }
+
+    /** The field of a live column's attribute (`elementRelationsLive:<uid>`), null for any other attribute. */
+    public static function forLiveAttribute(string $attribute): ?self
+    {
+        $field = str_starts_with($attribute, self::ATTR_LIVE . ':') ? Craft::$app->getFields()->getFieldByUid(substr($attribute, strlen(self::ATTR_LIVE) + 1)) : null;
+        return $field instanceof self ? $field : null;
+    }
+
+    public function getLiveAttribute(): string
+    {
+        return self::ATTR_LIVE . ':' . $this->uid;
+    }
+
+    /** "<field> (live)": the live column's name and its sort option's */
+    public function getLiveLabel(): string
+    {
+        return Craft::t('element-relations', 'column-live', ['field' => Craft::t('site', (string)$this->name)]);
     }
 
     /**
@@ -260,10 +314,18 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     public function modifyElementIndexQuery(\craft\elements\db\ElementQueryInterface $query): void
     {
         parent::modifyElementIndexQuery($query);
+        $this->prefetchOnPopulate($query, false);
+    }
+
+    /**
+     * Prefetches a column's data (with `$live`: the "Used in (live)" column's) once Craft has loaded the index page.
+     */
+    public function prefetchOnPopulate(\craft\elements\db\ElementQueryInterface $query, bool $live): void
+    {
         if (!$query instanceof \craft\elements\db\ElementQuery || self::restrictedViewer()) {
             return;
         }
-        $query->on(\craft\elements\db\ElementQuery::EVENT_AFTER_POPULATE_ELEMENTS, function (\craft\events\PopulateElementsEvent $event): void {
+        $query->on(\craft\elements\db\ElementQuery::EVENT_AFTER_POPULATE_ELEMENTS, function (\craft\events\PopulateElementsEvent $event) use ($live): void {
             $siteId = null;
             $ids = [];
             foreach ($event->elements as $element) {
@@ -272,16 +334,18 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
                     $siteId ??= (int)$element->siteId;
                 }
             }
-            RelationsModel::prefetch($ids, $this->previewLimit ?? 5, $siteId ?? (int)Craft::$app->getSites()->getPrimarySite()->id);
+            RelationsModel::prefetch($ids, $this->previewLimit ?? 5, $siteId ?? (int)Craft::$app->getSites()->getPrimarySite()->id, $live);
         });
     }
 
     /**
      * Element index column: what uses the element in this site (its version here), as Craft chips (with Craft's "+N"
-     * popover), like the field's list; a note when only its versions in other sites are used.
+     * popover), like the field's list; a note when only its versions in other sites are used. With `$live`, the "Used in
+     * (live)" column: the live usages only, and "Not used live" when only drafts, disabled, pending or expired elements
+     * use it (never "Unused": deleting it would break them once they go live).
      * @param RelationsModel|null $value
      */
-    public function getPreviewHtml(mixed $value, ElementInterface $element): string
+    public function getPreviewHtml(mixed $value, ElementInterface $element, bool $live = false): string
     {
         if (!$value instanceof RelationsModel) {
             return '';
@@ -307,14 +371,17 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
         $viewer = self::restrictedViewer();
         if ($viewer) {
             // control panel users with limited permissions: only what they may view, plus how much they may not
-            $visibleQuery = self::usageQuery($value, $viewer);
+            $visibleQuery = self::usageQuery($value, $viewer)->status($live ? \craft\elements\Entry::STATUS_LIVE : null)->drafts($live ? false : null);
             $elements = (clone $visibleQuery)->limit($this->previewLimit ?? 5)->all();
             $total = (int)$visibleQuery->count();
             $hidden = UsageQuery::hiddenCount([$value->getElementId()], $viewer, targetSiteId: $value->getSiteId());
         } else {
-            $elements = $value->getPreviewElements($this->previewLimit ?? 5);
-            $total = $value->getCountFast([]);
+            $elements = $live ? $value->getLivePreviewElements($this->previewLimit ?? 5) : $value->getPreviewElements($this->previewLimit ?? 5);
+            $total = $live ? $value->getLiveCountFast() : $value->getCountFast([]);
             $hidden = 0;
+        }
+        if ($live && !$total && !$value->getGlobalUsages()) {
+            return (string)Cp::statusLabelHtml(['color' => Color::Gray, 'icon' => 'eye-slash', 'label' => Craft::t('element-relations', 'preview-not-live')]);
         }
         $html = Cp::elementPreviewHtml($elements, showThumb: false);
         if ($total > count($elements)) {

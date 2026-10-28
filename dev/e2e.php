@@ -333,6 +333,29 @@ foreach ([$sorter, $first, $second] as $entry) {
     $elements->deleteElement($entry, true);
 }
 
+// the field's "Relations (live)" column, as an author picks it in the View menu, and the sort by it
+$liveUsed = $make('E2E live: used live');
+$offlineUsed = $make('E2E live: used offline');
+$liveUser = $make('E2E live: live user', ['relatedEntries' => [$liveUsed->id]]);
+$offlineUser = $make('E2E live: disabled user', ['relatedEntries' => [$offlineUsed->id]]);
+$offlineUser->enabled = false;
+$elements->saveElement($offlineUser) or throw new RuntimeException(json_encode($offlineUser->getErrors()));
+$flush();
+$liveColumn = Craft::$app->getFields()->getFieldByHandle('relations')->getLiveAttribute();
+[$status, , $json] = $http->action('element-indexes/get-elements', [
+    'context' => 'index', 'elementType' => Entry::class, 'source' => 'section:' . $liveUsed->getSection()->uid,
+    'criteria' => ['id' => [$liveUsed->id, $offlineUsed->id], 'siteId' => $liveUsed->siteId, 'status' => null, 'limit' => 10],
+    'viewState' => ['mode' => 'table', 'showHeaderColumn' => true, 'inlineEditing' => false, 'static' => false, 'tableColumns' => [$liveColumn], 'order' => $liveColumn, 'sort' => 'desc'],
+    'paginated' => true, 'selectable' => true, 'sortable' => false,
+]);
+$html = (string)($json['html'] ?? '');
+preg_match_all('/<tr data-id="(\d+)"/', $html, $rowIds);
+check($status === 200 && str_contains($html, 'Relations (live)') && str_contains($html, 'E2E live: live user') && str_contains($html, 'Not used live') && !str_contains($html, 'E2E live: disabled user'), "the entry index with the column \"Relations (live)\": the live usage as a chip, “Not used live” where only a disabled entry uses it (HTTP $status)");
+check(array_map('intval', $rowIds[1]) === [$liveUsed->id, $offlineUsed->id], 'sorted by it, what a live entry uses comes first');
+foreach ([$liveUser, $offlineUser, $liveUsed, $offlineUsed] as $entry) {
+    $elements->deleteElement($entry, true);
+}
+
 // the status menu: an unpublished draft that is enabled and posted counts as "Live" to Craft; the list leaves drafts
 // out once a status is picked, as Craft's own index does (the parameters are what the field's index sends)
 $unpublished = new Entry(['sectionId' => $section->id, 'typeId' => $typeId, 'title' => 'E2E unpublished draft', 'postDate' => new DateTime('-1 day')]);

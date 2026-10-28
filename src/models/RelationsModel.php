@@ -402,15 +402,73 @@ class RelationsModel
     }
 
     /**
+     * How many relating elements are live where they use the element (liveOwnerCondition()), in the element's site; the
+     * "Used in (live)" column. Plugin settings are not among them (getGlobalUsages()).
+     */
+    public function getLiveCountFast(): int
+    {
+        return $this->livePrefetched(0)['liveOwners'];
+    }
+
+    /**
+     * The first `$limit` of them, most recently updated first.
+     * @return list<ElementInterface>
+     */
+    public function getLivePreviewElements(int $limit): array
+    {
+        return array_slice($this->livePrefetched($limit)['livePreview'], 0, $limit);
+    }
+
+    /**
+     * prefetch()'s live data of this element; loaded for it alone when the index did not.
+     * @return array{liveOwners: int, livePreview: list<ElementInterface>}
+     */
+    private function livePrefetched(int $limit): array
+    {
+        $model = $this->targetSiteId === null ? $this->forTargetSite() : $this;
+        $data = $model->prefetched();
+        if (!isset($data['liveOwners'], $data['livePreview']) || $data['limit'] < $limit) {
+            self::prefetch([$model->elementId], max($limit, $data['limit'] ?? 0), (int)$model->targetSiteId, live: true);
+            $data = $model->prefetched();
+        }
+        return ['liveOwners' => $data['liveOwners'] ?? 0, 'livePreview' => $data['livePreview'] ?? []];
+    }
+
+    /**
+     * The relating element (alias `$owner`, the owner of an `$cache` row) is live where it uses the target: no draft,
+     * enabled, enabled in that site, and, for entries and Commerce products, posted and not expired. What visitors see,
+     * as the list's "Live" status and InUseGuard count it; the "Used in (live)" column, its sort and the Usage filter.
+     * @return array<int|string, mixed>
+     */
+    public static function liveOwnerCondition(string $owner = 'elements', string $cache = 'elementrelations_cache'): array
+    {
+        $now = new \DateTime();
+        $now->setTime((int)$now->format('H'), (int)$now->format('i'), 59); // like EntryQuery: the same for a minute
+        $nowDb = \craft\helpers\Db::prepareDateForDb($now);
+        $one = new \yii\db\Expression('1');
+        $notLive = fn(string $table): array => ['not exists', (new Query())->select($one)->from(['dated' => $table])
+            ->where(['dated.id' => new \yii\db\Expression("[[$owner.id]]")])
+            ->andWhere(['or', ['dated.postDate' => null], ['>', 'dated.postDate', $nowDb], ['<=', 'dated.expiryDate', $nowDb]])];
+        return ['and',
+            ["$owner.draftId" => null, "$owner.enabled" => true],
+            ['exists', (new Query())->select($one)->from(['owner_sites' => Table::ELEMENTS_SITES])
+                ->where(['owner_sites.elementId' => new \yii\db\Expression("[[$owner.id]]"), 'owner_sites.siteId' => new \yii\db\Expression("[[$cache.sourceSiteId]]"), 'owner_sites.enabled' => true])],
+            $notLive(Table::ENTRIES),
+            Craft::$app->getDb()->tableExists('{{%commerce_products}}') ? $notLive('{{%commerce_products}}') : [],
+        ];
+    }
+
+    /**
      * prefetch()'s results per element and site (`<elementId>:<siteId>`): relating elements in total and per type,
-     * plugin settings rows, the first ones, and the other sites' counts.
-     * @var array<string, array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int, otherSites: array<int, int>}>
+     * plugin settings rows, the first ones, the other sites' counts; and, for the "Used in (live)" column, the live
+     * ones and their first ones.
+     * @var array<string, array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int, otherSites: array<int, int>, liveOwners?: int, livePreview?: list<ElementInterface>}>
      */
     private static array $prefetched = [];
 
     /**
      * What prefetch() loaded for this element in this site (forTargetSite() copies only); null when it did not.
-     * @return array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int, otherSites: array<int, int>}|null
+     * @return array{owners: int, types: array<class-string<ElementInterface>, array{count: int, drafts: int}>, globalRows: list<array{targetElementId: int|string, targetSiteId: int|string, type: string, globalKey: string|null}>, preview: list<ElementInterface>, limit: int, otherSites: array<int, int>, liveOwners?: int, livePreview?: list<ElementInterface>}|null
      */
     private function prefetched(): ?array
     {
@@ -429,12 +487,13 @@ class RelationsModel
      * recently updated ones, each in the index's site if it uses the element there, else in its first site that does.
      * Like forTargetSite(): the usages of the elements in the index's site.
      * @param list<int> $elementIds canonical element ids
+     * @param bool $live also the live usages (liveOwnerCondition()) and their first ones: the "Used in (live)" column
      */
-    public static function prefetch(array $elementIds, int $limit, int $siteId): void
+    public static function prefetch(array $elementIds, int $limit, int $siteId, bool $live = false): void
     {
         $preferredSiteId = $siteId;
         $elementIds = array_values(array_unique(array_map(intval(...), $elementIds)));
-        $data = array_fill_keys($elementIds, ['owners' => 0, 'types' => [], 'globalRows' => [], 'preview' => [], 'limit' => $limit, 'otherSites' => []]);
+        $data = array_fill_keys($elementIds, ['owners' => 0, 'types' => [], 'globalRows' => [], 'preview' => [], 'limit' => $limit, 'otherSites' => []] + ($live ? ['liveOwners' => 0, 'livePreview' => []] : []));
         $target = '[[elementrelations_cache.targetElementId]]';
         $owner = '[[elementrelations_cache.sourcePrimaryOwnerId]]';
 
@@ -466,8 +525,10 @@ class RelationsModel
             $data[(int)$row['targetElementId']]['globalRows'][] = $row;
         }
 
-        // the first relating elements of each listed element (window function: PostgreSQL, MySQL 8)
-        $ranked = self::fastSubQueryFor($elementIds, $siteId)
+        // the first relating elements of each listed element (window function: PostgreSQL, MySQL 8); with `$live`, also
+        // the first live ones
+        $firstOf = fn(array $condition): array => (new Query())->from(['ranked' => self::fastSubQueryFor($elementIds, $siteId)
+            ->andWhere($condition)
             ->select([
                 'target' => $target,
                 'owner' => $owner,
@@ -475,19 +536,28 @@ class RelationsModel
                 'siteId' => "MIN(CASE WHEN [[elementrelations_cache.sourceSiteId]] = $preferredSiteId THEN 0 ELSE [[elementrelations_cache.sourceSiteId]] END)",
                 'pos' => "ROW_NUMBER() OVER (PARTITION BY $target ORDER BY MAX([[elements.dateUpdated]]) DESC, $owner DESC)",
             ])
-            ->groupBy([$target, $owner, '[[elements.type]]']);
+            ->groupBy([$target, $owner, '[[elements.type]]'])])->where(['<=', 'pos', $limit])->orderBy(['target' => SORT_ASC, 'pos' => SORT_ASC])->all();
         /** @var list<array{target: int|string, owner: int|string, type: string, siteId: int|string, pos: int|string}> $first */
-        $first = (new Query())->from(['ranked' => $ranked])->where(['<=', 'pos', $limit])->orderBy(['target' => SORT_ASC, 'pos' => SORT_ASC])->all();
+        $first = $firstOf([]);
+        /** @var list<array{target: int|string, owner: int|string, type: string, siteId: int|string, pos: int|string}> $firstLive */
+        $firstLive = $live ? $firstOf(self::liveOwnerCondition()) : [];
+        if ($live) {
+            /** @var list<array{target: int|string, count: int|string}> $liveRows */
+            $liveRows = self::fastSubQueryFor($elementIds, $siteId)->andWhere(self::liveOwnerCondition())->select(['target' => $target, 'count' => "COUNT(DISTINCT $owner)"])->groupBy([$target])->all();
+            foreach ($liveRows as $row) {
+                $data[(int)$row['target']]['liveOwners'] = (int)$row['count'];
+            }
+        }
         $idsByTypeAndSite = [];
-        foreach ($first as $row) {
+        foreach ([...$first, ...$firstLive] as $row) {
             if (is_subclass_of($row['type'], ElementInterface::class)) {
                 $idsByTypeAndSite[$row['type']][(int)$row['siteId'] ?: $preferredSiteId][] = (int)$row['owner'];
             }
         }
         $loaded = [];
         foreach ($idsByTypeAndSite as $type => $idsBySite) {
-            foreach ($idsBySite as $siteId => $ids) {
-                $query = ElementRelations::find($type)->id(array_values(array_unique($ids)))->siteId($siteId)->status(null);
+            foreach ($idsBySite as $loadSiteId => $ids) {
+                $query = ElementRelations::find($type)->id(array_values(array_unique($ids)))->siteId($loadSiteId)->status(null);
                 if ($query instanceof ElementQuery) {
                     $query->drafts(null)->provisionalDrafts(false)->revisions(false);
                 }
@@ -498,16 +568,19 @@ class RelationsModel
                 }
             }
         }
-        foreach ($first as $row) {
-            if (isset($loaded[(int)$row['owner']])) {
-                $data[(int)$row['target']]['preview'][] = $loaded[(int)$row['owner']];
+        foreach (['preview' => $first, 'livePreview' => $firstLive] as $key => $rows) {
+            foreach ($rows as $row) {
+                if (isset($loaded[(int)$row['owner']])) {
+                    $data[(int)$row['target']][$key][] = $loaded[(int)$row['owner']];
+                }
             }
         }
         foreach (self::otherSiteCountsFor($elementIds, $siteId) as $id => $counts) {
             $data[$id]['otherSites'] = $counts;
         }
         foreach ($data as $id => $element) {
-            self::$prefetched["$id:$siteId"] = $element;
+            // both columns may prefetch the same page, in either order: keep the live part of an earlier one
+            self::$prefetched["$id:$siteId"] = $element + (self::$prefetched["$id:$siteId"] ?? []);
         }
     }
 

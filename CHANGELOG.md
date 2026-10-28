@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ## 4.0.3.2 - 2026-10-28
 
+### Added
+- “Usage” filter: used live, used in any status, not used live, or unused. Replaces “Used anywhere”; saved filters keep working.
+- Column “<field> (live)” in the View menu of element indexes: only live usages, and “Not used live” when only drafts or offline entries use an element. Sortable.
+- `usage()` query param: `live`, `any`, `notLive`, `none`.
+
 ### Changed
 - Field and plugin settings are laid out like Craft’s own, with a short explanation for each.
 

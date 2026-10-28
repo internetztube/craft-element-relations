@@ -170,18 +170,18 @@ const UNUSED_FILTER_ACT = `
             // add the rule like picking it from "Add a filter" (Craft's condition builder renders it via htmx)
             await until(() => hud().$body.find('button.add').data('menubtn'), 'the Add a filter menu');
             // picked too early, the condition builder sometimes ignores it: pick again
-            for (let attempt = 1; !hud().$body.find('.lightswitch').length; attempt++) {
+            for (let attempt = 1; !hud().$body.find('.condition-rule select').length; attempt++) {
                 await sleep(500);
                 const addButton = hud().$body.find('button.add').data('menubtn');
-                const option = addButton.menu.$options.filter((i, o) => o.textContent.trim() === 'Used anywhere')[0];
-                if (!option) throw new Error('No "Used anywhere" in: ' + addButton.menu.$options.map((i, o) => o.textContent.trim()).get().join(', '));
+                const option = addButton.menu.$options.filter((i, o) => o.textContent.trim() === 'Usage')[0];
+                if (!option) throw new Error('No "Usage" in: ' + addButton.menu.$options.map((i, o) => o.textContent.trim()).get().join(', '));
                 addButton.menu.selectOption(option);
-                await until(() => hud().$body.find('.lightswitch').length, 'the Used anywhere rule', attempt < 3 ? 8000 : 30000).catch((error) => {
+                await until(() => hud().$body.find('.condition-rule select').length, 'the Usage rule', attempt < 3 ? 8000 : 30000).catch((error) => {
                     if (attempt >= 3) throw error;
                 });
             }
             await sleep(300);
-            hud().$body.find('.lightswitch').data('lightswitch').turnOff();
+            hud().$body.find('.condition-rule select[name$="[value]"]').val('none').trigger('change');
             await sleep(500);
             hud().$body.find('button[type="submit"]').trigger('click');
             await sleep(300);
@@ -260,13 +260,13 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'readme-unused', viewport: { width: 1120, height: 580 },
-        points: ['Works on any source, with Craft’s bulk actions', 'The same rule in custom sources'],
+        points: ['Used live, in any status, not used live, unused', 'On any source, with Craft’s bulk actions and in custom sources'],
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
+        highlight: `[[...byText('button', 'Usage'), ...$$('.hud .condition-rule select')], column('Used in')]`,
         inset: false,
         caption: 'Find what nobody uses',
         title: 'Find what nobody uses',
-        text: 'A “Used anywhere” rule in Craft’s filter. It works on any source, with Craft’s bulk actions.',
+        text: 'A “Usage” rule in Craft’s filter: used live, in any status, not used live, or unused. On any source, with Craft’s bulk actions.',
         path: '/admin/assets/images',
         act: `${UNUSED_FILTER_ACT}`,
     },
@@ -373,13 +373,13 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'used-filter', viewport: { width: 1600 },
-        points: ['Works on any source, with Craft’s bulk actions', 'The same rule in custom sources'],
+        points: ['Used live, in any status, not used live, unused', 'On any source, with Craft’s bulk actions and in custom sources'],
         focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
+        highlight: `[[...byText('button', 'Usage'), ...$$('.hud .condition-rule select')], column('Used in')]`,
         cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
         caption: 'Find what nobody uses',
         title: 'Find what nobody uses',
-        text: 'A “Used anywhere” rule in Craft’s filter. It works on any source, with Craft’s bulk actions.',
+        text: 'A “Usage” rule in Craft’s filter: used live, in any status, not used live, or unused. On any source, with Craft’s bulk actions.',
         path: '/admin/assets/images',
         act: `${UNUSED_FILTER_ACT}`,
     },

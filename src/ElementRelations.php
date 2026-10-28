@@ -280,10 +280,41 @@ class ElementRelations extends Plugin
             $event->handlers['usesElement'] = \internetztube\elementRelations\gql\handlers\UsesElement::class;
         });
 
-        // columns of the field's Usage index (one list across all element types, see elements/Usage.php)
+        // the field's second column, "<field> (live)", in the indexes of the element types that have the field: authors
+        // pick it (or the field's own column, or both) in the View menu, and can sort by it
+        // Craft fires these per element class without telling the handler which (a static event has no sender): one pair
+        // of handlers per element type, once every plugin's types are known
+        Event::on(\craft\services\Plugins::class, \craft\services\Plugins::EVENT_AFTER_LOAD_PLUGINS, function (): void {
+            foreach (Craft::$app->getElements()->getAllElementTypes() as $type) {
+                Event::on($type, Element::EVENT_REGISTER_TABLE_ATTRIBUTES, function (\craft\events\RegisterElementTableAttributesEvent $event) use ($type): void {
+                    foreach (ElementRelationsField::forType($type) as $field) {
+                        $event->tableAttributes[$field->getLiveAttribute()] = ['label' => $field->getLiveLabel()];
+                    }
+                });
+                Event::on($type, Element::EVENT_REGISTER_SORT_OPTIONS, function (\craft\events\RegisterElementSortOptionsEvent $event) use ($type): void {
+                    foreach (ElementRelationsField::forType($type) as $field) {
+                        $event->sortOptions[] = $field->getSortOption(live: true);
+                    }
+                });
+            }
+        });
+        Event::on(Element::class, Element::EVENT_PREP_QUERY_FOR_TABLE_ATTRIBUTE, function (\craft\events\ElementIndexTableAttributeEvent $event): void {
+            if ($field = ElementRelationsField::forLiveAttribute($event->attribute)) {
+                $field->prefetchOnPopulate($event->query, true);
+                $event->handled = true;
+            }
+        });
+
+        // columns of the field's Usage index (one list across all element types, see elements/Usage.php), and the field's
+        // "<field> (live)" column (empty for an element whose layout doesn't have that field)
         Event::on(Element::class, Element::EVENT_DEFINE_ATTRIBUTE_HTML, function (DefineAttributeHtmlEvent $event): void {
             /** @var Element $element */
             $element = $event->sender;
+            if ($field = ElementRelationsField::forLiveAttribute($event->attribute)) {
+                $value = $element->getFieldLayout()?->getFieldById((int)$field->id) ? $element->getFieldValue((string)$field->handle) : null;
+                $event->html = $value instanceof \internetztube\elementRelations\models\RelationsModel ? $field->getPreviewHtml($value, $element, live: true) : '';
+                return;
+            }
             if ($element instanceof RestrictedUsage) {
                 $event->html = match ($event->attribute) {
                     Usage::ATTR_TYPE => is_subclass_of($element->realType, ElementInterface::class) ? Html::encode($element->realType::displayName()) : '',

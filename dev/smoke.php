@@ -411,7 +411,7 @@ foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
 $craftLanguages = array_map('basename', glob(Craft::getAlias('@craft/translations') . '/*', GLOB_ONLYDIR));
 $pluginLanguages = array_map(fn(string $f) => basename(dirname($f)), glob("$translationsDir/*/element-relations.php"));
 // and every string formats in its own language, for one and for many (Craft formats them with ICU)
-$sampleParams = ['count' => 3, 'numTargets' => 2, 'reverted' => 1, 'names' => 'A, B', 'element' => 'E', 'site' => 'S', 'from' => 'F', 'to' => 'T', 'type' => 'entry', 'types' => 'entries', 'error' => 'x', 'list' => 'L', 'id' => 7, 'sites' => 'S', 'name' => 'N'];
+$sampleParams = ['count' => 3, 'numTargets' => 2, 'reverted' => 1, 'names' => 'A, B', 'element' => 'E', 'site' => 'S', 'from' => 'F', 'to' => 'T', 'type' => 'entry', 'types' => 'entries', 'error' => 'x', 'list' => 'L', 'id' => 7, 'sites' => 'S', 'name' => 'N', 'field' => 'F'];
 foreach (glob("$translationsDir/*/element-relations.php") as $translationFile) {
     $lang = basename(dirname($translationFile));
     foreach (require $translationFile as $key => $value) {
