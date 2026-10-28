@@ -49,6 +49,7 @@ return function (array $ctx): void {
         check($ids(['usage' => 'notLive']) === $sorted([$offline->id, $pending->id, $drafted->id]), 'usage("notLive"): what only a disabled entry, a pending entry or a draft uses');
         check($ids(['usage' => 'any']) === $sorted([$live->id, $offline->id, $pending->id, $drafted->id]) && $ids(['unused' => false]) === $ids(['usage' => 'any']), 'usage("any") (and unused(false)): everything something uses, in any status');
         check($ids(['usage' => 'none']) === [$unused->id] && $ids(['unused' => true]) === [$unused->id], 'usage("none") (and unused()): only what nothing uses');
+        check(array_map('intval', Entry::find()->id($targets)->status(null)->usage('none')->ids()) === [$unused->id], 'craft.entries().usage("none") as a template calls it');
 
         // the filter rule; rules saved as the on/off "Used anywhere" mean "any" (on) and "none" (off)
         $rule = fn(array $config): UsedConditionRule => new UsedConditionRule($config);
