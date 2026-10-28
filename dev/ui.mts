@@ -179,7 +179,7 @@ try {
         const ticked = facts.radios.find((r) => r.value === 'ticked');
         const list = facts.radios.find((r) => r.value === 'list');
         check(ticked?.label === 'The 20 elements you ticked', `"${ticked?.label}"`);
-        check(list?.label === 'All 32 elements in the list, ticked or not', `"${list?.label}"`);
+        check(list?.label === 'All 32 elements, on every page', `"${list?.label}"`);
         check(list?.checked === true, 'the whole page was ticked, so "all in the list" is preselected');
         check(facts.summary.includes('Choose a replacement'), `without a replacement the summary asks for one: "${facts.summary}"`);
         check(facts.sites[0]?.label === 'Only in English' && facts.sites[0]?.checked && facts.sites[1]?.label === 'In all sites (English, German)', `the usages reach German too: "Only in English" (preselected) or "In all sites" (${JSON.stringify(facts.sites)})`);

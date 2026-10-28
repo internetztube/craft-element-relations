@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ### Changed
 - Field and plugin settings are laid out like Craft’s own, with a short explanation for each.
+- The replace wizard offers “All 65 elements, on every page” instead of “… in the list, ticked or not”.
 
 ### Fixed
 - Filters like Section or Entry Type in the list work again (broken in 4.0.3.1).

@@ -495,8 +495,8 @@ if ($notes && $notesTo) {
     $firstPage = array_slice(array_keys($listUsages($notes)), 0, 20);
     $all = count((new internetztube\elementRelations\models\RelationsModel($notes->id, $notes->siteId))->getSourceElementIds());
     [$status, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}']));
-    check($status === 200 && str_contains($wizardHtml, 'value="list"') && str_contains($wizardHtml, "All $all elements in the list, ticked or not"), "a ticked page of 20: the wizard offers all $all elements in the list");
-    check(preg_match('/value="list" data-scope>/', $wizardHtml) === 1 && str_contains($wizardHtml, 'The ' . count($firstPage) . ' elements you ticked') && str_contains($wizardHtml, "All $all elements in the list, ticked or not"), 'the ticked ones are preselected; both options count elements and usages (an element in one site) exactly');
+    check($status === 200 && str_contains($wizardHtml, 'value="list"') && str_contains($wizardHtml, "All $all elements, on every page"), "a ticked page of 20: the wizard offers all $all elements in the list");
+    check(preg_match('/value="list" data-scope>/', $wizardHtml) === 1 && str_contains($wizardHtml, 'The ' . count($firstPage) . ' elements you ticked') && str_contains($wizardHtml, "All $all elements, on every page"), 'the ticked ones are preselected; both options count elements and usages (an element in one site) exactly');
     [, $wizardHtml] = $http->page('/admin/actions/element-relations/replace/wizard?' . http_build_query(['fromId' => $notes->id, 'siteId' => $notes->siteId, 'sourceIds' => $firstPage, 'criteria' => '{}', 'allTicked' => 1]));
     check(preg_match('/value="list" data-scope checked>/', $wizardHtml) === 1, 'the whole page ticked: "all in the list" is preselected');
     if (Craft::$app->getIsMultiSite()) {
