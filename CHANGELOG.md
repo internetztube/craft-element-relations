@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 
 ### Fixed
 - Filters like Section or Entry Type in the list work again (broken in 4.0.3.1).
+- “Default Status” only shows in the field settings when the status menu is on.
 
 ## 4.0.3.1 - 2026-10-27
 

@@ -117,11 +117,13 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             'id' => 'showStatusMenu',
             'name' => 'showStatusMenu',
             'on' => $this->showStatusMenu,
+            'toggle' => 'defaultStatus-field', // Craft shows the Default Status only while the status menu is on
         ]);
         $html .= Cp::selectFieldHtml([
             'label' => Craft::t('app', 'Default Status'),
             'instructions' => Craft::t('element-relations', 'settings-default-status-instructions'),
             'id' => 'defaultStatus',
+            'fieldAttributes' => ['class' => $this->showStatusMenu ? [] : ['hidden']],
             'name' => 'defaultStatus',
             'options' => [
                 ['label' => Craft::t('app', 'All'), 'value' => ''],
