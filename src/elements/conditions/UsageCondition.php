@@ -62,10 +62,13 @@ class UsageCondition extends ElementCondition
         $this->listedTypes ??= Usage::listedTypes(); // when built; the builder's requests configure it from the config
     }
 
-    /** @return list<class-string<\craft\base\ElementInterface>> */
+    /**
+     * Also while Craft builds the condition: its rules are set from the config before init() runs.
+     * @return list<class-string<\craft\base\ElementInterface>>
+     */
     public function getListedTypes(): array
     {
-        return $this->listedTypes ?? [];
+        return $this->listedTypes ?? Usage::listedTypes();
     }
 
     /** @return array<string, mixed> */
