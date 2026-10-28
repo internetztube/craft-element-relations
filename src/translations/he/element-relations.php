@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'הסטטוס שבו הרשימה נפתחת כשתפריט הסטטוסים מוצג, למשל רק רכיבים חיים. מחברים יכולים להחליף אותו.',
     'settings-parallel-jobs-label' => 'משימות בנייה מחדש מקבילות',
     'settings-parallel-jobs-instructions' => 'כמה משימות תור מריצה בנייה מחדש מלאה של המטמון בו־זמנית. לכל היותר כמספר ה־workers; פחות משאיר workers פנויים למשימות אחרות.',
+    'settings-page-size-instructions' => 'כמה רכיבים הרשימה מציגה בכל עמוד.',
+    'settings-show-status-menu-instructions' => 'האם מחברים יכולים לסנן את הרשימה לפי סטטוס: חי, ממתין, פג תוקף, מושבת או טיוטות.',
+    'settings-preview-limit-instructions' => 'כמה שימושים מציגה עמודת השדה באינדקסים של רכיבים לפני שהיא מקשרת לשאר.',
 ];

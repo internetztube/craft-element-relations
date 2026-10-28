@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Den status, listen starter med, når statusmenuen vises, f.eks. kun live elementer. Forfattere kan skifte den.',
     'settings-parallel-jobs-label' => 'Parallelle genopbygningsjob',
     'settings-parallel-jobs-instructions' => 'Hvor mange køjob en fuld genopbygning af cachen kører samtidig. Højst antallet af workers; færre lader workers være frie til andre job.',
+    'settings-page-size-instructions' => 'Hvor mange elementer listen viser pr. side.',
+    'settings-show-status-menu-instructions' => 'Om forfattere kan filtrere listen efter status: live, afventende, udløbet, deaktiveret eller kladder.',
+    'settings-preview-limit-instructions' => 'Hvor mange anvendelser feltets kolonne i elementoversigter viser, før den linker til resten.',
 ];

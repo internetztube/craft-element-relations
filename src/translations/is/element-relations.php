@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Staðan sem listinn byrjar með þegar stöðuvalmyndin er sýnd, t.d. aðeins birt frumefni. Höfundar geta breytt henni.',
     'settings-parallel-jobs-label' => 'Samhliða endurbyggingarverk',
     'settings-parallel-jobs-instructions' => 'Hversu mörg biðraðaverk full endurbygging skyndiminnisins keyrir í einu. Mest fjöldi workera; færri skilur workera eftir lausa fyrir önnur verk.',
+    'settings-page-size-instructions' => 'Hversu mörg frumefni listinn sýnir á hverri síðu.',
+    'settings-show-status-menu-instructions' => 'Hvort höfundar geta síað listann eftir stöðu: birt, í bið, útrunnið, óvirkt eða drög.',
+    'settings-preview-limit-instructions' => 'Hversu margar notkanir dálkur reitsins í frumefnayfirlitum sýnir áður en hann vísar á afganginn.',
 ];

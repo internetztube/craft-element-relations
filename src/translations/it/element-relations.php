@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Lo stato con cui inizia l’elenco quando è visibile il menu degli stati, ad es. solo gli elementi pubblicati. Gli autori possono cambiarlo.',
     'settings-parallel-jobs-label' => 'Processi di ricostruzione in parallelo',
     'settings-parallel-jobs-instructions' => 'Quanti processi della coda esegue contemporaneamente una ricostruzione completa della cache. Al massimo il numero di worker; meno lascia worker liberi per altri processi.',
+    'settings-page-size-instructions' => 'Quanti elementi mostra l’elenco per pagina.',
+    'settings-show-status-menu-instructions' => 'Se gli autori possono filtrare l’elenco per stato: pubblicato, in attesa, scaduto, disattivato o bozze.',
+    'settings-preview-limit-instructions' => 'Quanti utilizzi mostra la colonna del campo negli indici degli elementi prima di rimandare al resto.',
 ];

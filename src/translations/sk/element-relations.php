@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Stav, s ktorým zoznam začína, keď je zobrazená ponuka stavov, napr. len publikované prvky. Autori ho môžu zmeniť.',
     'settings-parallel-jobs-label' => 'Paralelné úlohy obnovy',
     'settings-parallel-jobs-instructions' => 'Koľko úloh frontu spúšťa úplná obnova vyrovnávacej pamäte súčasne. Najviac počet workerov; menej nechá workery voľné pre iné úlohy.',
+    'settings-page-size-instructions' => 'Koľko prvkov zoznam zobrazí na stránke.',
+    'settings-show-status-menu-instructions' => 'Či autori môžu filtrovať zoznam podľa stavu: publikované, čakajúce, vypršané, vypnuté alebo koncepty.',
+    'settings-preview-limit-instructions' => 'Koľko použití zobrazí stĺpec poľa v indexoch prvkov, kým odkáže na zvyšok.',
 ];

@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Y statws y mae’r rhestr yn dechrau ag ef pan fydd y ddewislen statws i’w gweld, e.e. elfennau byw yn unig. Gall awduron ei newid.',
     'settings-parallel-jobs-label' => 'Swyddi ailadeiladu cyfochrog',
     'settings-parallel-jobs-instructions' => 'Faint o swyddi ciw y mae ailadeiladu’r storfa’n llawn yn eu rhedeg ar yr un pryd. Dim mwy na nifer y gweithwyr; mae llai yn gadael gweithwyr yn rhydd ar gyfer swyddi eraill.',
+    'settings-page-size-instructions' => 'Faint o elfennau y mae’r rhestr yn eu dangos fesul tudalen.',
+    'settings-show-status-menu-instructions' => 'A all awduron hidlo’r rhestr yn ôl statws: byw, yn aros, wedi dod i ben, wedi’i analluogi neu ddrafftiau.',
+    'settings-preview-limit-instructions' => 'Faint o ddefnyddiau y mae colofn y maes mewn mynegeion elfennau yn eu dangos cyn cysylltu â’r gweddill.',
 ];

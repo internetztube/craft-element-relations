@@ -7,20 +7,24 @@
         {{ 'settings-overridden'|t('element-relations', {name: name}) }}
     {%- endif -%}
 {% endmacro %}
+{% set plugin = craft.app.plugins.getPlugin('element-relations') %}
 
-{{ forms.textField({
-    first: true,
-    type: 'number',
-    min: 1,
-    label: 'settings-batch-size-label'|t('element-relations'),
-    instructions: 'settings-batch-size-instructions'|t('element-relations'),
-    name: 'bulkRefreshBatchSize',
-    value: settings.bulkRefreshBatchSize,
-    errors: settings.getErrors('bulkRefreshBatchSize'),
-    disabled: 'bulkRefreshBatchSize' in overrides|keys,
-    warning: _self.overrideWarning('bulkRefreshBatchSize', overrides),
-}) }}
 
+{# the in-use protection (services/InUseGuard, the delete dialog) #}
+{% if plugin.isPro() %}
+    {{ forms.lightswitchField({
+        first: true,
+        label: 'settings-protect-label'|t('element-relations'),
+        instructions: 'settings-protect-instructions'|t('element-relations'),
+        name: 'protectInUse',
+        on: settings.protectInUse,
+        disabled: 'protectInUse' in overrides|keys,
+        warning: _self.overrideWarning('protectInUse', overrides),
+    }) }}
+    <hr>
+{% endif %}
+
+{# the full rebuild of the cache (README: Queue) #}
 {{ forms.textField({
     type: 'number',
     min: 1,
@@ -34,8 +38,19 @@
     warning: _self.overrideWarning('rebuildParallelJobs', overrides),
 }) }}
 
+{{ forms.textField({
+    type: 'number',
+    min: 1,
+    label: 'settings-batch-size-label'|t('element-relations'),
+    instructions: 'settings-batch-size-instructions'|t('element-relations'),
+    name: 'bulkRefreshBatchSize',
+    value: settings.bulkRefreshBatchSize,
+    errors: settings.getErrors('bulkRefreshBatchSize'),
+    disabled: 'bulkRefreshBatchSize' in overrides|keys,
+    warning: _self.overrideWarning('bulkRefreshBatchSize', overrides),
+}) }}
+
 {# behind the editions flag only: what the other edition adds, and where to get it (admins only, see ElementRelations::upsells()) #}
-{% set plugin = craft.app.plugins.getPlugin('element-relations') %}
 {% if plugin.upsells() %}
     <div class="pane" data-element-relations-upsell style="margin-top: var(--xl);">
         <h2 class="flex gap-xs" style="margin-top: 0;"><span class="cp-icon" aria-hidden="true" style="color: var(--gray-700);">{{ svg('@internetztube/elementRelations/icon-mask.svg') }}</span>{{ 'upsell-settings-heading'|t('element-relations') }}</h2>
@@ -49,15 +64,5 @@
     </div>
 {% endif %}
 
-{# the in-use protection (services/InUseGuard, the delete dialog) #}
-{% if plugin.isPro() %}
-    {{ forms.lightswitchField({
-        label: 'settings-protect-label'|t('element-relations'),
-        instructions: 'settings-protect-instructions'|t('element-relations'),
-        name: 'protectInUse',
-        on: settings.protectInUse,
-        disabled: 'protectInUse' in overrides|keys,
-        warning: _self.overrideWarning('protectInUse', overrides),
-    }) }}
-{% endif %}
+
 

@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => '显示状态菜单时列表的初始状态，例如仅显示已发布的元素。作者可以切换。',
     'settings-parallel-jobs-label' => '并行重建任务',
     'settings-parallel-jobs-instructions' => '完整重建缓存时同时运行的队列任务数。最多为队列 worker 的数量；更少可为其他任务留出 worker。',
+    'settings-page-size-instructions' => '列表每页显示的元素数量。',
+    'settings-show-status-menu-instructions' => '作者是否可以按状态筛选列表：已发布、待发布、已过期、已禁用或草稿。',
+    'settings-preview-limit-instructions' => '元素索引中该字段的列在链接到其余部分之前显示的使用数量。',
 ];

@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Az az állapot, amellyel a lista indul, ha az állapotmenü látható, pl. csak az élő elemek. A szerzők átválthatják.',
     'settings-parallel-jobs-label' => 'Párhuzamos újraépítési feladatok',
     'settings-parallel-jobs-instructions' => 'Hány sorfeladatot futtat egyszerre a gyorsítótár teljes újraépítése. Legfeljebb a workerek száma; kevesebb szabadon hagy workereket más feladatokra.',
+    'settings-page-size-instructions' => 'Hány elemet mutat a lista oldalanként.',
+    'settings-show-status-menu-instructions' => 'A szerzők szűrhetik-e a listát állapot szerint: élő, függő, lejárt, letiltott vagy piszkozat.',
+    'settings-preview-limit-instructions' => 'Hány felhasználást mutat a mező oszlopa az elemindexekben, mielőtt a többire hivatkozik.',
 ];

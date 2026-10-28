@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Status awal daftar saat menu status ditampilkan, misalnya hanya elemen yang tayang. Penulis dapat menggantinya.',
     'settings-parallel-jobs-label' => 'Tugas pembangunan ulang paralel',
     'settings-parallel-jobs-instructions' => 'Berapa banyak tugas antrean yang dijalankan bersamaan saat cache dibangun ulang sepenuhnya. Paling banyak sejumlah worker; lebih sedikit menyisakan worker untuk tugas lain.',
+    'settings-page-size-instructions' => 'Berapa banyak elemen yang ditampilkan daftar per halaman.',
+    'settings-show-status-menu-instructions' => 'Apakah penulis dapat memfilter daftar menurut status: tayang, tertunda, kedaluwarsa, nonaktif, atau draf.',
+    'settings-preview-limit-instructions' => 'Berapa banyak penggunaan yang ditampilkan kolom bidang di indeks elemen sebelum menautkan ke sisanya.',
 ];

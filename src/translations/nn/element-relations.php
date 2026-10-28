@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Statusen lista startar med når statusmenyen vert vist, t.d. berre publiserte element. Forfattarar kan byte han.',
     'settings-parallel-jobs-label' => 'Parallelle gjenoppbyggingsjobbar',
     'settings-parallel-jobs-instructions' => 'Kor mange køjobbar ei full gjenoppbygging av mellomlageret køyrer samstundes. Høgst talet på workers; færre lèt workers vere ledige for andre jobbar.',
+    'settings-page-size-instructions' => 'Kor mange element lista viser per side.',
+    'settings-show-status-menu-instructions' => 'Om forfattarar kan filtrere lista etter status: publisert, ventande, utgått, deaktivert eller utkast.',
+    'settings-preview-limit-instructions' => 'Kor mange bruk kolonnen til feltet i elementoversikter viser før han lenkjer til resten.',
 ];

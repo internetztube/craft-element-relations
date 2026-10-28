@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Statusen listan börjar med när statusmenyn visas, t.ex. bara publicerade element. Författare kan byta den.',
     'settings-parallel-jobs-label' => 'Parallella ombyggnadsjobb',
     'settings-parallel-jobs-instructions' => 'Hur många köjobb en fullständig ombyggnad av cachen kör samtidigt. Högst antalet workers; färre lämnar workers lediga för andra jobb.',
+    'settings-page-size-instructions' => 'Hur många element listan visar per sida.',
+    'settings-show-status-menu-instructions' => 'Om författare kan filtrera listan efter status: publicerad, väntande, utgången, inaktiverad eller utkast.',
+    'settings-preview-limit-instructions' => 'Hur många användningar fältets kolumn i elementöversikter visar innan den länkar till resten.',
 ];

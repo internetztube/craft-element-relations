@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Status, od którego zaczyna się lista, gdy widoczne jest menu statusów, np. tylko opublikowane elementy. Autorzy mogą go zmienić.',
     'settings-parallel-jobs-label' => 'Równoległe zadania przebudowy',
     'settings-parallel-jobs-instructions' => 'Ile zadań kolejki pełna przebudowa pamięci podręcznej uruchamia jednocześnie. Najwyżej tyle, ile workerów; mniej zostawia workery wolne dla innych zadań.',
+    'settings-page-size-instructions' => 'Ile elementów lista pokazuje na stronie.',
+    'settings-show-status-menu-instructions' => 'Czy autorzy mogą filtrować listę według statusu: opublikowane, oczekujące, wygasłe, wyłączone lub szkice.',
+    'settings-preview-limit-instructions' => 'Ile użyć pokazuje kolumna pola w indeksach elementów, zanim odeśle do reszty.',
 ];

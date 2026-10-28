@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'De status waarmee de lijst begint als het statusmenu wordt getoond, bijv. alleen live elementen. Auteurs kunnen hem wijzigen.',
     'settings-parallel-jobs-label' => 'Parallelle herbouwtaken',
     'settings-parallel-jobs-instructions' => 'Hoeveel wachtrijtaken een volledige herbouw van de cache tegelijk uitvoert. Hoogstens het aantal workers; minder laat workers vrij voor andere taken.',
+    'settings-page-size-instructions' => 'Hoeveel elementen de lijst per pagina toont.',
+    'settings-show-status-menu-instructions' => 'Of auteurs de lijst op status kunnen filteren: live, in afwachting, verlopen, uitgeschakeld of concepten.',
+    'settings-preview-limit-instructions' => 'Hoeveel gebruiken de kolom van het veld in elementoverzichten toont voordat hij naar de rest linkt.',
 ];

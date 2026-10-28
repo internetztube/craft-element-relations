@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'ステータスメニューを表示する場合に、リストが最初に表示するステータス（例: 公開中のエレメントのみ）。作成者は切り替えられます。',
     'settings-parallel-jobs-label' => '並列の再構築ジョブ',
     'settings-parallel-jobs-instructions' => 'キャッシュの完全な再構築が同時に実行するキュージョブの数。最大でキューワーカーの数まで。少なくすると他のジョブ用にワーカーが空きます。',
+    'settings-page-size-instructions' => 'リストが1ページに表示するエレメントの数。',
+    'settings-show-status-menu-instructions' => '作成者がリストをステータスで絞り込めるかどうか：公開中、保留中、期限切れ、無効、下書き。',
+    'settings-preview-limit-instructions' => 'エレメントインデックスのこのフィールドの列が、残りへリンクする前に表示する使用箇所の数。',
 ];

@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Durum menüsü gösterildiğinde listenin başladığı durum, ör. yalnızca yayındaki ögeler. Yazarlar değiştirebilir.',
     'settings-parallel-jobs-label' => 'Paralel yeniden oluşturma işleri',
     'settings-parallel-jobs-instructions' => 'Önbelleğin tam yeniden oluşturulması aynı anda kaç kuyruk işi çalıştırır. En fazla worker sayısı kadar; daha azı diğer işler için worker bırakır.',
+    'settings-page-size-instructions' => 'Listenin sayfa başına kaç öge gösterdiği.',
+    'settings-show-status-menu-instructions' => 'Yazarların listeyi duruma göre süzüp süzemeyeceği: yayında, beklemede, süresi dolmuş, devre dışı veya taslak.',
+    'settings-preview-limit-instructions' => 'Alanın öge dizinlerindeki sütununun, geri kalanına bağlantı vermeden önce kaç kullanım gösterdiği.',
 ];

@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Le statut avec lequel la liste démarre quand le menu des statuts est affiché, par ex. uniquement les éléments en ligne. Les auteurs peuvent le changer.',
     'settings-parallel-jobs-label' => 'Tâches de reconstruction en parallèle',
     'settings-parallel-jobs-instructions' => 'Combien de tâches de file d’attente une reconstruction complète du cache exécute en même temps. Au plus le nombre de workers ; moins laisse des workers libres pour les autres tâches.',
+    'settings-page-size-instructions' => 'Combien d’éléments la liste affiche par page.',
+    'settings-show-status-menu-instructions' => 'Si les auteurs peuvent filtrer la liste par statut : en ligne, en attente, expiré, désactivé ou brouillons.',
+    'settings-preview-limit-instructions' => 'Combien d’utilisations la colonne du champ dans les index d’éléments affiche avant de renvoyer au reste.',
 ];

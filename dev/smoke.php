@@ -285,7 +285,7 @@ $configured = clone $field;
 $configured->viewMode = 'cards';
 $configured->showStatusMenu = false;
 $hiddenHtml = withWebRequest(fn() => $configured->getSettingsHtml());
-check(str_contains($settingsHtml, 'data-target="defaultStatus-field"') && str_contains($settingsHtml, 'id="defaultStatus-field" class="field"') && str_contains($hiddenHtml, 'id="defaultStatus-field" class="field hidden"'), 'Default Status shows only while "Show the status menu" is on (the lightswitch toggles it)');
+check(str_contains($settingsHtml, 'data-target="defaultStatus-field"') && str_contains($settingsHtml, 'id="defaultStatus-field" class="field"') && str_contains($hiddenHtml, 'id="defaultStatus-field" class="field hidden"'), 'Default Status shows only while "Show the status menu" is on (the checkbox toggles it)');
 $configured->pageSize = 5;
 check($configured->validate(), 'field settings validate');
 $configured->pageSize = 0;

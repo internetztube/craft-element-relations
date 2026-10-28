@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => '상태 메뉴가 표시될 때 목록이 처음 보여 주는 상태(예: 게시된 요소만). 작성자가 바꿀 수 있습니다.',
     'settings-parallel-jobs-label' => '병렬 재구축 작업',
     'settings-parallel-jobs-instructions' => '캐시 전체 재구축이 동시에 실행하는 큐 작업 수. 최대 워커 수까지이며, 적게 하면 다른 작업을 위해 워커가 남습니다.',
+    'settings-page-size-instructions' => '목록이 한 페이지에 표시하는 요소 수.',
+    'settings-show-status-menu-instructions' => '작성자가 상태로 목록을 필터링할 수 있는지 여부: 게시됨, 대기 중, 만료됨, 비활성화 또는 초안.',
+    'settings-preview-limit-instructions' => '요소 인덱스의 필드 열이 나머지로 연결하기 전에 표시하는 사용 수.',
 ];

@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'O estado com que a lista começa quando o menu de estados é mostrado, p. ex. apenas elementos publicados. Os autores podem alterá-lo.',
     'settings-parallel-jobs-label' => 'Tarefas de reconstrução em paralelo',
     'settings-parallel-jobs-instructions' => 'Quantas tarefas de fila uma reconstrução completa da cache executa ao mesmo tempo. No máximo o número de workers; menos deixa workers livres para outras tarefas.',
+    'settings-page-size-instructions' => 'Quantos elementos a lista mostra por página.',
+    'settings-show-status-menu-instructions' => 'Se os autores podem filtrar a lista por estado: publicado, pendente, expirado, desativado ou rascunhos.',
+    'settings-preview-limit-instructions' => 'Quantas utilizações a coluna do campo nos índices de elementos mostra antes de ligar ao resto.',
 ];

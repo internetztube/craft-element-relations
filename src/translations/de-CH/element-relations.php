@@ -158,4 +158,7 @@ return [
     'settings-default-status-instructions' => 'Der Status, mit dem die Liste startet, wenn das Statusmenü angezeigt wird, z. B. nur Live-Elemente. Autoren können ihn wechseln.',
     'settings-parallel-jobs-label' => 'Parallele Neuaufbau-Aufgaben',
     'settings-parallel-jobs-instructions' => 'Wie viele Queue-Aufgaben ein vollständiger Neuaufbau des Caches gleichzeitig ausführt. Höchstens so viele wie Queue-Worker; weniger lässt Worker für andere Aufgaben frei.',
+    'settings-page-size-instructions' => 'Wie viele Elemente die Liste pro Seite zeigt.',
+    'settings-show-status-menu-instructions' => 'Ob Autoren die Liste nach Status filtern können: live, ausstehend, abgelaufen, deaktiviert oder Entwürfe.',
+    'settings-preview-limit-instructions' => 'Wie viele Verwendungen die Spalte des Feldes in Element-Übersichten zeigt, bevor sie auf den Rest verlinkt.',
 ];

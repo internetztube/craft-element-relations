@@ -96,7 +96,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
     }
 
     /**
-     * The same settings Craft's relational fields offer for their element index, built with Craft's form helpers.
+     * Laid out like Craft's own relation fields (BaseRelationField): the list's look, its status menu, then (after a
+     * rule) the field's column in element indexes; Title Case labels, instructions on every setting, a checkbox for the
+     * on/off one, and a dependent setting only while it applies.
      */
     public function getSettingsHtml(): ?string
     {
@@ -112,28 +114,9 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             'value' => $this->viewMode,
             'errors' => $this->getErrors('viewMode'),
         ]);
-        $html .= Cp::lightswitchFieldHtml([
-            'label' => Craft::t('element-relations', 'settings-show-status-menu'),
-            'id' => 'showStatusMenu',
-            'name' => 'showStatusMenu',
-            'on' => $this->showStatusMenu,
-            'toggle' => 'defaultStatus-field', // Craft shows the Default Status only while the status menu is on
-        ]);
-        $html .= Cp::selectFieldHtml([
-            'label' => Craft::t('app', 'Default Status'),
-            'instructions' => Craft::t('element-relations', 'settings-default-status-instructions'),
-            'id' => 'defaultStatus',
-            'fieldAttributes' => ['class' => $this->showStatusMenu ? [] : ['hidden']],
-            'name' => 'defaultStatus',
-            'options' => [
-                ['label' => Craft::t('app', 'All'), 'value' => ''],
-                ...array_map(fn(string $status, array|string $info): array => ['label' => is_array($info) ? $info['label'] : $info, 'value' => $status], array_keys(Usage::statuses()), Usage::statuses()),
-            ],
-            'value' => $this->defaultStatus ?? '',
-            'errors' => $this->getErrors('defaultStatus'),
-        ]);
         $html .= Cp::textFieldHtml([
             'label' => Craft::t('element-relations', 'settings-page-size'),
+            'instructions' => Craft::t('element-relations', 'settings-page-size-instructions'),
             'id' => 'pageSize',
             'name' => 'pageSize',
             'type' => 'number',
@@ -142,8 +125,32 @@ class ElementRelationsField extends Field implements PreviewableFieldInterface, 
             'value' => $this->pageSize,
             'errors' => $this->getErrors('pageSize'),
         ]);
+        $html .= Cp::checkboxFieldHtml([
+            'fieldset' => true,
+            'checkboxLabel' => Craft::t('element-relations', 'settings-show-status-menu'),
+            'instructions' => Craft::t('element-relations', 'settings-show-status-menu-instructions'),
+            'id' => 'showStatusMenu',
+            'name' => 'showStatusMenu',
+            'checked' => $this->showStatusMenu,
+            'toggle' => 'defaultStatus-field', // Craft shows the Default Status only while the status menu is on
+        ]);
+        $html .= Cp::selectFieldHtml([
+            'label' => Craft::t('app', 'Default Status'),
+            'instructions' => Craft::t('element-relations', 'settings-default-status-instructions'),
+            'id' => 'defaultStatus',
+            'fieldClass' => $this->showStatusMenu ? null : ['hidden'],
+            'name' => 'defaultStatus',
+            'options' => [
+                ['label' => Craft::t('app', 'All'), 'value' => ''],
+                ...array_map(fn(string $status, array|string $info): array => ['label' => is_array($info) ? $info['label'] : $info, 'value' => $status], array_keys(Usage::statuses()), Usage::statuses()),
+            ],
+            'value' => $this->defaultStatus ?? '',
+            'errors' => $this->getErrors('defaultStatus'),
+        ]);
+        $html .= Html::tag('hr');
         $html .= Cp::textFieldHtml([
             'label' => Craft::t('element-relations', 'settings-preview-limit'),
+            'instructions' => Craft::t('element-relations', 'settings-preview-limit-instructions'),
             'id' => 'previewLimit',
             'name' => 'previewLimit',
             'type' => 'number',
