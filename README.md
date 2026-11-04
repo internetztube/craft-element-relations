@@ -1,3 +1,5 @@
+> **Craft CMS 6:** this plugin is also available for Craft 6 as 5.x: [`5.x` branch](https://github.com/internetztube/craft-element-relations/tree/5.x) · [5.0.0-alpha.1](https://github.com/internetztube/craft-element-relations/releases/tag/5.0.0-alpha.1). This branch (4.x) is the Craft 5 version.
+
 # Element Relations for Craft CMS 5
 
 **See where every element is used. Replace it everywhere, safely.**
