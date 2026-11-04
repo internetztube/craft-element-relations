@@ -1,3 +1,5 @@
+> **Craft CMS 6:** this plugin is also available for Craft 6 as 5.x: [`5.x` branch](https://github.com/internetztube/craft-element-relations/tree/5.x). This branch (4.x) is the Craft 5 version.
+
 # Element Relations for Craft CMS 5
 
 **See where every element is used. Replace it everywhere, safely.**
@@ -33,7 +35,7 @@ Three test suites run on every push, on PHP 8.2 and 8.3, on MySQL 8 and PostgreS
 
 ## Requirements
 
-Craft CMS 5.3 or later, PHP 8.2 or later. For Craft 4, use the 3.1.x releases.
+Craft CMS 5.3 or later, PHP 8.2 or later. For Craft 6, use the 5.x releases ([`5.x` branch](https://github.com/internetztube/craft-element-relations/tree/5.x)); for Craft 4, the 3.1.x releases.
 
 ## Installation
 
