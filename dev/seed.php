@@ -182,6 +182,12 @@ if (!$volume = $volumes->getVolumeByHandle('test')) {
     $volume = new Volume(['name' => 'Test', 'handle' => 'test', 'fsHandle' => 'testFs']);
     $volumes->saveVolume($volume) or fail($volume);
 }
+// Craft 5.12+: a new volume saves each asset only to the site it was uploaded in; the tests expect every site,
+// as volumes did before (and existing multi-site volumes still do)
+if (property_exists($volume, 'propagationMethod') && $volume->propagationMethod !== craft\enums\PropagationMethod::All) {
+    $volume->propagationMethod = craft\enums\PropagationMethod::All;
+    $volumes->saveVolume($volume) or fail($volume);
+}
 if (!$asset = Asset::find()->volume('test')->orderBy(['elements.id' => SORT_ASC])->one()) {
     $tmp = tempnam(sys_get_temp_dir(), 'er') . '.png';
     // 1x1 transparent PNG
