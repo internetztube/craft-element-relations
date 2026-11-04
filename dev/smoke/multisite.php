@@ -32,7 +32,10 @@ return function (array $ctx): void {
     $rel = new RelationsModel((int)$target->id, $en);
     $siteIds = array_map(fn($site) => (int)$site->id, $rel->getSites());
     sort($siteIds);
-    check($siteIds === [$en, $de], 'target is used in both sites (sites: ' . implode(',', $siteIds) . ')');
+    // either order: a project installed from its project config may give the German site the lower id
+    $bothSites = [$en, $de];
+    sort($bothSites);
+    check($siteIds === $bothSites, 'target is used in both sites (sites: ' . implode(',', $siteIds) . ')');
     check($rel->getCount([$en]) === 1 && $rel->getCount([$de]) === 1 && $rel->getCount([]) === 1, 'counts per site: 1 (en), 1 (de), 1 (all sites: the element once)');
     check($rel->getCountFast([$en]) === 1 && $rel->getCountFast([]) === 1, 'fast counts agree');
 

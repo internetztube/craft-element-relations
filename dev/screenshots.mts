@@ -45,13 +45,12 @@ interface DemoTargets {
     replacement: { id: number };
     /** usages the replace shots tick */
     replaceIn: number[];
-    social: { path: string };
     guide: { id: number, path: string };
+    portrait: { path: string };
     hongKong: { id: number, path: string };
     homepage: { path: string };
     usedInField: { path: string };
     editors: { path: string };
-    thankYou: { id: number, path: string };
 }
 
 interface Shot {
@@ -148,10 +147,14 @@ window.regionOf = (elements, padding = 0) => {
 /** An element's rows, as wide as the content pane it is in (the window then starts at the pane's edge). */
 window.inPane = (element) => ({
     getBoundingClientRect: () => {
-        const pane = (element.closest('.content-pane') ?? element).getBoundingClientRect(), box = element.getBoundingClientRect();
+        const pane = (element.closest('.content-pane, .cp-content-view') ?? element).getBoundingClientRect(), box = element.getBoundingClientRect();
         return { left: pane.left, right: pane.right, top: box.top, bottom: box.bottom };
     },
 });
+/** The filter button of Craft 6's element index (next to its search). */
+window.filterButton = () => [...document.querySelectorAll('.element-index craft-button')].find((b) => /filter/i.test(b.outerHTML.slice(0, 400)));
+/** Collapses Craft's nav, or brings it back (Craft 6: "Collapse" at the bottom of the nav). */
+window.toggleNav = () => document.querySelector('.cp-sidebar__footer craft-nav-item')?.click();
 /** A table's header row and its first rows (long lists are cut for a closer look). */
 window.firstRows = (selector, count) => {
     const table = $$(selector)[0];
@@ -162,37 +165,32 @@ window.firstRows = (selector, count) => {
 
 /** What the feature shots do on their pages; the README's panels repeat them in a narrower window. */
 const UNUSED_FILTER_ACT = `
-            await indexReady(pageIndex(), 'the asset index');
-            const index = pageIndex();
-            index.showFilterHud();
-            const hud = () => index.filterHuds[index.siteId][index.sourceKey];
-            await until(() => hud()?.$body?.find('[name="condition[new-rule-type]"]').length, 'the filter');
-            // add the rule like picking it from "Add a filter" (Craft's condition builder renders it via htmx)
-            await until(() => hud().$body.find('button.add').data('menubtn'), 'the Add a filter menu');
-            // picked too early, the condition builder sometimes ignores it: pick again
-            for (let attempt = 1; !hud().$body.find('.lightswitch').length; attempt++) {
-                await sleep(500);
-                const addButton = hud().$body.find('button.add').data('menubtn');
-                const option = addButton.menu.$options.filter((i, o) => o.textContent.trim() === 'Used anywhere')[0];
-                if (!option) throw new Error('No "Used anywhere" in: ' + addButton.menu.$options.map((i, o) => o.textContent.trim()).get().join(', '));
-                addButton.menu.selectOption(option);
-                await until(() => hud().$body.find('.lightswitch').length, 'the Used anywhere rule', attempt < 3 ? 8000 : 30000).catch((error) => {
-                    if (attempt >= 3) throw error;
-                });
-            }
+            // Craft 6's own index (not the classic Craft.ElementIndex): its filter is a form under the search
+            await until(() => filterButton() && document.querySelector('.element-index tbody tr'), 'the asset index');
+            filterButton().click();
+            await until(() => document.querySelector('.filter-condition-builder craft-action-menu'), 'the filter');
+            // add the rule like picking it from "Add a filter"
+            const menu = document.querySelector('.filter-condition-builder craft-action-menu');
+            menu.querySelector('[slot=invoker]').click();
+            await sleep(600);
+            const option = [...menu.querySelectorAll('craft-action-item')].find((item) => item.textContent.trim() === 'Used anywhere');
+            if (!option) throw new Error('No "Used anywhere" in: ' + [...menu.querySelectorAll('craft-action-item')].map((item) => item.textContent.trim()).join(', '));
+            option.click();
+            await until(() => document.querySelector('.filter-condition-builder craft-switch'), 'the Used anywhere rule');
+            await sleep(400);
+            // off: not used anywhere (a click on the custom element does not reach its switch)
+            const rule = document.querySelector('.filter-condition-builder craft-switch');
+            rule.checked = false;
+            rule.dispatchEvent(new Event('change', { bubbles: true }));
             await sleep(300);
-            hud().$body.find('.lightswitch').data('lightswitch').turnOff();
-            await sleep(500);
-            hud().$body.find('button[type="submit"]').trigger('click');
-            await sleep(300);
-            await indexReady(index, 'the filtered assets');
-            index.showFilterHud();
+            [...document.querySelectorAll('.filter-hud craft-button')].find((b) => b.textContent.trim() === 'Apply').click();
+            await until(() => !$$('.element-index tbody tr').some((row) => !/Unused/.test(row.textContent)), 'the unused assets');
+            await sleep(800);
+            filterButton().click();
+            await until(() => document.querySelector('.filter-hud craft-switch'), 'the filter again');
             await sleep(700);
-            // the filter opens over the list; below it, both are in the shot (its tip pointed at the filter button)
-            const filter = $$('.hud').find((h) => h.querySelector('.condition-container'));
-            filter.style.top = document.querySelector('.elements table').getBoundingClientRect().bottom + window.scrollY + 12 + 'px';
-            filter.querySelector('.tip')?.remove();
-            $$('.hud-shade').forEach((shade) => { shade.style.background = 'transparent'; });
+            // the filter opens over the list; below it, both are in the shot
+            document.querySelector('form.filter-hud').style.top = document.querySelector('.element-index table').getBoundingClientRect().bottom + 12 + 'px';
             await sleep(200);
         `;
 const TICK_USAGES_ACT = `
@@ -211,17 +209,24 @@ const OPEN_WIZARD_ACT = `
             await sleep(800);
             const picker = $('.element-relations-wizard .elementselect').data('elementSelect');
             picker.showModal();
-            await until(() => picker.modal?.elementIndex?.view, 'the picker');
-            await indexReady(picker.modal.elementIndex, 'the picker');
-            picker.modal.elementIndex.view.selectElementById(${demo.replacement.id});
-            picker.modal.selectElements();
-            await until(() => document.querySelector('.element-relations-wizard [data-review-to] .chip'), 'the chosen replacement');
+            // Craft 6's picker: its own index in a modal; tick the replacement's row, then "Select"
+            const pickerRow = () => $$('tr[data-index-id="${demo.replacement.id}"]').find((row) => !row.closest('.element-relations'));
+            await until(() => pickerRow(), 'the picker');
+            await sleep(600);
+            pickerRow().querySelector('craft-checkbox').click();
+            await sleep(400);
+            // the modal's "Select" (in its shadow DOM)
+            const modal = pickerRow().closest('craft-element-selector-modal');
+            const select = [...(modal.shadowRoot ?? modal).querySelectorAll('craft-button, button')].find((b) => b.textContent.trim() === 'Select');
+            if (!select) throw new Error('No Select button in: ' + (modal.shadowRoot?.innerHTML ?? '').replace(/<style[\\s\\S]*?<\\/style>/g, '').slice(0, 600));
+            select.click();
+            await until(() => document.querySelector('.element-relations-wizard [data-review-to]')?.textContent.trim(), 'the chosen replacement');
             // the whole review (summary and the sites line) in view, step 1 may scroll off
             document.querySelector('.element-relations-wizard').lastElementChild.scrollIntoView({ block: 'end' });
             await sleep(700);
         `;
 const DELETE_DIALOG_ACT = `
-            new Craft.ElementDeletionManager('craft\\\\elements\\\\Entry', [${demo.thankYou.id}], { siteId: 1 });
+            new Craft.ElementDeletionManager('CraftCms\\\\Cms\\\\Asset\\\\Elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
             await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
             await sleep(800);
             // open the usages, like clicking the toggle
@@ -237,10 +242,10 @@ const SHOTS: Shot[] = [
         highlight: `[[...column('Field')]]`,
         inset: false,
         // the asset's page: title, preview and the "Used in" field, so it reads as an element's usages, not any index
-        cover: `[document.querySelector('#header') ?? document.querySelector('h1'), document.querySelector('.element-relations').closest('.field'), document.querySelector('#details')]`,
+        cover: `[document.querySelector('h1'), document.querySelector('.element-relations').closest('craft-field'), document.querySelector('#element-details-tab-info-panel')]`,
         caption: 'Where an element is used',
         title: 'See where every element is used',
-        text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',
+        text: 'Everything that links to it, in one list: entries, nested entries, links and Markdown text.',
         path: demo.skyline.path,
         act: `await indexReady(fieldIndex(), 'the usage list');`,
     },
@@ -250,19 +255,20 @@ const SHOTS: Shot[] = [
         name: 'readme-hero', viewport: { width: 1120, height: 600 },
         caption: 'Where an element is used',
         points: ['Every element type in one list', 'Where it lives, which field holds the link', 'Replace, undo, roll back'],
-        focus: `inPane(document.querySelector('.element-relations').closest('.field'))`,
+        focus: `inPane(document.querySelector('.element-relations').closest('craft-field'))`,
         highlight: `[[...column('Field')]]`,
         inset: false,
         title: 'See where every element is used',
-        text: 'Everything that links to it, in one list: entries, Matrix blocks, products, menus, forms.',
+        text: 'Everything that links to it, in one list: entries, nested entries, links and Markdown text.',
         path: demo.skyline.path,
-        act: `document.querySelector('#sidebar-toggle')?.click(); await sleep(600); await indexReady(fieldIndex(), 'the usage list');`,
+        act: `toggleNav(); await sleep(600); await indexReady(fieldIndex(), 'the usage list');`,
+        after: `toggleNav(); await sleep(300);`,
     },
     {
         name: 'readme-unused', viewport: { width: 1120, height: 580 },
         points: ['Works on any source, with Craft’s bulk actions', 'The same rule in custom sources'],
-        focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
+        focus: `[document.querySelector('form.filter-hud'), document.querySelector('.element-index table')]`,
+        highlight: `[[document.querySelector('.filter-hud craft-switch')?.parentElement?.parentElement], column('Used in')]`,
         inset: false,
         caption: 'Find what nobody uses',
         title: 'Find what nobody uses',
@@ -284,14 +290,14 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'readme-protect', viewport: { width: 1120, height: 700 }, user: 'jonas',
-        points: ['Usages Craft does not see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        points: ['Live usages stop the delete', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
         focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
         inset: false,
         caption: 'Can’t be deleted while in use',
         title: 'Can’t be deleted while in use',
-        text: 'Two forms send people to “Thank you”. Craft would delete it without a warning. Element Relations stops that.',
-        path: demo.thankYou.path,
+        text: 'The homepage and an article link to the guide. Element Relations stops the delete and lists them.',
+        path: demo.guide.path,
         act: `${DELETE_DIALOG_ACT}`,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
     },
@@ -302,7 +308,7 @@ const SHOTS: Shot[] = [
         highlight: `[[typeMenu()]]`,
         title: 'Filter by element type',
         text: 'Counts per type, plus Craft’s own search, sorting, status menu and pagination.',
-        path: demo.guide.path,
+        path: demo.portrait.path,
         act: `
             await indexReady(fieldIndex(), 'the usage list');
             $('[data-element-relations-menu][data-param="elementTypes"] .menubtn').data('menubtn').showMenu();
@@ -323,40 +329,30 @@ const SHOTS: Shot[] = [
     },
     {
         name: 'entry-tab',
-        points: ['Entries, assets, categories, users, products…', 'On its own tab or next to the content'],
-        focus: `[document.querySelector('[role="tablist"]'), inPane(document.querySelector('.element-relations'))]`,
-        highlight: `[byText('[role="tab"]', 'Used in')]`,
+        points: ['Entries, assets, users…', 'On its own tab or next to the content'],
+        focus: `[document.querySelector('craft-tabs'), inPane(document.querySelector('.element-relations'))]`,
+        highlight: `[byText('craft-tab, [role="tab"]', 'Used in')]`,
         title: 'On any element type',
-        text: 'Add the field to entries, assets, categories, users, products or global sets, for example on its own tab.',
+        text: 'Add the field to entries, assets or users, for example on its own tab.',
         path: demo.hongKong.path,
         act: `clickTab('Used in'); await sleep(300); await indexReady(fieldIndex(), 'the usage list');`,
     },
     {
         name: 'index-column', viewport: { width: 1600 },
         points: ['The first usages at a glance, plus the total', 'Used in other sites, never “Unused”', 'Sortable by the number of usages'],
-        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 7)]`,
-        highlight: `[column('Used in').slice(0, 5), [document.querySelector('.elements table [data-element-relations-other-sites]')?.closest('td')]]`,
+        focus: `[document.querySelector('.element-index craft-input[name=search]'), firstRows('.element-index table', 7)]`,
+        highlight: `[column('Used in').slice(0, 5), [document.querySelector('.element-index table [data-element-relations-other-sites]')?.closest('td')]]`,
         title: 'Right in the element index',
         text: 'A column with the first usages and the total. The index can be sorted by it.',
         path: '/admin/assets/images',
-        act: `await indexReady(pageIndex(), 'the asset index'); document.querySelector('[data-view="table"]')?.click(); await indexReady(pageIndex(), 'the table');`,
-    },
-    {
-        name: 'global-usages',
-        points: ['SEOmatic’s global and per-section images', 'Linked to their settings page'],
-        focus: `inPane(document.querySelector('.element-relations'))`,
-        highlight: `[[document.querySelector('.element-relations-heading'), document.querySelector('.element-relations-heading')?.nextElementSibling]]`,
-        title: 'Plugin settings count, too',
-        text: 'Usages that are not elements, like SEOmatic’s global SEO image, are listed below the field.',
-        path: demo.social.path.replace(/site=[^&]*/, 'site=de'), // the German SEOmatic settings use the German version
-        act: `await sleep(800);`,
+        act: `await until(() => document.querySelector('.element-index tbody tr'), 'the asset index'); await sleep(1000);`,
     },
     {
         name: 'used-filter', viewport: { width: 1600 },
         points: ['Works on any source, with Craft’s bulk actions', 'The same rule in custom sources'],
-        focus: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
-        highlight: `[[...byText('button', 'Used anywhere'), ...$$('.hud .lightswitch')], column('Used in')]`,
-        cover: `[...$$('.hud').filter((h) => h.querySelector('.condition-container')), document.querySelector('.elements table')]`,
+        focus: `[document.querySelector('form.filter-hud'), document.querySelector('.element-index table')]`,
+        highlight: `[[document.querySelector('.filter-hud craft-switch')?.parentElement?.parentElement], column('Used in')]`,
+        cover: `[document.querySelector('form.filter-hud'), document.querySelector('.element-index table')]`,
         caption: 'Find what nobody uses',
         title: 'Find what nobody uses',
         text: 'A “Used anywhere” rule in Craft’s filter. It works on any source, with Craft’s bulk actions.',
@@ -436,7 +432,7 @@ const SHOTS: Shot[] = [
         reload: true,
         afterReload: `
             // the table is wider than the content next to the nav: collapse it, like a user with a small screen would
-            [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Toggle sidebar')?.click();
+            toggleNav();
             // only the demo's replacements (the tests leave theirs in the same project)
             const rows = [...document.querySelectorAll('#element-relations-history tbody tr')];
             rows.filter((row) => !row.textContent.includes('Train passing the city towers')).forEach((row) => row.remove());
@@ -447,49 +443,36 @@ const SHOTS: Shot[] = [
             const operationId = Number(sessionStorage.getItem('demoOperationId'));
             await Craft.sendActionRequest('POST', 'element-relations/replace/rollback', { data: { operationId } });
             await waitForOperation(operationId);
-            [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Toggle sidebar')?.click();
+            toggleNav();
             await sleep(300);
         `,
     },
-    {
-        name: 'in-use-delete', viewport: { width: 1600 }, user: 'jonas',
-        points: ['Delete, disable, expire, schedule', 'Only live usages count', 'A permission lets editors through'],
-        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
-        highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
-        title: 'Keep what is in use',
-        text: 'Editors can’t delete or take offline what live content uses. The error says where it is used.',
-        path: '/admin/assets/images',
-        act: `
-            await indexReady(pageIndex(), 'the asset index');
-            document.querySelector('[data-view="table"]')?.click();
-            await indexReady(pageIndex(), 'the table');
-            await findAndRun(pageIndex(), 'city towers', ${demo.skyline.id}, 'craft\\\\elements\\\\actions\\\\DeleteAssets', {}, /can’t be deleted/);
-        `,
-    },
+    // no in-use-delete / in-use-disable shots on Craft 6 (yet): its element index gets the plugin's error for a blocked
+    // Delete or Disable back (HTTP 400 with the message) but shows no notice, so there is nothing to show
     {
         name: 'in-use-dialog', user: 'jonas',
-        points: ['Usages Craft does not see: forms, menus, links, SEO', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
+        points: ['Live usages stop the delete', 'In Craft’s own delete dialog, “Replace…” right there', 'No “Delete anyway” without the permission'],
         focus: `$$('.modal').filter((m) => /Element Relations found/.test(m.textContent)).at(-1)`,
         highlight: `[[...$$('.modal h2, .modal h3')].filter((e) => /Element Relations found/.test(e.textContent)).slice(-1)]`,
         title: 'Can’t be deleted while in use',
-        text: 'Two forms send people to “Thank you”. Craft would delete it without a warning. Element Relations stops that.',
-        path: demo.thankYou.path,
+        text: 'The homepage and an article link to the guide. Element Relations stops the delete and lists them.',
+        path: demo.guide.path,
         act: `${DELETE_DIALOG_ACT}`,
         after: `$$('.modal').at(-1)?.querySelector('button.btn:not(.submit)')?.click(); await sleep(300);`,
     },
     {
         name: 'delete-compare', user: 'jonas', viewport: { height: 1500 },
-        points: ['The same asset, the same dialog', 'Craft checks relation fields and CKEditor', 'Element Relations also finds links, menus and forms'],
-        title: 'What Craft’s delete dialog misses',
-        text: 'The same PDF, deleted by an editor. Left: Craft 5.10 alone. Right: with Element Relations.',
+        points: ['The same asset, the same dialog', 'Craft warns, but lets editors delete it', 'Element Relations stops it until it is replaced'],
+        title: 'A warning, or a stop',
+        text: 'The same PDF, deleted by an editor. Top: Craft 6 alone. Bottom: with Element Relations.',
         path: demo.guide.path,
         compare: [
             {
-                label: 'Craft 5.10',
+                label: 'Craft 6',
                 protect: false,
                 act: `
                     window.confirm = () => false; // no blocker means Craft's plain confirm(): cancelled, nothing is deleted
-                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
+                    new Craft.ElementDeletionManager('CraftCms\\\\Cms\\\\Asset\\\\Elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
                     await until(() => $$('.modal').some((m) => /Before deleting/.test(m.textContent)), 'Craft’s delete dialog', 30000);
                     await sleep(1500);
                     if ($$('.modal').some((m) => /Element Relations/.test(m.textContent))) throw new Error('The plugin’s part is still in the dialog');
@@ -499,12 +482,12 @@ const SHOTS: Shot[] = [
                 region: `dialogChecks()`,
             },
             {
-                label: 'Craft 5.10 with Element Relations',
+                label: 'Craft 6 with Element Relations',
                 protect: true,
                 act: `
                     visibleModal()?.hide();
                     await sleep(800);
-                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
+                    new Craft.ElementDeletionManager('CraftCms\\\\Cms\\\\Asset\\\\Elements\\\\Asset', [${demo.guide.id}], { siteId: 1 });
                     await until(() => $$('.modal').some((m) => /Element Relations found/.test(m.textContent)), 'the delete dialog', 30000);
                     // opened, like a user would to see which elements
                     const ours = [...$$('.modal').at(-1).querySelectorAll('.edm-blocker')].find((b) => /Element Relations found/.test(b.textContent));
@@ -520,7 +503,7 @@ const SHOTS: Shot[] = [
         // Craft's own list of what relates to the asset next to the plugin's: Craft names the Matrix block, the plugin
         // the page that holds it, with the field and the sites
         name: 'compare',
-        points: ['The page, not the Matrix block inside it', 'Where it sits, which field, which sites', 'Rich text, links, menus, forms and SEO too'],
+        points: ['The page, not the Matrix block inside it', 'Where it sits, which field, which sites', 'Link fields and Markdown text too'],
         title: 'Know what you replace',
         text: 'The same asset. Craft lists the Matrix blocks that link to it. Element Relations lists the pages your editors know.',
         path: demo.skyline.path,
@@ -528,7 +511,7 @@ const SHOTS: Shot[] = [
             {
                 label: 'Craft’s delete dialog',
                 act: `
-                    new Craft.ElementDeletionManager('craft\\\\elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
+                    new Craft.ElementDeletionManager('CraftCms\\\\Cms\\\\Asset\\\\Elements\\\\Asset', [${demo.skyline.id}], { siteId: 1 });
                     await until(() => $$('.modal h2, .modal h3').some((h) => /is related by/.test(h.textContent)), 'the delete dialog', 30000);
                     await sleep(800);
                     window.craftBlocker = () => $$('.modal h2, .modal h3').find((h) => /is related by/.test(h.textContent)).parentElement.parentElement;
@@ -561,23 +544,10 @@ const SHOTS: Shot[] = [
         after: `wizardSlideout()?.querySelector('button:not([type="submit"])')?.click(); await sleep(300);`,
     },
     {
-        name: 'in-use-disable', viewport: { width: 1600 }, user: 'jonas',
-        points: ['Also per site, expiry dates and post dates', 'Drafts and disabled entries don’t count'],
-        focus: `[document.querySelector('#toolbar'), firstRows('.elements table', 3)]`,
-        highlight: `[$$('.notification'), $$('.elements table tbody tr.sel')]`,
-        title: 'Disabling is checked too',
-        text: '33 stories link to Hong Kong. It stays live until they are replaced, or someone with the permission disables it.',
-        path: '/admin/content/entries/destinations',
-        act: `
-            await indexReady(pageIndex(), 'the destinations');
-            await findAndRun(pageIndex(), 'Hong Kong', ${demo.hongKong.id}, 'craft\\\\elements\\\\actions\\\\SetStatus', { status: 'disabled' }, /can’t be disabled/);
-        `,
-    },
-    {
         name: 'field-settings',
         points: ['Like Craft’s relation fields', 'Authors switch the view in the index', 'How many usages an index column shows'],
-        focus: `['View Mode', 'Show the status menu', 'Elements per page', 'Elements in index columns'].map((label) => inPane(byText('label', label)[0]?.closest('.field')))`,
-        highlight: `[[byText('label', 'Elements in index columns')[0]?.closest('.field')]]`,
+        focus: `['View Mode', 'Show the status menu', 'Elements per page', 'Elements in index columns'].map((label) => inPane(byText('label', label)[0]?.closest('.field, craft-field')))`,
+        highlight: `[[byText('label', 'Elements in index columns')[0]?.closest('.field, craft-field')]]`,
         inset: false,
         title: 'Field settings',
         text: 'View mode, status menu, page size, and how many usages an index column shows.',
@@ -594,14 +564,22 @@ const SHOTS: Shot[] = [
         path: demo.editors.path,
         act: `
             await sleep(500);
-            const heading = [...document.querySelectorAll('h3, h2, legend, .heading')].find((h) => h.textContent.trim().startsWith('Element Relations'));
-            window.permissionGroup = () => heading.closest('.user-permissions') ?? heading.parentElement;
+            // Craft 6 renders the permissions in a web component (shadow DOM): the plugin's group is the box around its
+            // heading and its permissions
+            const all = (root) => [...root.querySelectorAll('*')].flatMap((e) => [e, ...(e.shadowRoot ? all(e.shadowRoot) : [])]);
+            // (not the "Element Relations" utility in the Utilities group)
+            const findGroup = () => all(document).find((e) => e.matches('section.group') && e.firstElementChild?.textContent.trim().startsWith('Element Relations'));
+            await until(() => findGroup(), 'the permissions');
+            const group = findGroup();
+            window.permissionGroup = () => group;
+            group.scrollIntoView({ block: 'center' });
+            await sleep(400);
         `,
     },
     {
         name: 'plugin-settings',
         points: ['Protection on or off, per environment too', 'Rebuild under Utilities or on the command line'],
-        focus: `$$('#content .field').map(inPane)`,
+        focus: `$$('#content .field, craft-field').map(inPane)`,
         title: 'Plugin settings',
         text: 'Protect elements in use, and how many elements a queue job handles when the cache is rebuilt.',
         path: '/admin/settings/plugins/element-relations',
@@ -674,8 +652,8 @@ function escapeHtml(text: string): string {
     return text.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c);
 }
 
-/** The plugin icon (src/icon.svg) as a data URL for the frames. */
-const PLUGIN_ICON = `data:image/svg+xml;base64,${readFileSync(join(here, '..', 'src', 'icon.svg')).toString('base64')}`;
+/** The plugin icon (resources/icon.svg) as a data URL for the frames. */
+const PLUGIN_ICON = `data:image/svg+xml;base64,${readFileSync(join(here, '..', 'resources', 'icon.svg')).toString('base64')}`;
 
 /** The accent of the rings, the inset and the Pro badge: the icon's coral. */
 const ACCENT = '#ff5a3c';
@@ -901,7 +879,7 @@ function readmeHtml(cards: Taken[]): { html: string, height: number } {
         <div class="head">
             <div class="brand"><img src="${PLUGIN_ICON}" alt="">Element Relations</div>
             <h1>See where every element is used. Replace it everywhere, safely.</h1>
-            <p>One list of everything that links to an entry, asset, category or product. All element types, all sites, rich text and plugins.</p>
+            <p>One list of everything that links to an entry, asset or user. All element types, all sites, links and Markdown text.</p>
             <div class="chips">${chips}</div>
         </div>
         ${panels}
@@ -910,7 +888,7 @@ function readmeHtml(cards: Taken[]): { html: string, height: number } {
 }
 
 /** What the cover promises, under the title. */
-const COVER_CHIPS = ['Every relation field, 13 plugins', 'Replace, undo, roll back', 'Tested with 100,000 usages', 'Craft CMS 5'];
+const COVER_CHIPS = ['Every relation field', 'Replace, undo, roll back', 'Keeps what is in use', 'Craft CMS 6'];
 
 /**
  * The cover for the README: the plugin's name over three close-ups of the control panel, so a reader sees what to
@@ -1055,7 +1033,10 @@ try {
             comparisons.push({ shot, parts });
             console.log(`  shot ${shot.name}`);
         } else if (!only.length || only.includes(shot.name)) {
-            const area = await measure(browser, shot);
+            const area = await measure(browser, shot).catch(async (error) => {
+                writeFileSync(join(outDir, `failed-${shot.name}.png`), await captureViewport(browser));
+                throw error;
+            });
             const base = join(workDir, `${shot.name}.png`);
             writeFileSync(base, await captureViewport(browser));
             let inset = null;

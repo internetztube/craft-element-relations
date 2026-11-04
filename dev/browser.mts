@@ -158,7 +158,7 @@ window.until = async (test, what, timeout = 15000) => {
 /** The field's usage list (Craft's element index inside the Element Relations field). */
 window.fieldIndex = () => $('.element-relations .element-index').data('elementIndex');
 /** The page's element index (Entries, Assets, …). */
-window.pageIndex = () => $('#main .element-index, #content .element-index').first().data('elementIndex') ?? Craft.elementIndex;
+window.pageIndex = () => $('#main .element-index, #content .element-index, .cp-content-view .element-index').not('.element-relations .element-index').first().data('elementIndex') ?? Craft.elementIndex;
 window.indexReady = async (index, what) => {
     await sleep(150); // a request started just now may not have set isIndexBusy yet
     await until(() => index && !index.isIndexBusy && index.view, what);
@@ -213,8 +213,8 @@ window.findAndRun = async (index, search, id, action, params, expect) => {
 window.notices = () => $$('.notification').map((n) => n.textContent.replace(/\\s+/g, ' ').trim());
 // index actions ask with the browser's confirm() (e.g. Delete): answered "OK" like the user would
 window.confirm = () => true;
-// trial and dev mode notices are not part of what the plugin looks like
+// trial and dev mode notices are not part of what the plugin looks like (Craft 6: a badge in the header bar)
 const style = document.createElement('style');
-style.textContent = '#trial-info, #devmode { display: none !important; }';
+style.textContent = '#trial-info, #devmode, .cp-header-bar__indicators craft-badge[data-color="warning"] { display: none !important; }';
 document.head.append(style);
 `;

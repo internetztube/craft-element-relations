@@ -112,11 +112,21 @@ e2e()   { serve && php "$PLUGIN_DIR/dev/e2e.php" "$PROJECT_DIR" "http://localhos
 # the control panel in a real browser (headless Chrome), dev/ui.mts: what a person sees and does
 ui()    { serve && queue && node "$PLUGIN_DIR/dev/ui.mts" "$PROJECT_DIR" "http://localhost:$PORT"; local rc=$?; stop; syncpc; return $rc; }
 # documentation screenshots of the demo site into docs/screenshots (queue first: pending image transforms show a job
-# indicator in the control panel)
-screenshots() { serve && queue && (cd "$PLUGIN_DIR" && node dev/screenshots.mts "$PROJECT_DIR" "http://localhost:$PORT" docs/screenshots); }
+# indicator in the control panel). A queue worker runs the jobs, not the control panel: Craft 6's queue/run works
+# after its response, which PHP's built-in server sends only then, and Craft's JS queues later requests behind it
+# (the notice with Undo would wait for its icon). OUT_DIR: somewhere else than docs/screenshots.
+screenshots() {
+  export CRAFT_RUN_QUEUE_AUTOMATICALLY=false
+  serve && queue || return
+  (cd "$PROJECT_DIR" && exec "${PHP[@]}" artisan queue:work --sleep=1 --quiet) & local worker=$!
+  local rc=0
+  (cd "$PLUGIN_DIR" && node dev/screenshots.mts "$PROJECT_DIR" "http://localhost:$PORT" "${OUT_DIR:-docs/screenshots}") || rc=$?
+  kill "$worker"; stop; return $rc
+}
 
-# the server's workers are children of the process in the pid file
-stop() { [ -f "$PIDFILE" ] && { pkill -P "$(cat "$PIDFILE")" 2>/dev/null; kill "$(cat "$PIDFILE")" 2>/dev/null; } || true; rm -f "$PIDFILE"; }
+# the server's workers are children of the process in the pid file; the ones that outlive it (macOS hands them to
+# launchd) are found by their port
+stop() { [ -f "$PIDFILE" ] && { pkill -P "$(cat "$PIDFILE")" 2>/dev/null; kill "$(cat "$PIDFILE")" 2>/dev/null; } || true; rm -f "$PIDFILE"; pkill -f -- "-S localhost:$PORT " 2>/dev/null || true; }
 
 serve() {
   stop

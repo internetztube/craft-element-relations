@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](http://keepachangelog.com/) and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Fixed
+- The notices of a replacement showed text keys (“replace-running”, “replace-undo”) instead of their text on Craft 6.
+
 ## 5.0.0-alpha.1 - 2026-10-23
 
 The first version for Craft 6. The field, its list of usages, replace, undo, the history and the protection of

@@ -15,6 +15,7 @@ use CraftCms\Cms\Field\Matrix;
 use CraftCms\Cms\Support\Facades\Conditions;
 use CraftCms\Cms\Support\Facades\Elements;
 use CraftCms\Cms\Support\Facades\Fields;
+use CraftCms\Cms\Support\Facades\HtmlStack;
 use CraftCms\Cms\Support\Facades\Plugins;
 use CraftCms\Cms\Support\Facades\Sections;
 use CraftCms\Cms\Support\Facades\Sites;
@@ -226,6 +227,11 @@ return function (array $ctx): void {
     $input = withWebRequest(fn(): string => $field->inputHtmlFor($c->getFieldValue('relations'), $c));
     check(str_contains($input, 'data-element-relations-from="' . $c->id . '"'), 'Pro: the field tells the index which element its "Replace…" action replaces');
     check(in_array(ReplaceUsages::class, Usage::actions('*'), true), 'Pro: the usage list offers "Replace…" for the ticked usages (an element action, so Craft shows checkboxes)');
+    $replaceJs = withWebRequest(fn() => HtmlStack::capture(function (): string {
+        ReplaceRelations::registerReplaceJs();
+        return '';
+    }))->bodyHtml;
+    check(str_contains($replaceJs, json_encode('Replacing in the background…')) && str_contains($replaceJs, '"Undo"') && !str_contains($replaceJs, "Craft.t('element-relations'"), 'the replace notices carry their texts translated (Craft 6’s Craft.t() would show the keys)');
 
     $result = ReplaceService::replace($c, $target);
     check($result['replaced'] === 1 && !$result['skipped'], 'replace() everywhere: exactly the remaining source was rewritten, nothing skipped (' . json_encode($result) . ')');

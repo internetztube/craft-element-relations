@@ -24,7 +24,13 @@
  */
 window.ElementRelationsReplace = window.ElementRelationsReplace || (() => {
     'use strict';
-    const t = (message) => Craft.t('element-relations', message);
+    // translated here, not with Craft.t(): Craft 6's Craft.t() drops the category and only looks in "app"
+    const texts = {{ {
+        'replace-running': 'replace-running'|t('element-relations'),
+        'rollback-running': 'rollback-running'|t('element-relations'),
+        'replace-undo': 'replace-undo'|t('element-relations'),
+    }|json_encode|raw }};
+    const t = (message) => texts[message];
     /** @param {*} failure a failed Craft.sendActionRequest() */
     const showError = (failure) => {
         const data = failure && failure.response && failure.response.data;

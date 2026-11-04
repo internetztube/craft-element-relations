@@ -1,184 +1,224 @@
 <?php
+
+declare(strict_types=1);
+
 /**
  * Demo site for screenshots and product reviews: "Transit", a fictional travel journal about cities and the trains
- * between them, with a journal, team, pages, a homepage built from content blocks, two sites, Navigation menus,
- * Formie forms and SEOmatic settings. Photos by Frederic Köberl (unsplash.com/@internetztube) are downloaded on the
- * first run; without network a drawn picture takes their place. Portraits, logo and PDFs are drawn here. Idempotent.
+ * between them, with a journal, team, pages, a homepage built from content blocks and two sites. Photos by Frederic
+ * Köberl (unsplash.com/@internetztube) are downloaded on the first run; without network a drawn picture takes their
+ * place. Portraits, logo and PDFs are drawn here. Idempotent.
+ *
+ * The Craft 6 version of the 4.x demo: none of the plugins it shows there (CKEditor, Formie, SEOmatic, Commerce,
+ * Navigation) has a Craft 6 release, so the body is Craft's Markdown field and there are no forms, menus, products or
+ * SEO settings; no categories, tags or global set either (Craft 6 has them only through its Yii2 adapter). No front end.
  *
  * Lives next to the test fixtures of dev/seed.php (section "Pages", "Page via …" entries) in the same project; dev.sh
  * seed runs both, so CI proves the demo too. Its handles must not collide with the fixtures: the tests count on them.
  * Run: dev/dev.sh seed   (or: php dev/demo.php <craft-project-dir> schema|content, two processes: fields made in one
  *      process are not reliably writable in the same process)
  */
-require ($argv[1] ?? __DIR__) . '/bootstrap.php';
-/** @var craft\console\Application $app */
-$app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
 
-use craft\base\FieldInterface;
-use craft\elements\Asset;
-use craft\elements\Category;
-use craft\elements\Entry;
-use craft\elements\User;
-use craft\enums\CmsEdition;
-use craft\enums\Color;
-use craft\fieldlayoutelements\assets\AssetTitleField;
-use craft\fieldlayoutelements\CustomField;
-use craft\fieldlayoutelements\entries\EntryTitleField;
-use craft\fieldlayoutelements\TitleField;
-use craft\fields\Assets as AssetsField;
-use craft\fields\Categories as CategoriesField;
-use craft\fields\Entries as EntriesField;
-use craft\fields\Link;
-use craft\fields\Matrix;
-use craft\fields\PlainText;
-use craft\fs\Local;
-use craft\models\CategoryGroup;
-use craft\models\CategoryGroup_SiteSettings;
-use craft\models\EntryType;
-use craft\models\FieldLayout;
-use craft\models\FieldLayoutTab;
-use craft\models\Section;
-use craft\models\Section_SiteSettings;
-use craft\models\Site;
-use craft\models\UserGroup;
-use craft\models\Volume;
-use internetztube\elementRelations\fields\ElementRelationsField;
+require __DIR__ . '/craft.php';
+// a run that failed midway left Craft's project config lock behind
+Illuminate\Support\Facades\Cache::lock(CraftCms\Cms\ProjectConfig\ProjectConfig::MUTEX_NAME)->forceRelease();
+
+use CraftCms\Cms\Asset\Data\Volume;
+use CraftCms\Cms\Asset\Elements\Asset;
+use CraftCms\Cms\Asset\Folders;
+use CraftCms\Cms\Asset\Validation\AssetRules;
+use CraftCms\Cms\Edition;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\Element\ElementHelper;
+use CraftCms\Cms\Entry\Data\EntryType;
+use CraftCms\Cms\Entry\Elements\Entry;
+use CraftCms\Cms\Field\Assets as AssetsField;
+use CraftCms\Cms\Field\Contracts\FieldInterface;
+use CraftCms\Cms\Field\Dropdown;
+use CraftCms\Cms\Field\Entries as EntriesField;
+use CraftCms\Cms\Field\Link;
+use CraftCms\Cms\Field\Markdown;
+use CraftCms\Cms\Field\Matrix;
+use CraftCms\Cms\Field\PlainText;
+use CraftCms\Cms\FieldLayout\FieldLayoutElement;
+use CraftCms\Cms\FieldLayout\FieldLayout;
+use CraftCms\Cms\FieldLayout\FieldLayoutTab;
+use CraftCms\Cms\FieldLayout\LayoutElements\Assets\AltField;
+use CraftCms\Cms\FieldLayout\LayoutElements\CustomField;
+use CraftCms\Cms\FieldLayout\LayoutElements\Entries\EntryTitleField;
+use CraftCms\Cms\Section\Data\Section;
+use CraftCms\Cms\Section\Data\SectionSiteSettings;
+use CraftCms\Cms\Section\Enums\SectionType;
+use CraftCms\Cms\Shared\Enums\Color;
+use CraftCms\Cms\Site\Data\Site;
+use CraftCms\Cms\Support\Facades\Drafts;
+use CraftCms\Cms\Support\Facades\Elements;
+use CraftCms\Cms\Support\Facades\EntryTypes;
+use CraftCms\Cms\Support\Facades\Fields;
+use CraftCms\Cms\Support\Facades\Plugins;
+use CraftCms\Cms\Support\Facades\ProjectConfig;
+use CraftCms\Cms\Support\Facades\Sections;
+use CraftCms\Cms\Support\Facades\Sites;
+use CraftCms\Cms\Support\Facades\UserGroups;
+use CraftCms\Cms\Support\Facades\UserPermissions;
+use CraftCms\Cms\Support\Facades\Users;
+use CraftCms\Cms\Support\Facades\Volumes;
+use CraftCms\Cms\User\Data\UserGroup;
+use CraftCms\Cms\User\Elements\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Internetztube\ElementRelations\Fields\ElementRelationsField;
+use Internetztube\ElementRelations\Services\ExtractorService;
 
 function fail(object $model): never
 {
-    throw new RuntimeException(get_class($model) . ': ' . print_r($model->getErrors(), true));
+    $errors = method_exists($model, 'errors') ? $model->errors()->all() : [];
+    throw new RuntimeException($model::class . ': ' . json_encode($errors));
 }
 
 function field(string $handle): FieldInterface
 {
-    return Craft::$app->getFields()->getFieldByHandle($handle) ?? throw new RuntimeException("No field $handle");
-}
-
-function ensureField(string $class, array $config): FieldInterface
-{
-    // an existing field gets the settings changed here since the last seed
-    $field = Craft::$app->getFields()->getFieldByHandle($config['handle']);
-    if ($field && array_filter($config, fn($value, $key) => $field->$key !== $value, ARRAY_FILTER_USE_BOTH) === []) {
-        return $field;
-    }
-    $field ? Craft::configure($field, $config) : $field = new $class($config);
-    Craft::$app->getFields()->saveField($field) or fail($field);
-    return $field;
+    return Fields::getFieldByHandle($handle) ?? throw new RuntimeException("No field $handle");
 }
 
 /**
- * @param array<string, array> $tabs tab name => elements: a layout element, a field handle, or [handle, config]
+ * Creates a field, or saves an existing one whose settings changed since the last seed.
+ * @param class-string<FieldInterface> $class
+ * @param array<string, mixed> $config
+ */
+function ensureField(string $class, array $config): FieldInterface
+{
+    $field = Fields::getFieldByHandle($config['handle']);
+    if ($field && array_filter($config, fn($value, $key) => $field->$key !== $value, ARRAY_FILTER_USE_BOTH) === []) {
+        return $field;
+    }
+    if ($field) {
+        foreach ($config as $key => $value) {
+            $field->$key = $value;
+        }
+    } else {
+        $field = Fields::createField(['type' => $class, ...$config]);
+    }
+    Fields::saveField($field) or fail($field);
+    Fields::refreshFields();
+    return field($config['handle']);
+}
+
+/**
+ * A layout element: a field handle, [handle, ['thumb' => true]] (the element's thumbnail), or a layout element.
+ * @param array{0: string, 1: array{thumb?: bool}}|string|FieldLayoutElement $element
+ */
+function layoutElement(array|string|FieldLayoutElement $element, FieldLayout $layout): FieldLayoutElement
+{
+    if ($element instanceof FieldLayoutElement) {
+        return $element;
+    }
+    $custom = CustomField::make(field(is_array($element) ? $element[0] : $element));
+    $custom->uid = (string)Str::uuid();
+    if (is_array($element) && ($element[1]['thumb'] ?? false)) {
+        $layout->thumbFieldKey = $custom->key();
+    }
+    return $custom;
+}
+
+/**
+ * A layout. Craft puts an asset's title in its "Content" tab itself; an entry type with titles needs its EntryTitleField.
+ * @param class-string<ElementInterface> $type
+ * @param array<string, list<mixed>> $tabs tab name => elements (see layoutElement())
  */
 function layout(string $type, array $tabs): FieldLayout
 {
-    $layout = new FieldLayout(['type' => $type]);
-    $layout->setTabs(array_map(function (string $name, array $elements) use ($layout) {
-        $tab = new FieldLayoutTab(['name' => $name, 'layout' => $layout]);
-        $tab->setElements(array_map(function ($element) {
-            if (is_string($element)) {
-                return new CustomField(field($element));
+    $layout = FieldLayout::make($type);
+    foreach ($tabs as $name => $elements) {
+        $layout->tab($name, function (FieldLayoutTab $tab) use ($elements, $layout): void {
+            foreach ($elements as $element) {
+                $tab->add(layoutElement($element, $layout));
             }
-            if (is_array($element)) {
-                return new CustomField(field($element[0]), $element[1]);
-            }
-            return $element;
-        }, $elements));
-        return $tab;
-    }, array_keys($tabs), $tabs));
+        });
+    }
     return $layout;
 }
 
+/** @param array<string, list<mixed>> $tabs */
 function ensureEntryType(string $handle, array $config, array $tabs): EntryType
 {
-    $entries = Craft::$app->getEntries();
-    if ($type = $entries->getEntryTypeByHandle($handle)) {
+    if ($type = EntryTypes::getEntryTypeByHandle($handle)) {
         // add fields the demo gained since; never replace the layout (content is stored by layout element uid)
-        if (addMissingFields($type->getFieldLayout(), $tabs)) {
-            $entries->saveEntryType($type) or fail($type);
+        $layout = $type->getFieldLayout();
+        if (addMissingFields($layout, $tabs)) {
+            $type->setFieldLayout($layout);
+            EntryTypes::saveEntryType($type) or fail($type);
         }
         return $type;
     }
     $type = new EntryType(['handle' => $handle, ...$config]);
     $type->setFieldLayout(layout(Entry::class, $tabs));
-    $entries->saveEntryType($type) or fail($type);
-    return $type;
+    EntryTypes::saveEntryType($type) or fail($type);
+    return EntryTypes::getEntryTypeByHandle($handle) ?? throw new RuntimeException("entry type $handle");
 }
 
-/** Appends the custom fields of `$tabs` that the layout lacks to their tab (created if missing). */
+/**
+ * Appends the custom fields of `$tabs` that the layout lacks to their tab (created if missing).
+ * @param array<string, list<mixed>> $tabs
+ */
 function addMissingFields(FieldLayout $layout, array $tabs): bool
 {
     $changed = false;
-    $layoutTabs = $layout->getTabs();
     foreach ($tabs as $name => $elements) {
-        $tab = array_values(array_filter($layoutTabs, fn(FieldLayoutTab $t) => $t->name === $name))[0] ?? null;
         foreach ($elements as $element) {
             $handle = is_string($element) ? $element : (is_array($element) ? $element[0] : null);
             if ($handle === null || $layout->getFieldByHandle($handle)) {
                 continue;
             }
-            if (!$tab) {
-                $tab = new FieldLayoutTab(['name' => $name, 'layout' => $layout]);
-                $layoutTabs[] = $tab;
-            }
-            $tab->setElements([...$tab->getElements(), is_array($element) ? new CustomField(field($handle), $element[1]) : new CustomField(field($handle))]);
+            $tab = array_values(array_filter($layout->getTabs(), fn(FieldLayoutTab $t) => $t->name === $name))[0] ?? null;
+            $add = layoutElement($element, $layout);
+            $tab ? $tab->add($add) : $layout->tab($name, fn(FieldLayoutTab $new) => $new->add($add));
             $changed = true;
         }
-    }
-    if ($changed) {
-        $layout->setTabs($layoutTabs);
     }
     return $changed;
 }
 
-function ensureSection(string $handle, string $name, string $sectionType, array $entryTypes, ?string $uriFormat): Section
+/** @param list<EntryType> $entryTypes */
+function ensureSection(string $handle, string $name, SectionType $sectionType, array $entryTypes, ?string $uriFormat): Section
 {
-    $entries = Craft::$app->getEntries();
-    if ($section = $entries->getSectionByHandle($handle)) {
+    if ($section = Sections::getSectionByHandle($handle)) {
         $known = array_map(fn(EntryType $t) => $t->id, $section->getEntryTypes());
         $missing = array_filter($entryTypes, fn(EntryType $t) => !in_array($t->id, $known, true));
         if ($missing) {
-            $section->setEntryTypes([...$section->getEntryTypes(), ...$missing]);
-            $entries->saveSection($section) or fail($section);
+            $section->entryTypes = [...$section->getEntryTypes(), ...$missing];
+            Sections::saveSection($section) or fail($section);
         }
         return $section;
+    }
+    $siteSettings = [];
+    foreach (Sites::getAllSites() as $site) {
+        $siteSettings[$site->id] = new SectionSiteSettings(['siteId' => $site->id, 'hasUrls' => $uriFormat !== null, 'uriFormat' => $uriFormat, 'template' => '']);
     }
     $section = new Section([
         'name' => $name,
         'handle' => $handle,
         'type' => $sectionType,
-        'maxLevels' => $sectionType === Section::TYPE_STRUCTURE ? 2 : null,
-        'siteSettings' => array_map(fn(Site $site) => new Section_SiteSettings([
-            'siteId' => $site->id,
-            'hasUrls' => $uriFormat !== null,
-            'uriFormat' => $uriFormat,
-        ]), Craft::$app->getSites()->getAllSites()),
+        'maxLevels' => $sectionType === SectionType::Structure ? 2 : null,
+        'entryTypes' => $entryTypes,
+        'siteSettings' => $siteSettings,
     ]);
-    $section->setEntryTypes($entryTypes);
-    $entries->saveSection($section) or fail($section);
-    return $section;
+    Sections::saveSection($section) or fail($section);
+    return Sections::getSectionByHandle($handle) ?? throw new RuntimeException("section $handle");
 }
 
+/** A volume on Laravel's public disk (served from /storage, see `artisan storage:link`). */
 function ensureVolume(string $handle, string $name): Volume
 {
-    $volumes = Craft::$app->getVolumes();
-    if ($volume = $volumes->getVolumeByHandle($handle)) {
+    if ($volume = Volumes::getVolumeByHandle($handle)) {
         return $volume;
     }
-    $fsService = Craft::$app->getFs();
-    if (!$fs = $fsService->getFilesystemByHandle($handle)) {
-        $fs = $fsService->createFilesystem([
-            'type' => Local::class,
-            'name' => $name,
-            'handle' => $handle,
-            'hasUrls' => true,
-            'settings' => ['path' => "@webroot/uploads/$handle", 'url' => "@web/uploads/$handle"],
-        ]);
-        $fsService->saveFilesystem($fs) or fail($fs);
-    }
-    $volume = new Volume(['name' => $name, 'handle' => $handle, 'fsHandle' => $handle]);
-    $volume->setFieldLayout(layout(Asset::class, ['Content' => [new AssetTitleField(), new craft\fieldlayoutelements\assets\AltField(), 'usedIn']]));
-    $volumes->saveVolume($volume) or fail($volume);
-    return $volume;
+    $volume = new Volume(['name' => $name, 'handle' => $handle, 'fsHandle' => 'public', 'subpath' => "demo-$handle", 'hasUrls' => true]);
+    $volume->setFieldLayout(layout(Asset::class, ['Content' => [new AltField(), 'usedIn']]));
+    Volumes::saveVolume($volume) or fail($volume);
+    return Volumes::getVolumeByHandle($handle) ?? throw new RuntimeException("volume $handle");
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -337,53 +377,6 @@ function markSvg(string $id): string
 SVG;
 }
 
-const WORDMARK_FONT = "'Avenir Next', 'Outfit', 'Helvetica Neue', Arial, sans-serif";
-
-function logo(string $path): void
-{
-    $font = WORDMARK_FONT;
-    file_put_contents($path, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 120" width="940" height="240"><g>' . markSvg('logo') . "</g>"
-        . "<text x=\"146\" y=\"84\" font-family=\"$font\" font-size=\"72\" font-weight=\"700\" letter-spacing=\"-2\" fill=\"#1b2236\">transit</text></svg>");
-}
-
-function socialImage(string $path): void
-{
-    $font = WORDMARK_FONT;
-    $mark = markSvg('social');
-    $lines = '';
-    foreach ([['#ff5f45', 'M-40 520 C 240 520 300 360 520 360 S 900 200 1260 200'], ['#36c5f0', 'M-40 600 C 300 600 420 470 640 470 S 980 330 1260 330'], ['#2eb67d', 'M-40 430 C 180 430 260 300 430 260 S 760 90 1260 110'], ['#ecb22e', 'M200 700 C 300 560 480 560 560 640 S 880 720 1260 560']] as [$color, $d]) {
-        $lines .= "<path d=\"$d\" stroke=\"$color\" stroke-width=\"14\" stroke-linecap=\"round\" fill=\"none\" opacity=\".55\"/>";
-    }
-    file_put_contents($path, <<<SVG
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
-<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#141a2b"/><stop offset="1" stop-color="#26324f"/></linearGradient></defs>
-<rect width="1200" height="630" fill="url(#bg)"/>$lines
-<g transform="translate(96 150) scale(1.5)">$mark</g>
-<text x="300" y="262" font-family="$font" font-size="120" font-weight="700" letter-spacing="-4" fill="#fff">transit</text>
-<text x="306" y="326" font-family="$font" font-size="36" fill="#c6d0e6">Cities, and the trains between them.</text>
-</svg>
-SVG);
-}
-
-/** A photo from Unsplash (images.unsplash.com/<path>, 1600px wide), or a drawn city at dusk when offline. */
-function unsplash(string $path, string $imagePath, int $seed): void
-{
-    try {
-        Craft::createGuzzleClient(['timeout' => 30])->get("https://images.unsplash.com/$imagePath?w=1600&q=80&fm=jpg&fit=max", ['sink' => $path]);
-        if (@getimagesize($path)) {
-            return;
-        }
-    } catch (Throwable $e) {
-        Craft::warning("Demo photo $imagePath not downloaded: {$e->getMessage()}", 'element-relations');
-    }
-    $palettes = [
-        ['top' => '#1d2433', 'bottom' => '#e98b6d', 'sun' => '#ffd9a8', 'layers' => ['#5c6680', '#3b4560', '#20283a']],
-        ['top' => '#3d5a80', 'bottom' => '#e0fbfc', 'sun' => '#ffffff', 'layers' => ['#98c1d9', '#5b7fa3', '#293241'], 'lake' => true],
-        ['top' => '#0b1026', 'bottom' => '#2e3a6e', 'sun' => '#f5f3ce', 'layers' => ['#242c52', '#181e3b', '#0d1124'], 'night' => true],
-    ];
-    landscape($path, $palettes[$seed % 3], $seed);
-}
-
 function portrait(string $path, string $bg, string $figure, int $seed): void
 {
     mt_srand($seed);
@@ -426,49 +419,71 @@ function pdf(string $path, string $title, array $lines): void
     file_put_contents($path, $out);
 }
 
+/** A photo from Unsplash (images.unsplash.com/<path>, 1600px wide), or a drawn landscape when offline. */
+function unsplash(string $path, string $imagePath, int $seed): void
+{
+    try {
+        Http::timeout(30)->sink($path)->get("https://images.unsplash.com/$imagePath?w=1600&q=80&fm=jpg&fit=max");
+        if (@getimagesize($path)) {
+            return;
+        }
+    } catch (Throwable $e) {
+        Log::warning("Demo photo $imagePath not downloaded: {$e->getMessage()}");
+    }
+    $palettes = [
+        ['top' => '#1d2433', 'bottom' => '#e98b6d', 'sun' => '#ffd9a8', 'layers' => ['#5c6680', '#3b4560', '#20283a']],
+        ['top' => '#3d5a80', 'bottom' => '#e0fbfc', 'sun' => '#ffffff', 'layers' => ['#98c1d9', '#5b7fa3', '#293241'], 'lake' => true],
+        ['top' => '#0b1026', 'bottom' => '#2e3a6e', 'sun' => '#f5f3ce', 'layers' => ['#242c52', '#181e3b', '#0d1124'], 'night' => true],
+    ];
+    landscape($path, $palettes[$seed % 3], $seed);
+}
+
 function ensureAsset(string $volumeHandle, string $filename, string $title, callable $draw, ?string $alt = null): Asset
 {
-    $volume = Craft::$app->getVolumes()->getVolumeByHandle($volumeHandle);
+    $volume = Volumes::getVolumeByHandle($volumeHandle) ?? throw new RuntimeException("volume $volumeHandle");
     if ($asset = Asset::find()->volumeId($volume->id)->filename($filename)->one()) {
         return $asset;
     }
     // a file left from an earlier install (dev.sh reset keeps the uploads) would get the new asset a suffixed name
-    if ($volume->fileExists($filename)) {
-        $volume->deleteFile($filename);
+    $file = trim("$volume->subpath/$filename", '/');
+    if (Storage::disk((string)$volume->fsHandle)->exists($file)) {
+        Storage::disk((string)$volume->fsHandle)->delete($file);
     }
     $tmp = sys_get_temp_dir() . '/demo-' . uniqid() . '-' . $filename;
     $draw($tmp);
-    $asset = new Asset([
+    $asset = Elements::createElement([
+        'type' => Asset::class,
+        'volumeId' => $volume->id,
+        'newFolderId' => app(Folders::class)->getRootFolderByVolumeId((int)$volume->id)->id,
         'tempFilePath' => $tmp,
-        'filename' => $filename,
+        'newFilename' => $filename,
         'title' => $title,
         'alt' => $alt,
-        'newFolderId' => Craft::$app->getAssets()->getRootFolderByVolumeId($volume->id)->id,
-        'volumeId' => $volume->id,
         'avoidFilenameConflicts' => true,
     ]);
-    $asset->setScenario(Asset::SCENARIO_CREATE);
-    Craft::$app->getElements()->saveElement($asset) or fail($asset);
+    $asset->ruleset->useScenario(AssetRules::SCENARIO_CREATE);
+    Elements::saveElement($asset) or fail($asset);
     return $asset;
 }
 
 /**
  * Creates an entry once (existing ones are left alone, so re-runs add no revisions).
- * @param array<string, mixed> $attributes e.g. postDate, authorIds, enabled, expiryDate
+ * @param array<string, mixed> $fields
+ * @param array<string, mixed> $attributes e.g. postDate, authorIds, enabled, expiryDate, parentId
  */
 function ensureEntry(string $section, string $type, string $title, array $fields = [], array $attributes = [], ?string $titleDe = null): Entry
 {
-    $sectionModel = Craft::$app->getEntries()->getSectionByHandle($section);
+    $sectionModel = Sections::getSectionByHandle($section) ?? throw new RuntimeException("section $section");
     $entry = Entry::find()->sectionId($sectionModel->id)->title($title)->status(null)->one();
     if (!$entry) {
         $entry = new Entry([
             'sectionId' => $sectionModel->id,
-            'typeId' => Craft::$app->getEntries()->getEntryTypeByHandle($type)->id,
+            'typeId' => EntryTypes::getEntryTypeByHandle($type)?->id,
             'title' => $title,
             ...$attributes,
         ]);
         $entry->setFieldValues($fields);
-        Craft::$app->getElements()->saveElement($entry) or fail($entry);
+        Elements::saveElement($entry) or fail($entry);
     }
     if ($titleDe) {
         translate($entry, $titleDe);
@@ -477,206 +492,130 @@ function ensureEntry(string $section, string $type, string $title, array $fields
 }
 
 /** The German title (the rest of the content is shared between the sites). */
-function translate(craft\base\ElementInterface $element, string $title): void
+function translate(ElementInterface $element, string $title): void
 {
-    $de = Craft::$app->getSites()->getSiteByHandle('de');
+    $de = Sites::getSiteByHandle('de') ?? throw new RuntimeException('de');
     $localized = $element::find()->id($element->id)->siteId($de->id)->status(null)->one();
     if ($localized && $localized->title !== $title) {
         $localized->title = $title;
-        $localized->slug = craft\helpers\ElementHelper::generateSlug($title, null, 'de');
-        Craft::$app->getElements()->saveElement($localized) or fail($localized);
+        $localized->slug = ElementHelper::generateSlug($title, null, 'de');
+        Elements::saveElement($localized) or fail($localized);
     }
 }
 
-function ref(craft\base\ElementInterface $element): string
+/** A reference tag to the element, for the Markdown body. */
+function ref(ElementInterface $element): string
 {
     $kind = $element instanceof Asset ? 'asset' : 'entry';
     return sprintf('{%s:%d@%d:url||%s}', $kind, $element->id, $element->siteId, $element->getUrl() ?: 'https://example.com');
 }
 
 $phase = $argv[2] ?? 'schema';
-$sites = Craft::$app->getSites();
-$entries = Craft::$app->getEntries();
-$elements = Craft::$app->getElements();
 
 if ($phase === 'schema') {
-    // feature flag + edition: the demo shows Pro; Craft itself as Pro (trial in dev) for several authors
-    $configFile = CRAFT_BASE_PATH . '/config/element-relations.php';
-    if (!file_exists($configFile)) {
-        file_put_contents($configFile, "<?php\n\nreturn [\n    'features' => ['editions' => true],\n];\n");
-    }
-    if (Craft::$app->edition !== CmsEdition::Pro) {
-        Craft::$app->setEdition(CmsEdition::Pro);
-    }
-    $projectConfig = Craft::$app->getProjectConfig();
-    $projectConfig->set('system.name', 'Transit');
+    // the demo shows Craft Pro (several authors, user groups)
+    Edition::set(Edition::Pro);
+    ProjectConfig::set('system.name', 'Transit');
 
-    $primary = $sites->getPrimarySite();
+    $primary = Sites::getPrimarySite();
     if ($primary->name !== 'English') {
         $primary->name = 'English';
-        $sites->saveSite($primary) or fail($primary);
-        $group = $sites->getGroupById($primary->groupId);
-        $group->setName('Transit');
-        $sites->saveGroup($group);
-    }
-    if (!$sites->getSiteByHandle('de')) {
-        $de = new Site(['groupId' => $primary->groupId, 'name' => 'Deutsch', 'handle' => 'de', 'language' => 'de-DE', 'hasUrls' => true, 'baseUrl' => '@web/de']);
-        $sites->saveSite($de) or fail($de);
+        Sites::saveSite($primary) or fail($primary);
     }
 
     ensureField(ElementRelationsField::class, ['name' => 'Used in', 'handle' => 'usedIn', 'instructions' => 'Everything that links to this in this site. Other sites are listed below.']);
     $images = ensureVolume('images', 'Images');
-    ensureVolume('documents', 'Documents');
-
-    $categories = Craft::$app->getCategories();
-    if (!$topics = $categories->getGroupByHandle('topics')) {
-        $topics = new CategoryGroup(['name' => 'Topics', 'handle' => 'topics', 'maxLevels' => 1]);
-        $topics->setSiteSettings(array_map(fn(Site $site) => new CategoryGroup_SiteSettings(['siteId' => $site->id, 'hasUrls' => false]), $sites->getAllSites()));
-        $topics->setFieldLayout(layout(Category::class, ['Content' => [new TitleField(), 'usedIn']]));
-        $categories->saveGroup($topics) or fail($topics);
-    }
+    $documents = ensureVolume('documents', 'Documents');
 
     $imageField = fn(string $name, string $handle) => ensureField(AssetsField::class, [
-        'name' => $name, 'handle' => $handle, 'sources' => ["volume:$images->uid"], 'defaultUploadLocationSource' => "volume:$images->uid", 'maxRelations' => 1, 'viewMode' => 'large',
-        'restrictFiles' => true, 'allowedKinds' => ['image'],
+        'name' => $name, 'handle' => $handle, 'sources' => ["volume:$images->uid"], 'maxRelations' => 1, 'viewMode' => 'large',
     ]);
     $imageField('Hero image', 'heroImage');
     $imageField('Image', 'image');
     $imageField('Portrait', 'portrait');
-    ensureField(PlainText::class, ['name' => 'Headline', 'handle' => 'headline', 'translationMethod' => 'site']);
-    ensureField(PlainText::class, ['name' => 'Summary', 'handle' => 'summary', 'multiline' => true, 'initialRows' => 3, 'translationMethod' => 'site']);
-    ensureField(PlainText::class, ['name' => 'Caption', 'handle' => 'caption', 'translationMethod' => 'site']);
-    ensureField(PlainText::class, ['name' => 'Role', 'handle' => 'jobTitle', 'translationMethod' => 'site']);
-    ensureField(PlainText::class, ['name' => 'Button label', 'handle' => 'buttonLabel', 'translationMethod' => 'site']);
-    ensureField(craft\ckeditor\Field::class, ['name' => 'Body', 'handle' => 'body', 'translationMethod' => 'site']);
-    ensureField(CategoriesField::class, ['name' => 'Topics', 'handle' => 'topics', 'source' => "group:$topics->uid", 'branchLimit' => null]);
+    ensureField(PlainText::class, ['name' => 'Headline', 'handle' => 'headline']);
+    ensureField(PlainText::class, ['name' => 'Summary', 'handle' => 'summary', 'multiline' => true, 'initialRows' => 3]);
+    ensureField(PlainText::class, ['name' => 'Caption', 'handle' => 'caption']);
+    ensureField(PlainText::class, ['name' => 'Role', 'handle' => 'jobTitle']);
+    ensureField(PlainText::class, ['name' => 'Button label', 'handle' => 'buttonLabel']);
+    ensureField(Markdown::class, ['name' => 'Body', 'handle' => 'body']);
     ensureField(EntriesField::class, ['name' => 'Written by', 'handle' => 'writtenBy', 'maxRelations' => 2]);
     ensureField(EntriesField::class, ['name' => 'Related articles', 'handle' => 'relatedArticles', 'maxRelations' => 3]);
     ensureField(EntriesField::class, ['name' => 'Articles', 'handle' => 'articles', 'maxRelations' => 3]);
     ensureField(Link::class, ['name' => 'Link', 'handle' => 'buttonLink', 'types' => ['entry', 'asset', 'url']]);
-    ensureField(verbb\formie\fields\Forms::class, ['name' => 'Form', 'handle' => 'contactForm', 'maxRelations' => 1]);
-    ensureField(nystudio107\seomatic\fields\SeoSettings::class, ['name' => 'SEO', 'handle' => 'seo']);
-    ensureField(AssetsField::class, ['name' => 'Gallery', 'handle' => 'gallery', 'sources' => ["volume:$images->uid"], 'defaultUploadLocationSource' => "volume:$images->uid", 'viewMode' => 'large', 'restrictFiles' => true, 'allowedKinds' => ['image']]);
-    $imageField('Logo', 'logoImage');
+    ensureField(AssetsField::class, ['name' => 'Gallery', 'handle' => 'gallery', 'sources' => ["volume:$images->uid"], 'viewMode' => 'large']);
     ensureField(EntriesField::class, ['name' => 'Destinations', 'handle' => 'destinations', 'maxRelations' => 3]);
-    ensureField(EntriesField::class, ['name' => 'Featured destination', 'handle' => 'featuredDestination', 'maxRelations' => 1]);
-    ensureField(PlainText::class, ['name' => 'Place', 'handle' => 'placeName', 'translationMethod' => 'site']);
-    ensureField(PlainText::class, ['name' => 'Best time to visit', 'handle' => 'bestTime', 'translationMethod' => 'site']);
+    ensureField(PlainText::class, ['name' => 'Place', 'handle' => 'placeName']);
+    ensureField(PlainText::class, ['name' => 'Best time to visit', 'handle' => 'bestTime']);
     ensureField(PlainText::class, ['name' => 'Travel time', 'handle' => 'travelTime']);
-    ensureField(PlainText::class, ['name' => 'Footer text', 'handle' => 'footerText', 'translationMethod' => 'site']);
-    ensureField(craft\fields\Dropdown::class, ['name' => 'Rating', 'handle' => 'rating', 'options' => array_map(
+    ensureField(Dropdown::class, ['name' => 'Rating', 'handle' => 'rating', 'options' => array_map(
         fn(int $n) => ['label' => str_repeat('★', $n) . str_repeat('☆', 5 - $n), 'value' => (string)$n, 'default' => $n === 3],
         [5, 4, 3, 2, 1],
     )]);
-    $tagsService = Craft::$app->getTags();
-    if (!$tagGroup = $tagsService->getTagGroupByHandle('travelTags')) {
-        $tagGroup = new craft\models\TagGroup(['name' => 'Travel tags', 'handle' => 'travelTags']);
-        $tagGroup->setFieldLayout(layout(craft\elements\Tag::class, ['Content' => [new TitleField(), 'usedIn']]));
-        $tagsService->saveTagGroup($tagGroup) or fail($tagGroup);
-    }
-    ensureField(craft\fields\Tags::class, ['name' => 'Tags', 'handle' => 'travelTags', 'source' => "taggroup:$tagGroup->uid"]);
-
-    // the shop (Commerce): merch with an image, and a field for "shop the story"
-    $productTypes = craft\commerce\Plugin::getInstance()->getProductTypes();
-    if (!$merch = $productTypes->getProductTypeByHandle('merch')) {
-        $merch = new craft\commerce\models\ProductType(['name' => 'Merch', 'handle' => 'merch', 'hasVariantTitleField' => false, 'variantTitleFormat' => '{product.title}', 'skuFormat' => '']);
-        $primaryId = $sites->getPrimarySite()->id;
-        $merch->setSiteSettings([$primaryId => new craft\commerce\models\ProductTypeSite(['siteId' => $primaryId, 'hasUrls' => false, 'enabledByDefault' => true])]);
-        $merch->getBehavior('productFieldLayout')->setFieldLayout(layout(craft\commerce\elements\Product::class, [
-            'Content' => [new TitleField(), ['image', ['providesThumbs' => true]], 'summary'],
-            'Used in' => ['usedIn'],
-        ]));
-        $productTypes->saveProductType($merch) or fail($merch);
-    }
-    ensureField(craft\commerce\fields\Products::class, ['name' => 'Shop the story', 'handle' => 'shopProducts', 'maxRelations' => 2]);
 
     // content blocks for the homepage and pages
     $blocks = [
-        ensureEntryType('hero', ['name' => 'Hero', 'icon' => 'image', 'color' => Color::Emerald, 'hasTitleField' => false], ['Content' => ['headline', ['heroImage', ['providesThumbs' => true]], 'buttonLabel', 'buttonLink']]),
+        ensureEntryType('hero', ['name' => 'Hero', 'icon' => 'image', 'color' => Color::Emerald, 'hasTitleField' => false], ['Content' => ['headline', ['heroImage', ['thumb' => true]], 'buttonLabel', 'buttonLink']]),
         ensureEntryType('textBlock', ['name' => 'Text', 'icon' => 'paragraph', 'color' => Color::Gray, 'hasTitleField' => false], ['Content' => ['body']]),
-        ensureEntryType('imageBlock', ['name' => 'Image', 'icon' => 'photo-film', 'color' => Color::Sky, 'hasTitleField' => false], ['Content' => [['image', ['providesThumbs' => true]], 'caption']]),
+        ensureEntryType('imageBlock', ['name' => 'Image', 'icon' => 'photo-film', 'color' => Color::Sky, 'hasTitleField' => false], ['Content' => [['image', ['thumb' => true]], 'caption']]),
         ensureEntryType('featuredArticles', ['name' => 'Featured articles', 'icon' => 'newspaper', 'color' => Color::Amber, 'hasTitleField' => false], ['Content' => ['headline', 'articles']]),
         ensureEntryType('callToAction', ['name' => 'Call to action', 'icon' => 'bullhorn', 'color' => Color::Rose, 'hasTitleField' => false], ['Content' => ['headline', 'buttonLabel', 'buttonLink']]),
     ];
     ensureField(Matrix::class, ['name' => 'Content blocks', 'handle' => 'contentBlocks', 'entryTypes' => $blocks, 'viewMode' => Matrix::VIEW_MODE_BLOCKS]);
-    $stop = ensureEntryType('stop', ['name' => 'Stop', 'icon' => 'location-dot', 'color' => Color::Orange], ['Content' => [new EntryTitleField(), 'destinations', 'travelTime', ['image', ['providesThumbs' => true]]]]);
+    $stop = ensureEntryType('stop', ['name' => 'Stop', 'icon' => 'location-dot', 'color' => Color::Orange], ['Content' => [new EntryTitleField(['required' => true]), 'destinations', 'travelTime', ['image', ['thumb' => true]]]]);
     ensureField(Matrix::class, ['name' => 'Stops', 'handle' => 'stops', 'entryTypes' => [$stop], 'viewMode' => Matrix::VIEW_MODE_BLOCKS]);
 
+    $title = fn() => new EntryTitleField(['required' => true]);
     $article = ensureEntryType('article', ['name' => 'Article', 'icon' => 'newspaper', 'color' => Color::Blue], [
-        'Content' => [new EntryTitleField(), ['heroImage', ['providesThumbs' => true]], 'summary', 'body', 'topics', 'travelTags', 'destinations', 'writtenBy', 'relatedArticles', 'shopProducts'],
-        'SEO' => ['seo'],
+        'Content' => [$title(), ['heroImage', ['thumb' => true]], 'summary', 'body', 'destinations', 'writtenBy', 'relatedArticles'],
         'Used in' => ['usedIn'],
     ]);
     $photoEssay = ensureEntryType('photoEssay', ['name' => 'Photo essay', 'icon' => 'camera', 'color' => Color::Fuchsia], [
-        'Content' => [new EntryTitleField(), ['heroImage', ['providesThumbs' => true]], 'summary', 'gallery', 'destinations', 'travelTags', 'writtenBy'],
-        'SEO' => ['seo'],
+        'Content' => [$title(), ['heroImage', ['thumb' => true]], 'summary', 'gallery', 'destinations', 'writtenBy'],
         'Used in' => ['usedIn'],
     ]);
     $route = ensureEntryType('route', ['name' => 'Route', 'icon' => 'route', 'color' => Color::Orange], [
-        'Content' => [new EntryTitleField(), ['heroImage', ['providesThumbs' => true]], 'summary', 'stops', 'topics', 'writtenBy'],
+        'Content' => [$title(), ['heroImage', ['thumb' => true]], 'summary', 'stops', 'writtenBy'],
         'Used in' => ['usedIn'],
     ]);
     $review = ensureEntryType('review', ['name' => 'Review', 'icon' => 'star', 'color' => Color::Yellow], [
-        'Content' => [new EntryTitleField(), ['heroImage', ['providesThumbs' => true]], 'placeName', 'rating', 'body', 'destinations', 'travelTags', 'writtenBy'],
+        'Content' => [$title(), ['heroImage', ['thumb' => true]], 'placeName', 'rating', 'body', 'destinations', 'writtenBy'],
         'Used in' => ['usedIn'],
     ]);
     $destination = ensureEntryType('destination', ['name' => 'Destination', 'icon' => 'earth-asia', 'color' => Color::Cyan], [
-        'Content' => [new EntryTitleField(), ['heroImage', ['providesThumbs' => true]], 'summary', 'bestTime'],
+        'Content' => [$title(), ['heroImage', ['thumb' => true]], 'summary', 'bestTime'],
         'Used in' => ['usedIn'],
     ]);
     $person = ensureEntryType('person', ['name' => 'Person', 'icon' => 'user', 'color' => Color::Violet], [
-        'Content' => [new EntryTitleField(), ['portrait', ['providesThumbs' => true]], 'jobTitle', 'summary'],
+        'Content' => [$title(), ['portrait', ['thumb' => true]], 'jobTitle', 'summary'],
         'Used in' => ['usedIn'],
     ]);
     $page = ensureEntryType('contentPage', ['name' => 'Content page', 'icon' => 'file-lines', 'color' => Color::Teal], [
-        'Content' => [new EntryTitleField(), 'contentBlocks', 'contactForm'],
-        'SEO' => ['seo'],
+        'Content' => [$title(), 'contentBlocks'],
         'Used in' => ['usedIn'],
     ]);
     $home = ensureEntryType('homepage', ['name' => 'Homepage', 'icon' => 'house', 'color' => Color::Green], [
-        'Content' => [new EntryTitleField(), 'contentBlocks'],
+        'Content' => [$title(), 'contentBlocks'],
         'Used in' => ['usedIn'],
     ]);
-    ensureSection('homepage', 'Homepage', Section::TYPE_SINGLE, [$home], '__home__');
-    $journal = ensureSection('journal', 'Journal', Section::TYPE_CHANNEL, [$article, $photoEssay, $route, $review], 'journal/{slug}');
-    $destinations = ensureSection('destinations', 'Destinations', Section::TYPE_STRUCTURE, [$destination], 'destinations/{slug}');
-    $team = ensureSection('team', 'Team', Section::TYPE_CHANNEL, [$person], 'team/{slug}');
-    ensureSection('company', 'Company', Section::TYPE_STRUCTURE, [$page], 'company/{slug}');
-
-    // the demo front end: dev/templates is the project's templates folder, each section renders with its template
-    $templates = CRAFT_BASE_PATH . '/templates';
-    if (!is_link($templates)) {
-        if (is_dir($templates)) {
-            rename($templates, "$templates-craft-default"); // Craft's welcome page
-        }
-        symlink(__DIR__ . '/templates', $templates);
-    }
-    foreach (['homepage' => 'index', 'journal' => 'journal/_entry', 'destinations' => 'destinations/_entry', 'team' => 'team/_entry', 'company' => 'company/_entry'] as $handle => $template) {
-        $section = Craft::$app->getEntries()->getSectionByHandle($handle);
-        $siteSettings = $section->getSiteSettings();
-        if (array_filter($siteSettings, fn($settings) => $settings->template !== $template)) {
-            foreach ($siteSettings as $settings) {
-                $settings->template = $template;
-            }
-            $section->setSiteSettings($siteSettings);
-            Craft::$app->getEntries()->saveSection($section) or fail($section);
-        }
-    }
+    ensureSection('homepage', 'Homepage', SectionType::Single, [$home], '__home__');
+    $journal = ensureSection('journal', 'Journal', SectionType::Channel, [$article, $photoEssay, $route, $review], 'journal/{slug}');
+    $destinations = ensureSection('destinations', 'Destinations', SectionType::Structure, [$destination], 'destinations/{slug}');
+    $team = ensureSection('team', 'Team', SectionType::Channel, [$person], 'team/{slug}');
+    ensureSection('company', 'Company', SectionType::Structure, [$page], 'company/{slug}');
 
     // entries fields point at their sections (they exist only now)
-    $fields = Craft::$app->getFields();
-    foreach (['writtenBy' => $team, 'relatedArticles' => $journal, 'articles' => $journal, 'destinations' => $destinations, 'featuredDestination' => $destinations] as $handle => $section) {
+    foreach (['writtenBy' => $team, 'relatedArticles' => $journal, 'articles' => $journal, 'destinations' => $destinations] as $handle => $section) {
         $f = field($handle);
         if ($f->sources !== ["section:$section->uid"]) {
             $f->sources = ["section:$section->uid"];
-            $fields->saveField($f) or fail($f);
+            Fields::saveField($f) or fail($f);
         }
     }
 
     // index columns: "Used in" next to the file info, entry type, authors and dates for the journal (merged into
     // whatever source settings exist, Craft adds the sources not listed)
     $usedInUid = field('usedIn')->uid;
-    $documents = Craft::$app->getVolumes()->getVolumeByHandle('documents');
     foreach ([
         Asset::class => [
             "volume:$images->uid" => ['filename', 'size', 'dateModified', "field:$usedInUid"],
@@ -688,40 +627,30 @@ if ($phase === 'schema') {
         ],
     ] as $elementType => $columns) {
         $path = "elementSources.$elementType";
-        $configs = $projectConfig->get($path) ?? [];
+        $configs = ProjectConfig::get($path) ?? [];
         foreach ($columns as $key => $attributes) {
             $index = array_search($key, array_column($configs, 'key'), true);
             $config = ['type' => 'native', 'key' => $key, 'tableAttributes' => $attributes];
             $index === false ? $configs[] = $config : $configs[$index] = $config + $configs[$index];
         }
-        $projectConfig->set($path, array_values($configs));
+        ProjectConfig::set($path, array_values($configs));
     }
 
-    // Craft Pro's rebrand: the Transit mark as the control panel icon
-    $iconDir = Craft::$app->getPath()->getRebrandPath() . '/icon';
-    if (!is_dir($iconDir) || !glob("$iconDir/*")) {
-        craft\helpers\FileHelper::createDirectory($iconDir);
-        file_put_contents("$iconDir/transit.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">' . markSvg('icon') . '</svg>');
+    // Craft Pro's custom control panel icon: the Transit mark (general config `cpIconUrl`, from the .env)
+    if (!is_file(public_path('transit-icon.svg'))) {
+        file_put_contents(public_path('transit-icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">' . markSvg('icon') . '</svg>');
+    }
+    $env = base_path('.env');
+    if (!str_contains((string)file_get_contents($env), 'CRAFT_CP_ICON_URL')) {
+        file_put_contents($env, "\nCRAFT_CP_ICON_URL=/transit-icon.svg\n", FILE_APPEND);
     }
 
-    // site-wide settings as a global set
-    $globals = Craft::$app->getGlobals();
-    if (!$globals->getSetByHandle('siteSettings')) {
-        $set = new craft\elements\GlobalSet(['name' => 'Site settings', 'handle' => 'siteSettings']);
-        $set->setFieldLayout(layout(craft\elements\GlobalSet::class, ['Content' => ['logoImage', 'footerText', 'featuredDestination']]));
-        $globals->saveSet($set) or fail($set);
-    }
-
-    // user photos live in the Images volume; an editors group
-    if (!$projectConfig->get('users.photoVolumeUid')) {
-        $projectConfig->set('users.photoVolumeUid', $images->uid);
-    }
-    $userGroups = Craft::$app->getUserGroups();
-    if (!$editors = $userGroups->getGroupByHandle('editors')) {
+    // an editors group
+    if (!UserGroups::getGroupByHandle('editors')) {
         $editors = new UserGroup(['name' => 'Editors', 'handle' => 'editors']);
-        $userGroups->saveGroup($editors) or fail($editors);
+        UserGroups::saveGroup($editors) or fail($editors);
     }
-    $projectConfig->saveModifiedConfigData();
+    ProjectConfig::saveModifiedConfigData();
     echo "Demo schema ready.\n";
     exit(0);
 }
@@ -729,8 +658,8 @@ if ($phase === 'schema') {
 // ---------------------------------------------------------------------------------------------------------------
 // Content
 // ---------------------------------------------------------------------------------------------------------------
-Craft::$app->getPlugins()->switchEdition('element-relations', 'pro');
-$deSite = $sites->getSiteByHandle('de');
+Plugins::switchEdition('element-relations', 'pro');
+$deSite = Sites::getSiteByHandle('de') ?? throw new RuntimeException('de');
 
 // photos by Frederic Köberl (unsplash.com/@internetztube), Unsplash ID => image path on images.unsplash.com
 $photo = function (string $file, string $title, string $unsplashId, string $imagePath, int $seed) {
@@ -752,8 +681,6 @@ $window = $photo('fields-through-the-train-window.jpg', 'Fields through the trai
 $photo('row-of-bikes.jpg', 'A row of bikes', 'cR5HOgnWexM', 'photo-1678220984856-e3ad7cc90285', 14); // unused
 $bank = $photo('central-bank-of-taiwan.jpg', 'Central Bank of Taiwan', 'FeJen0cN8MA', 'photo-1748015460374-5666346918bc', 15);
 $crowd = $photo('crowd-at-the-gate.jpg', 'A crowd in front of the gate', 'OtckXHgS6yU', 'photo-1684872225923-b93c46049543', 16);
-$social = ensureAsset('images', 'social-share.svg', 'Social share image', 'socialImage');
-$logo = ensureAsset('images', 'transit-logo.svg', 'Transit logo', 'logo');
 $portraits = [
     'mara' => ensureAsset('images', 'mara-lindqvist.jpg', 'Mara Lindqvist', fn($p) => portrait($p, '#c7d9e8', '#3c5a78', 1)),
     'jonas' => ensureAsset('images', 'jonas-berger.jpg', 'Jonas Berger', fn($p) => portrait($p, '#e8d9c7', '#7a5236', 2)),
@@ -767,71 +694,55 @@ $guide = ensureAsset('documents', 'rail-pass-guide-2026.pdf', 'Rail Pass Guide 2
 ]));
 ensureAsset('documents', 'station-map.pdf', 'Station map', fn($p) => pdf($p, 'Station map', ['Platforms, exits and the good noodle shop.'])); // unused
 
-// categories
-$topics = [];
-foreach (['Rail' => 'Bahn', 'Cities' => 'Städte', 'Architecture' => 'Architektur', 'Street life' => 'Straßenleben', 'Guides' => 'Reiseführer'] as $en => $de) {
-    $group = Craft::$app->getCategories()->getGroupByHandle('topics');
-    $category = Category::find()->groupId($group->id)->title($en)->one();
-    if (!$category) {
-        $category = new Category(['groupId' => $group->id, 'title' => $en]);
-        $elements->saveElement($category) or fail($category);
-    }
-    translate($category, $de);
-    $topics[$en] = $category->id;
-}
-
 // users (authors) with photos
 $users = [];
-$editors = Craft::$app->getUserGroups()->getGroupByHandle('editors');
+$editors = UserGroups::getGroupByHandle('editors') ?? throw new RuntimeException('editors');
 // what editors may: the control panel, every site, the demo's sections and volumes, replace and roll back; not
-// "Delete or disable elements that are in use" (Element Relations Pro)
+// "Delete or disable elements that are in use"
 $editorPermissions = ['accessCp', 'element-relations-replace', 'element-relations-rollback'];
-foreach ($sites->getAllSites() as $site) {
+foreach (Sites::getAllSites() as $site) {
     $editorPermissions[] = "editSite:$site->uid";
 }
 foreach (['journal', 'destinations', 'team', 'company', 'homepage'] as $handle) {
-    $uid = Craft::$app->getEntries()->getSectionByHandle($handle)->uid;
+    $uid = Sections::getSectionByHandle($handle)?->uid;
     foreach (['viewEntries', 'createEntries', 'saveEntries', 'deleteEntries', 'viewPeerEntries', 'savePeerEntries', 'deletePeerEntries'] as $permission) {
         $editorPermissions[] = "$permission:$uid";
     }
 }
 foreach (['images', 'documents'] as $handle) {
-    $uid = Craft::$app->getVolumes()->getVolumeByHandle($handle)->uid;
+    $uid = Volumes::getVolumeByHandle($handle)?->uid;
     foreach (['viewAssets', 'saveAssets', 'deleteAssets', 'replaceFiles', 'editImages', 'viewPeerAssets', 'savePeerAssets', 'deletePeerAssets', 'replacePeerFiles', 'editPeerImages'] as $permission) {
         $editorPermissions[] = "$permission:$uid";
     }
 }
-// editors see the forms (read only): the forms that redirect to "Thank you" are named in its delete dialog, and
-// Formie 4.0's form field fails on PostgreSQL for a user without any form
-array_push($editorPermissions, 'formie-accessForms', 'formie-viewForms');
-Craft::$app->getUserPermissions()->saveGroupPermissions($editors->id, $editorPermissions);
+UserPermissions::saveGroupPermissions((int)$editors->id, $editorPermissions);
 foreach (['mara' => ['Mara', 'Lindqvist'], 'jonas' => ['Jonas', 'Berger'], 'amelie' => ['Amelie', 'Novak']] as $key => [$first, $last]) {
     $user = User::find()->username($key)->status(null)->one();
     if (!$user) {
         $user = new User(['username' => $key, 'email' => "$key@example.com", 'firstName' => $first, 'lastName' => $last]);
-        $elements->saveElement($user) or fail($user);
-        Craft::$app->getUsers()->assignUserToGroups($user->id, [$editors->id]);
-        Craft::$app->getUsers()->activateUser($user);
+        Elements::saveElement($user) or fail($user);
+        Users::assignUserToGroups((int)$user->id, [(int)$editors->id]);
+        Users::activateUser($user);
     }
     if ($key === 'mara' && !$user->admin) {
         // the editor the screenshots log in as (dev/screenshots.mts), with the dev project's password
         $user->admin = true;
         $user->newPassword = 'password';
-        $elements->saveElement($user) or fail($user);
+        Elements::saveElement($user) or fail($user);
     }
     if ($key === 'jonas' && $user->password === null) {
         // a non-admin editor (Editors group) for the screenshots of what editors may not do, dev password too
         $user->newPassword = 'password';
-        $elements->saveElement($user) or fail($user);
+        Elements::saveElement($user) or fail($user);
     }
     if ($user->photoId !== $portraits[$key]->id) {
         // straight to the column: saving a user with a photo copies it into the user photo volume, which is the test
         // fixtures' volume here (dev/seed/user-photo.php); the relations cache is rebuilt after the seed anyway
-        craft\helpers\Db::update(craft\db\Table::USERS, ['photoId' => $portraits[$key]->id], ['id' => $user->id]);
+        DB::table('users')->where('id', $user->id)->update(['photoId' => $portraits[$key]->id]);
     }
     $users[$key] = $user;
 }
-$admin = User::find()->username('admin')->one(); // stays "admin": the GUI test looks for that label
+$admin = User::find()->username('admin')->one() ?? throw new RuntimeException('admin'); // stays "admin": the GUI test looks for that label
 
 $daysAgo = fn(int $days) => (new DateTime())->modify("-$days days")->setTime(9, 0);
 
@@ -844,11 +755,6 @@ foreach ([
     'theo' => ['Theo Hartmann', 'Photographer', 'Fotograf', 'Theo waits for the train to leave so the platform is his.'],
 ] as $key => [$name, $role, $roleDe, $bio]) {
     $people[$key] = ensureEntry('team', 'person', $name, ['portrait' => [$portraits[$key]->id], 'jobTitle' => $role, 'summary' => $bio], ['authorIds' => [$admin->id]]);
-    $localized = Entry::find()->id($people[$key]->id)->siteId($deSite->id)->status(null)->one();
-    if ($localized && $localized->getFieldValue('jobTitle') !== $roleDe) {
-        $localized->setFieldValue('jobTitle', $roleDe);
-        $elements->saveElement($localized) or fail($localized);
-    }
 }
 
 // destinations (a structure: region › city)
@@ -862,70 +768,34 @@ foreach ([
     $d[$key] = ensureEntry('destinations', 'destination', $title, ['heroImage' => [$hero->id], 'summary' => $summary, 'bestTime' => $best], ['parentId' => $eastAsia->id], $titleDe);
 }
 
-// tags
-$tag = function (string $title): int {
-    $group = Craft::$app->getTags()->getTagGroupByHandle('travelTags');
-    $tag = craft\elements\Tag::find()->groupId($group->id)->title($title)->one();
-    if (!$tag) {
-        $tag = new craft\elements\Tag(['groupId' => $group->id, 'title' => $title]);
-        Craft::$app->getElements()->saveElement($tag) or fail($tag);
-    }
-    return $tag->id;
-};
-
-// the shop (Commerce)
-$product = function (string $title, Asset $image, string $summary, string $sku, float $price): craft\commerce\elements\Product {
-    $type = craft\commerce\Plugin::getInstance()->getProductTypes()->getProductTypeByHandle('merch');
-    $product = craft\commerce\elements\Product::find()->typeId($type->id)->title($title)->status(null)->one();
-    if (!$product) {
-        $product = new craft\commerce\elements\Product(['typeId' => $type->id, 'title' => $title, 'enabled' => true]);
-        $product->setVariants([new craft\commerce\elements\Variant(['title' => $title, 'sku' => $sku, 'basePrice' => $price, 'isDefault' => true])]);
-        $product->setDirtyAttributes(['variants']); // setVariants() alone doesn't mark them dirty
-    }
-    // always: products have no revisions, and the image may be new (e.g. after a logo change)
-    $product->setFieldValues(['image' => [$image->id], 'summary' => $summary]);
-    Craft::$app->getElements()->saveElement($product) or fail($product);
-    return $product;
-};
-$tote = $product('Transit tote bag', $logo, 'Fits a laptop, a book and two sandwiches. Organic cotton.', 'TRANSIT-TOTE', 24);
-$print = $product('"Glass roof" photo print', $glassRoof, 'A3, black and white, signed by the photographer.', 'TRANSIT-PRINT-ROOF', 45);
-
 // journal
 $a = [];
 $a['rails'] = ensureEntry('journal', 'article', 'Twelve hours on the rails', [
     'heroImage' => [$skyline->id],
     'summary' => 'From one skyline to the next without leaving the train: what a long day of rail travel teaches you.',
-    'body' => '<p>We boarded before sunrise and stepped off after dark, with four changes, one missed connection and more noodles than planned.</p><p>The trick is not speed. It is a window seat, a full water bottle and a timetable printed on paper, just in case.</p>',
-    'topics' => [$topics['Rail'], $topics['Cities']],
-    'travelTags' => [$tag('Skylines')],
+    'body' => "We boarded before sunrise and stepped off after dark, with four changes, one missed connection and more noodles than planned.\n\nThe trick is not speed. It is a window seat, a full water bottle and a timetable printed on paper, just in case.\n",
     'destinations' => [$d['beijing']->id, $d['hongkong']->id],
     'writtenBy' => [$people['mara']->id],
-    'shopProducts' => [$tote->id],
-    'seo' => ['metaBundleSettings' => ['seoImageSource' => 'fromAsset', 'seoImageIds' => [(string)$skyline->id]]],
 ], ['postDate' => $daysAgo(64), 'authorIds' => [$users['mara']->id]], 'Zwölf Stunden auf Schienen');
 
 $a['station'] = ensureEntry('journal', 'article', 'How to read a station', [
     'heroImage' => [$clock->id],
     'summary' => 'Clocks, boards, platform letters: a short guide to finding your train in a hurry.',
     'body' => sprintf(
-        '<p>Every station tells you where to go, if you know where to look. On <a href="%s">our twelve-hour day</a> we changed trains four times.</p><p><img src="%s" alt="Train passing the city towers"></p><p>Look for the clock first: the departure boards are always nearby.</p>',
+        "Every station tells you where to go, if you know where to look. On [our twelve-hour day](%s) we changed trains four times.\n\n![Train passing the city towers](%s)\n\nLook for the clock first: the departure boards are always nearby.\n",
         ref($a['rails']), ref($skyline),
     ),
-    'topics' => [$topics['Rail'], $topics['Guides']],
-    'travelTags' => [$tag('Stations')],
     'writtenBy' => [$people['jonas']->id],
     'relatedArticles' => [$a['rails']->id],
-    'shopProducts' => [$print->id],
 ], ['postDate' => $daysAgo(41), 'authorIds' => [$users['jonas']->id]], 'Wie man einen Bahnhof liest');
 
 $a['stadium'] = ensureEntry('journal', 'article', 'Steel, glass and a bird\'s nest', [
     'heroImage' => [$stadium->id],
     'summary' => 'A walk through the architecture you see from the train, and the one stadium worth getting off for.',
     'body' => sprintf(
-        '<p>Some buildings are best seen from a moving window. Others deserve a stop. Our <a href="%s">Rail Pass Guide 2026</a> lists the stations closest to each.</p>',
+        "Some buildings are best seen from a moving window. Others deserve a stop. Our [Rail Pass Guide 2026](%s) lists the stations closest to each.\n",
         ref($guide),
     ),
-    'topics' => [$topics['Architecture'], $topics['Cities']],
     'destinations' => [$d['beijing']->id],
     'writtenBy' => [$people['amelie']->id],
 ], ['postDate' => $daysAgo(30), 'authorIds' => [$users['amelie']->id]], 'Stahl, Glas und ein Vogelnest');
@@ -933,8 +803,7 @@ $a['stadium'] = ensureEntry('journal', 'article', 'Steel, glass and a bird\'s ne
 $a['packing'] = ensureEntry('journal', 'article', 'Packing light for a week of trains', [
     'heroImage' => [$window->id],
     'summary' => 'One bag that fits under the seat, and the three things we never travel without.',
-    'body' => sprintf('<p>Earplugs, a scarf, a power bank. The rest of the planning is in <a href="%s">how to read a station</a>.</p>', ref($a['station'])),
-    'topics' => [$topics['Rail'], $topics['Guides']],
+    'body' => sprintf("Earplugs, a scarf, a power bank. The rest of the planning is in [how to read a station](%s).\n", ref($a['station'])),
     'writtenBy' => [$people['mara']->id, $people['jonas']->id],
     'relatedArticles' => [$a['rails']->id, $a['station']->id],
 ], ['postDate' => $daysAgo(18), 'authorIds' => [$users['mara']->id]], 'Leicht packen für eine Woche Zug');
@@ -942,7 +811,6 @@ $a['packing'] = ensureEntry('journal', 'article', 'Packing light for a week of t
 $a['temple'] = ensureEntry('journal', 'article', 'Incense and quiet in Hong Kong', [
     'heroImage' => [$temple->id],
     'summary' => 'Ten minutes from the busiest station in town, a temple where nobody is in a hurry. A photo essay.',
-    'topics' => [$topics['Cities'], $topics['Street life']],
     'destinations' => [$d['hongkong']->id],
     'writtenBy' => [$people['theo']->id],
     'relatedArticles' => [$a['rails']->id],
@@ -951,29 +819,25 @@ $a['temple'] = ensureEntry('journal', 'article', 'Incense and quiet in Hong Kong
 $a['costumes'] = ensureEntry('journal', 'article', 'Costume day on the subway', [
     'heroImage' => [$costumes->id],
     'summary' => 'Once a year the morning commute turns into a parade. We rode along.',
-    'topics' => [$topics['Street life'], $topics['Cities']],
     'writtenBy' => [$people['amelie']->id, $people['theo']->id],
 ], ['postDate' => $daysAgo(5), 'authorIds' => [$users['amelie']->id]], 'Kostümtag in der U-Bahn');
 
 $a['why'] = ensureEntry('journal', 'article', 'Why we take the train', [
     'heroImage' => [$platform->id],
     'summary' => 'Slower, cheaper than you think, and the only way to arrive in the middle of town.',
-    'body' => '<p>A train arrives where the city is. That alone is worth the extra hour.</p>',
-    'topics' => [$topics['Rail'], $topics['Guides']],
+    'body' => "A train arrives where the city is. That alone is worth the extra hour.\n",
     'writtenBy' => [$people['jonas']->id],
 ], ['postDate' => $daysAgo(3), 'authorIds' => [$users['jonas']->id]], 'Warum wir Zug fahren');
 
 $a['night'] = ensureEntry('journal', 'article', 'Night trains are back', [
     'heroImage' => [$tunnel->id],
     'summary' => 'Coming soon: the sleeper routes worth booking this winter.',
-    'topics' => [$topics['Rail']],
     'writtenBy' => [$people['jonas']->id],
 ], ['postDate' => (new DateTime())->modify('+12 days')->setTime(9, 0), 'authorIds' => [$users['jonas']->id]], 'Die Nachtzüge sind zurück'); // pending
 
 ensureEntry('journal', 'article', 'Holiday timetable 2025', [
     'heroImage' => [$glassRoof->id],
     'summary' => 'Last year\'s holiday timetable (archived).',
-    'topics' => [$topics['Rail']],
 ], ['postDate' => $daysAgo(400), 'expiryDate' => $daysAgo(200), 'authorIds' => [$users['mara']->id]], 'Feiertagsfahrplan 2025'); // expired
 
 // the other journal entry types: photo essay, route, reviews
@@ -981,7 +845,6 @@ ensureEntry('journal', 'photoEssay', 'Platforms', [
     'heroImage' => [$platform->id],
     'summary' => 'Five stations, five minutes before departure.',
     'gallery' => [$platform->id, $clock->id, $glassRoof->id, $tunnel->id, $crowd->id],
-    'travelTags' => [$tag('Stations')],
     'writtenBy' => [$people['theo']->id],
 ], ['postDate' => $daysAgo(24), 'authorIds' => [$users['amelie']->id]], 'Bahnsteige');
 ensureEntry('journal', 'route', 'Beijing to Hong Kong in one day', [
@@ -991,62 +854,59 @@ ensureEntry('journal', 'route', 'Beijing to Hong Kong in one day', [
         'new1' => ['type' => 'stop', 'enabled' => true, 'title' => 'Beijing West', 'fields' => ['destinations' => [$d['beijing']->id], 'travelTime' => 'Departure 08:00', 'image' => [$stadium->id]]],
         'new2' => ['type' => 'stop', 'enabled' => true, 'title' => 'Hong Kong West Kowloon', 'fields' => ['destinations' => [$d['hongkong']->id], 'travelTime' => '8 h 56 min', 'image' => [$temple->id]]],
     ],
-    'topics' => [$topics['Rail']],
     'writtenBy' => [$people['jonas']->id],
 ], ['postDate' => $daysAgo(14), 'authorIds' => [$users['jonas']->id]], 'In einem Tag von Peking nach Hongkong');
 ensureEntry('journal', 'review', 'The noodle shop on platform 3', [
     'heroImage' => [$street->id],
     'placeName' => 'Platform 3, Taipei Main Station',
     'rating' => '5',
-    'body' => '<p>Six seats, one dish, no menu. Order before the train is announced.</p>',
+    'body' => "Six seats, one dish, no menu. Order before the train is announced.\n",
     'destinations' => [$d['taipei']->id],
-    'travelTags' => [$tag('Noodles')],
     'writtenBy' => [$people['mara']->id],
 ], ['postDate' => $daysAgo(9), 'authorIds' => [$users['mara']->id]], 'Der Nudelladen an Gleis 3');
 ensureEntry('journal', 'review', 'A night in the sleeper cabin', [
     'heroImage' => [$tunnel->id],
     'placeName' => 'Overnight sleeper, berth 23',
     'rating' => '4',
-    'body' => '<p>Clean sheets, a reading lamp, and a conductor who knocks at six with tea. One star off for the snoring above.</p>',
-    'travelTags' => [$tag('Sleeper trains'), $tag('Night')],
+    'body' => "Clean sheets, a reading lamp, and a conductor who knocks at six with tea. One star off for the snoring above.\n",
     'writtenBy' => [$people['jonas']->id],
 ], ['postDate' => $daysAgo(2), 'authorIds' => [$users['jonas']->id]], 'Eine Nacht im Schlafwagen');
 
 // a draft that swaps the hero image
 if (!Entry::find()->draftOf($a['why']->id)->status(null)->exists()) {
-    $draft = Craft::$app->getDrafts()->createDraft($a['why'], $users['jonas']->id, 'New hero image', 'Try the tunnel photo');
+    $draft = Drafts::createDraft($a['why'], (int)$users['jonas']->id, 'New hero image', 'Try the tunnel photo');
     $draft->setFieldValue('heroImage', [$tunnel->id]);
-    $elements->saveElement($draft) or fail($draft);
+    Elements::saveElement($draft) or fail($draft);
 }
 
 // an article nobody has published yet: only a draft (the list's "Drafts")
-$journal = Craft::$app->getEntries()->getSectionByHandle('journal');
+$journal = Sections::getSectionByHandle('journal') ?? throw new RuntimeException('journal');
 if (!Entry::find()->sectionId($journal->id)->title('A ferry to Busan')->drafts(true)->status(null)->exists()) {
     $draft = new Entry([
         'sectionId' => $journal->id,
-        'typeId' => Craft::$app->getEntries()->getEntryTypeByHandle('article')->id,
+        'typeId' => EntryTypes::getEntryTypeByHandle('article')?->id,
         'title' => 'A ferry to Busan',
         'authorIds' => [$users['mara']->id],
     ]);
     $draft->setFieldValue('heroImage', [$river->id]);
-    Craft::$app->getDrafts()->saveElementAsDraft($draft, $users['mara']->id, null, null, false) or fail($draft);
+    Drafts::saveElementAsDraft($draft, (int)$users['mara']->id, null, null, false) or fail($draft);
 }
 
 // in the trash: an article (its usage is listed nowhere until it is restored) and a document
 if (!Entry::find()->sectionId($journal->id)->title('Station guide 2019')->trashed(true)->status(null)->exists()) {
     $outdated = ensureEntry('journal', 'article', 'Station guide 2019', [
         'heroImage' => [$glassRoof->id],
-        'body' => '<p>Replaced by the Rail Pass Guide 2026.</p>',
+        'body' => "Replaced by the Rail Pass Guide 2026.\n",
     ], ['postDate' => $daysAgo(2400), 'authorIds' => [$users['jonas']->id]]);
     // its relations now: the queued refresh would only run once it is in the trash
     foreach (Entry::find()->id($outdated->id)->site('*')->status(null)->all() as $localized) {
-        internetztube\elementRelations\services\ExtractorService::refreshRelationsForElement($localized);
+        ExtractorService::refreshRelationsForElement($localized);
     }
-    $elements->deleteElement($outdated) or fail($outdated);
+    Elements::deleteElement($outdated) or fail($outdated);
 }
 if (!Asset::find()->filename('timetable-2019.pdf')->trashed(true)->exists()) {
     $timetable = ensureAsset('documents', 'timetable-2019.pdf', 'Timetable 2019', fn($p) => pdf($p, 'Timetable 2019', ['Superseded by the 2026 guide.']));
-    $elements->deleteElement($timetable) or fail($timetable);
+    Elements::deleteElement($timetable) or fail($timetable);
 }
 
 // many short articles, 30 per destination, sharing one image: the usage lists of the image and of each destination run
@@ -1069,59 +929,29 @@ foreach ($stationsByDestination as $destination => $stations) {
         ensureEntry('journal', 'article', $title, [
             'heroImage' => [$notesImage->id],
             'destinations' => [$d[$destination]->id],
-            'body' => "<p>Note $i from $station: where the good bench is, which exit has the lift, when the last train really leaves.</p>",
+            'body' => "Note $i from $station: where the good bench is, which exit has the lift, when the last train really leaves.\n",
         ], ['postDate' => $daysAgo(100 + ++$n), 'authorIds' => [$writers[$n % count($writers)]->id]]);
     }
 }
 foreach (Entry::find()->sectionId($journal->id)->title('Station notes: *')->status(null)->all() as $stale) { // earlier seeds
     if (!in_array($stale->title, $noteTitles, true)) {
-        $elements->deleteElement($stale, true);
+        Elements::deleteElement($stale, true);
     }
 }
 
 // pages
-$about = ensureEntry('company', 'contentPage', 'About us', ['contentBlocks' => [
+ensureEntry('company', 'contentPage', 'About us', ['contentBlocks' => [
     'new1' => ['type' => 'hero', 'enabled' => true, 'fields' => ['headline' => 'A small team that would rather be on a train', 'heroImage' => [$street->id]]],
-    'new2' => ['type' => 'textBlock', 'enabled' => true, 'fields' => ['body' => '<p>Transit started as a newsletter written on night trains in 2016. Today we are six writers and one photographer.</p>']],
+    'new2' => ['type' => 'textBlock', 'enabled' => true, 'fields' => ['body' => "Transit started as a newsletter written on night trains in 2016. Today we are six writers and one photographer.\n"]],
     'new3' => ['type' => 'imageBlock', 'enabled' => true, 'fields' => ['image' => [$flags->id], 'caption' => 'Our first story: a station with a view.']],
 ]], ['authorIds' => [$admin->id]], 'Über uns');
-$slow = ensureEntry('company', 'contentPage', 'Travel slowly', ['contentBlocks' => [
-    'new1' => ['type' => 'textBlock', 'enabled' => true, 'fields' => ['body' => sprintf('<p>Fewer flights, more windows. Read <a href="%s">why we take the train</a>.</p>', ref($a['why']))]],
+ensureEntry('company', 'contentPage', 'Travel slowly', ['contentBlocks' => [
+    'new1' => ['type' => 'textBlock', 'enabled' => true, 'fields' => ['body' => sprintf("Fewer flights, more windows. Read [why we take the train](%s).\n", ref($a['why']))]],
     'new2' => ['type' => 'imageBlock', 'enabled' => true, 'fields' => ['image' => [$river->id], 'caption' => 'Ten minutes from the station.']],
 ]], ['authorIds' => [$admin->id]], 'Langsam reisen');
-$thanks = ensureEntry('company', 'contentPage', 'Thank you', [], ['authorIds' => [$admin->id]], 'Danke');
-
-// forms (Formie): contact and newsletter, both redirect to "Thank you"; the newsletter mails the rail pass guide
-$forms = [];
-foreach (['contactUs' => 'Contact us', 'newsletter' => 'Newsletter'] as $handle => $title) {
-    $form = verbb\formie\elements\Form::find()->handle($handle)->status(null)->one();
-    if (!$form) {
-        $factory = new verbb\formie\factories\FormFactory(['title' => $title, 'handle' => $handle]);
-        $factory = $handle === 'contactUs'
-            ? $factory->singleLineTextField('yourName', ['label' => 'Name'])->emailField('email', ['label' => 'Email'])->multiLineTextField('message', ['label' => 'Message'])
-            : $factory->emailField('email', ['label' => 'Email']);
-        $form = $factory->completion('entry')->create();
-    }
-    $form->redirectEntryId = $thanks->id;
-    $form->redirectEntrySiteId = $thanks->siteId;
-    if ($handle === 'newsletter') {
-        // always (re)point the attachment at the current guide, also on forms from an earlier demo run
-        $notification = $form->getNotifications()[0] ?? new verbb\formie\models\Notification([
-            'name' => 'Welcome', 'handle' => 'welcome', 'enabled' => true, 'subject' => 'Your Rail Pass Guide 2026', 'to' => '{field:email}',
-        ]);
-        $notification->attachAssets = [['id' => $guide->id]];
-        $form->setNotifications([$notification]);
-    }
-    $elements->saveElement($form) or fail($form);
-    $forms[$handle] = $form;
-}
-$contact = ensureEntry('company', 'contentPage', 'Contact', [
-    'contactForm' => [$forms['contactUs']->id],
-    'contentBlocks' => ['new1' => ['type' => 'textBlock', 'enabled' => true, 'fields' => ['body' => '<p>A route we should ride, a station we should see? Write to us.</p>']]],
-], ['authorIds' => [$admin->id]], 'Kontakt');
 
 // homepage (a single)
-$homepage = Entry::find()->section('homepage')->one();
+$homepage = Entry::find()->section('homepage')->one() ?? throw new RuntimeException('homepage');
 if (!$homepage->getFieldValue('contentBlocks')->exists()) {
     $homepage->title = 'Homepage';
     $homepage->setFieldValue('contentBlocks', [
@@ -1136,78 +966,24 @@ if (!$homepage->getFieldValue('contentBlocks')->exists()) {
             'buttonLink' => ['type' => 'asset', 'value' => $guide->id],
         ]],
     ]);
-    $elements->saveElement($homepage) or fail($homepage);
+    Elements::saveElement($homepage) or fail($homepage);
 }
 translate($homepage, 'Startseite');
 
-// navigation (verbb): main and footer menus
-$menus = verbb\navigation\Navigation::$plugin->getMenus();
-foreach ([
-    'mainNavigation' => ['Main navigation', [
-        ['Home', verbb\navigation\nodetypes\Entry::class, $homepage],
-        ['Journal', verbb\navigation\nodetypes\Custom::class, '/journal'],
-        ['About us', verbb\navigation\nodetypes\Entry::class, $about],
-        ['Contact', verbb\navigation\nodetypes\Entry::class, $contact],
-    ]],
-    'footer' => ['Footer', [
-        ['Travel slowly', verbb\navigation\nodetypes\Entry::class, $slow],
-        ['Rail Pass Guide 2026 (PDF)', verbb\navigation\nodetypes\Asset::class, $guide],
-    ]],
-] as $handle => [$name, $nodes]) {
-    if (!$menu = $menus->getMenuByHandle($handle)) {
-        $menu = new verbb\navigation\models\MenuSettings(['name' => $name, 'handle' => $handle]);
-        $menu->setSiteSettings(array_map(fn(Site $site) => new verbb\navigation\models\MenuSiteSettings(['siteId' => $site->id, 'enabled' => true]), $sites->getAllSites()));
-        $menus->saveMenu($menu) or fail($menu);
-    }
-    foreach ($nodes as [$title, $type, $target]) {
-        if (verbb\navigation\elements\Node::find()->menuId($menu->id)->title($title)->status(null)->exists()) {
-            continue;
-        }
-        $node = new verbb\navigation\elements\Node(['menuId' => $menu->id, 'siteId' => $sites->getPrimarySite()->id, 'type' => $type, 'title' => $title]);
-        is_string($target) ? $node->url = $target : $node->elementId = $target->id;
-        $elements->saveElement($node) or fail($node);
-    }
-}
-
-// the global set
-$settings = Craft::$app->getGlobals()->getSetByHandle('siteSettings');
-$settings->setFieldValues(['logoImage' => [$logo->id], 'footerText' => 'Transit. Cities, and the trains between them.', 'featuredDestination' => [$d['taipei']->id]]);
-$elements->saveElement($settings) or fail($settings);
-
-// SEOmatic: the logo as the site's identity image; the German site's social image. The English global SEO and Twitter
-// images belong to the smoke test (dev/seed/seomatic.php), which counts on exactly what it set.
-$seomatic = nystudio107\seomatic\Seomatic::$plugin;
-foreach ($sites->getAllSites() as $site) {
-    $bundle = $seomatic->metaBundles->getGlobalMetaBundle($site->id);
-    if (!$bundle) {
-        continue;
-    }
-    if (!$site->primary) {
-        $bundle->metaBundleSettings->seoImageSource = 'fromAsset';
-        $bundle->metaBundleSettings->seoImageIds = [$social->id];
-        $bundle->metaBundleSettings->twitterImageSource = 'fromAsset';
-        $bundle->metaBundleSettings->twitterImageIds = [$social->id];
-    }
-    $bundle->metaSiteVars->siteName = 'Transit';
-    $bundle->metaSiteVars->identity->genericName = 'Transit';
-    $bundle->metaSiteVars->identity->genericImageIds = [$logo->id];
-    $seomatic->metaBundles->updateMetaBundle($bundle, $site->id);
-}
-
 // German texts link to the German versions: Craft copies a new entry's English body (reference tags with `@<en>`) to
 // its German site, which would make every German text a cross-site link to the English elements
-$primarySiteId = $sites->getPrimarySite()->id;
+$primarySiteId = Sites::getPrimarySite()->id;
 foreach (Entry::find()->siteId($deSite->id)->status(null)->all() as $localized) {
     if (!$localized->getFieldLayout()?->getFieldByHandle('body')) {
         continue;
     }
-    $body = (string)$localized->getFieldValue('body')?->getRawContent();
-    $german = preg_replace('/(\{(?:entry|asset):\d+)@' . $primarySiteId . ':/', '$1@' . $deSite->id . ':', $body);
+    $body = (string)$localized->getFieldValue('body');
+    $german = (string)preg_replace('/(\{(?:entry|asset):\d+)@' . $primarySiteId . ':/', '$1@' . $deSite->id . ':', $body);
     if ($german !== $body) {
         $localized->setFieldValue('body', $german);
-        $elements->saveElement($localized) or fail($localized);
+        Elements::saveElement($localized) or fail($localized);
     }
 }
 
-Craft::$app->getProjectConfig()->saveModifiedConfigData();
+ProjectConfig::saveModifiedConfigData();
 echo "Demo content ready.\n";

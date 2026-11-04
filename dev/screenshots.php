@@ -9,13 +9,15 @@ declare(strict_types=1);
  *      the shot of Craft's delete dialog without the plugin's part
  */
 
-use craft\base\ElementInterface;
-use craft\elements\Asset;
-use craft\elements\Entry;
+use CraftCms\Cms\Asset\Elements\Asset;
+use CraftCms\Cms\Element\Contracts\ElementInterface;
+use CraftCms\Cms\Entry\Elements\Entry;
+use CraftCms\Cms\Support\Facades\Fields;
+use CraftCms\Cms\Support\Facades\Plugins;
+use CraftCms\Cms\Support\Facades\ProjectConfig;
+use CraftCms\Cms\Support\Facades\UserGroups;
 
-require ($argv[1] ?? __DIR__) . '/bootstrap.php';
-/** @var craft\console\Application $app */
-$app = require CRAFT_VENDOR_PATH . '/craftcms/cms/bootstrap/console.php';
+require __DIR__ . '/craft.php';
 
 /** The edit page path ("/admin/…") of an element. */
 function editPath(ElementInterface $element): string
@@ -26,40 +28,38 @@ function editPath(ElementInterface $element): string
     return $query ? "$path?$query" : $path;
 }
 
-function asset(string $filename): Asset
+function demoAsset(string $filename): Asset
 {
     return Asset::find()->filename($filename)->one() ?? throw new RuntimeException("No demo asset $filename (run dev/dev.sh seed)");
 }
 
-function entry(string $section, string $title): Entry
+function demoEntry(string $section, string $title): Entry
 {
     return Entry::find()->section($section)->title($title)->status(null)->one() ?? throw new RuntimeException("No demo entry $title");
 }
 
 if (($argv[2] ?? '') === 'protect') {
-    $plugin = Craft::$app->getPlugins()->getPlugin('element-relations') ?? throw new RuntimeException('Plugin not installed');
-    Craft::$app->getPlugins()->savePluginSettings($plugin, ['protectInUse' => ($argv[3] ?? '1') === '1']) or throw new RuntimeException('Settings not saved');
-    Craft::$app->getProjectConfig()->saveModifiedConfigData(); // for the web server (no EVENT_AFTER_REQUEST here)
+    $plugin = Plugins::getPlugin('element-relations') ?? throw new RuntimeException('Plugin not installed');
+    Plugins::savePluginSettings($plugin, ['protectInUse' => ($argv[3] ?? '1') === '1']) or throw new RuntimeException('Settings not saved');
+    ProjectConfig::saveModifiedConfigData(); // for the web server (a script never terminates the app)
     exit(0);
 }
 
-$skyline = asset('train-and-city-towers.jpg');
-$editors = Craft::$app->getUserGroups()->getGroupByHandle('editors') ?? throw new RuntimeException('No Editors group');
-$usedIn = Craft::$app->getFields()->getFieldByHandle('usedIn') ?? throw new RuntimeException('No Used in field');
+$skyline = demoAsset('train-and-city-towers.jpg');
+$guide = demoAsset('rail-pass-guide-2026.pdf');
+$editors = UserGroups::getGroupByHandle('editors') ?? throw new RuntimeException('No Editors group');
+$usedIn = Fields::getFieldByHandle('usedIn') ?? throw new RuntimeException('No Used in field');
 
 echo json_encode([
     'skyline' => ['id' => $skyline->id, 'path' => editPath($skyline)],
-    'replacement' => ['id' => asset('waiting-on-the-platform.jpg')->id],
-    'replaceIn' => [entry('homepage', 'Homepage')->id, entry('journal', 'How to read a station')->id],
-    'social' => ['path' => editPath(asset('social-share.svg'))],
-    // used by a link field, rich text, a menu and a form: Craft's own delete dialog sees part of it
-    'guide' => ['id' => asset('rail-pass-guide-2026.pdf')->id, 'path' => editPath(asset('rail-pass-guide-2026.pdf'))],
-    'hongKong' => ['id' => entry('destinations', 'Hong Kong')->id, 'path' => editPath(entry('destinations', 'Hong Kong'))],
-    'taipei' => ['id' => entry('destinations', 'Taipei')->id, 'path' => editPath(entry('destinations', 'Taipei'))],
-    'notes' => ['id' => asset('station-notes.jpg')->id, 'path' => editPath(asset('station-notes.jpg'))],
-    'homepage' => ['path' => editPath(entry('homepage', 'Homepage'))],
-    // the form redirect target: only Formie knows it is used, Craft's own delete dialog does not
-    'thankYou' => ['id' => entry('company', 'Thank you')->id, 'path' => editPath(entry('company', 'Thank you'))],
+    'replacement' => ['id' => demoAsset('waiting-on-the-platform.jpg')->id],
+    'replaceIn' => [demoEntry('homepage', 'Homepage')->id, demoEntry('journal', 'How to read a station')->id],
+    // used by a link field and an article's body
+    'guide' => ['id' => $guide->id, 'path' => editPath($guide)],
+    // a user's photo and a team entry's portrait: two element types in its list
+    'portrait' => ['path' => editPath(demoAsset('mara-lindqvist.jpg'))],
+    'hongKong' => ['id' => demoEntry('destinations', 'Hong Kong')->id, 'path' => editPath(demoEntry('destinations', 'Hong Kong'))],
+    'homepage' => ['path' => editPath(demoEntry('homepage', 'Homepage'))],
     'usedInField' => ['path' => "/admin/settings/fields/edit/$usedIn->id"],
     'editors' => ['path' => "/admin/settings/users/groups/$editors->id"],
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES), "\n";
